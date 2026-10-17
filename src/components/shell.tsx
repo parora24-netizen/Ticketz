@@ -44,8 +44,8 @@ export function PageTitle() {
         </>
       ) : (
         <>
-          <h1 className="truncate text-[17px] font-semibold text-[var(--navy-ink)]">{title}</h1>
-          {path !== '/' && <span className="mono hidden truncate text-[12px] text-[var(--faint)] sm:inline">{path}</span>}
+          <h1 className="shrink-0 text-[17px] font-semibold text-[var(--navy-ink)]">{title}</h1>
+          {path !== '/' && <span className="mono hidden truncate text-[12px] text-[var(--faint)] sm:inline">{path.split('/').map((s) => (isId(s) ? '…' : s)).join('/')}</span>}
         </>
       )}
     </nav>

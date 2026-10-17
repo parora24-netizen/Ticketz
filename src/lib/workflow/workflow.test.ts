@@ -72,6 +72,11 @@ describe('case stage', () => {
     expect(caseStage({ ...base, auto_result: 'passed', auto_in_sprint: true })).toBe('done')
   })
 
+  it('sends Critical and High cases that are not automated straight to manual testing', () => {
+    expect(caseStage({ ...base, priority: 'High', automation: 'not_automated' })).toBe('manual')
+    expect(caseStage({ ...base, priority: 'Low', automation: 'not_automated' })).toBe('automate')
+  })
+
   it('makes Critical and High cases be tested again inside the sprint', () => {
     const high = { ...base, priority: 'High' as const, auto_result: 'passed' as const, manual_result: 'passed' as const }
     expect(caseStage(high)).toBe('auto_run')

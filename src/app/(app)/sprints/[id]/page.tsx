@@ -14,6 +14,17 @@ import { SprintForm } from '../sprint-form'
 
 const PER_COLUMN = 40
 
+const RESULT_TEXT: Record<string, [string, string]> = {
+  passed: ['Passed', 'text-[var(--good)]'], failed: ['Failed', 'text-[var(--crit)]'], blocked: ['Blocked', 'text-[var(--warn)]'],
+  known_defect: ['Known defect', 'text-[var(--warn)]'], skipped: ['Skipped', 'text-[var(--muted)]'],
+}
+/** A result as one coloured word, so a card's results fit on one line. */
+function ResultText({ r }: { r: string | null }) {
+  if (!r) return <span className="text-[var(--faint)]">—</span>
+  const [label, cls] = RESULT_TEXT[r] ?? [r, '']
+  return <span className={`font-semibold ${cls}`}>{label}</span>
+}
+
 const STAGE_HELP: Record<Stage, string> = {
   automate: 'Automate it, or mark it manual only',
   auto_run: 'Waiting for an automated run this sprint',
@@ -102,8 +113,9 @@ export default async function SprintPage({
                           <CaseLink tcId={c.tc_id} /><PriorityChip p={c.priority} />
                         </div>
                         <p className="mt-1 line-clamp-2 text-[12.5px] leading-snug">{c.title}</p>
-                        <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[11px] text-[var(--faint)]">
-                          <span>Auto</span><ResultChip r={c.auto_result} /><span className="ml-1">Manual</span><ResultChip r={c.manual_result} />
+                        <div className="mt-1 flex items-center gap-3 text-[11px] text-[var(--faint)]">
+                          <span>Auto <ResultText r={c.auto_result} /></span>
+                          <span>Manual <ResultText r={c.manual_result} /></span>
                         </div>
                         {t && <div className="mt-1.5 flex items-center gap-1.5"><TicketLink k={t.key} /><StateChip s={t.state} /></div>}
                         {stage === 'fix' && needsTicket(toStageInput(c, runs)) && (

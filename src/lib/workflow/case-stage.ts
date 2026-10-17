@@ -56,7 +56,8 @@ export function caseStage(c: CaseForStage): Stage {
   const high = HIGH.includes(c.priority)
   const hasAuto = high ? c.auto_in_sprint : c.auto_result !== null
   const hasManual = high ? c.manual_in_sprint : c.manual_result !== null
-  if (c.automation === 'not_automated' && !hasAuto && !hasManual) return 'automate'
+  // Critical/High never wait on automation: if nobody has automated them, they go to manual testing.
+  if (c.automation === 'not_automated' && !hasAuto && !hasManual) return high ? 'manual' : 'automate'
   if (c.automation === 'automated' && !hasAuto) return 'auto_run'
   if (needsManual(c) && !hasManual) return 'manual'
   return 'done'

@@ -79,7 +79,7 @@ export default async function ReleasePage() {
   })
 
   // Sprint timeline, laid out by calendar days
-  const first = sprints[0]?.starts_on ?? today
+  const first = [sprints[0]?.starts_on ?? today, today].sort()[0]
   const lastDay = RELEASE_DATE
   const span = Math.max(1, (Date.parse(lastDay) - Date.parse(first)) / 864e5 + 1)
   const pos = (d: string) => ((Date.parse(d) - Date.parse(first)) / 864e5 / span) * 100

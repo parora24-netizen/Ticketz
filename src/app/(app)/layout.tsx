@@ -16,13 +16,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     ? `${sprint.name} · ${fmtDate(sprint.starts_on)} to ${fmtDate(sprint.ends_on)} · ${Math.max(daysUntil(sprint.ends_on), 0)} days left`
     : null
   const initials = me.name.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase()
-  const canAddCases = me.role !== 'dev'
   return (
     <div className="min-h-screen">
       <DensityInit />
       <Shortcuts />
       <Toaster />
-      <Sidebar isLead={me.role === 'lead'} canAddCases={canAddCases} sprintLabel={sprintLabel} />
+      <Sidebar isLead={me.role === 'lead'} sprintLabel={sprintLabel} />
       <div className="md:pl-[216px]">
         <header className="sticky top-0 z-20 flex h-14 items-center gap-4 border-b border-[var(--line)] bg-white px-4 sm:px-6">
           <Link href="/" className="flex h-[32px] shrink-0 items-center rounded-[3px] bg-[var(--navy)] px-1.5 md:hidden" aria-label="Home">
@@ -39,7 +38,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </header>
         <main className="px-4 pt-5 pb-24 sm:px-6 md:pb-8">{children}</main>
       </div>
-      <BottomBar isLead={me.role === 'lead'} canAddCases={canAddCases} />
+      <BottomBar isLead={me.role === 'lead'} />
     </div>
   )
 }

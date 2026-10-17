@@ -28,7 +28,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
           <Link href="/tickets?view=grid" role="tab" aria-selected={view === 'grid'}
             className={`px-3 py-1 text-[12.5px] font-semibold ${view === 'grid' ? 'bg-[var(--navy)] text-white' : 'text-[var(--ink-2)]'}`}>Grid</Link>
         </div>
-        <Link href="/tickets/new" className="btn btn-primary">New ticket</Link>
+        <Link href="/tickets/new" data-create className="btn btn-primary">+ New ticket</Link>
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
       {view === 'board'

@@ -80,7 +80,8 @@ export default async function Home() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/standup" className="btn">Run standup</Link>
-          {sprint && me.role !== 'dev' && <Link href={`/sprints/${sprint.id}`} className="btn btn-primary">Record results</Link>}
+          {sprint && me.role !== 'dev' && <Link href={`/sprints/${sprint.id}`} className="btn">Record results</Link>}
+          <Link href="/tickets/new" data-create className="btn btn-primary">+ New ticket</Link>
         </div>
       </div>
 

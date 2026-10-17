@@ -36,7 +36,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       {tab === 'team' ? (
         <>
           <PageHeader sub={`Only people listed here can sign in, with the email shown.${noEmail ? ` ${noEmail} still need an email.` : ''} Double-click a cell to edit.`}>
-            <Link href={sp.add ? '/admin' : '/admin?add=1'} className={`btn ${sp.add ? '' : 'btn-primary'}`}>{sp.add ? 'Cancel' : 'Add person'}</Link>
+            <Link href={sp.add ? '/admin' : '/admin?add=1'} {...(sp.add ? {} : { 'data-create': '' })} className={`btn ${sp.add ? '' : 'btn-primary'}`}>{sp.add ? 'Cancel' : '+ Add person'}</Link>
           </PageHeader>
           {sp.add && (
             <form action={savePerson} className="card mb-4 flex flex-wrap items-end gap-3 p-4">

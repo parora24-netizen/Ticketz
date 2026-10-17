@@ -42,7 +42,7 @@ export default async function SprintsPage({ searchParams }: { searchParams: Prom
     <>
       <Tabs items={sprintTabs(current?.id ?? null)} active="all" />
       <PageHeader sub="Each sprint runs 2 to 4 working days over a set of Framework areas.">
-        {me.role === 'lead' && <Link href="/sprints/new" className="btn btn-primary">New sprint</Link>}
+        {me.role === 'lead' && <Link href="/sprints/new" data-create className="btn btn-primary">+ New sprint</Link>}
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
       <SprintsGrid rows={rows} />

@@ -4,7 +4,6 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { CreateMenu } from '@/components/create-menu'
 import { AdminIcon, CasesIcon, HomeIcon, MoreIcon, ReleaseIcon, SprintIcon, StandupIcon, TicketIcon } from '@/components/icons'
 
 type Item = { href: string; label: string; icon: (p: { className?: string }) => React.ReactNode; match: string[]; lead?: boolean }
@@ -25,7 +24,7 @@ function isOn(item: Item, path: string) {
   return item.match.some((m) => path === m || path.startsWith(`${m}/`))
 }
 
-export function Sidebar({ isLead, canAddCases, sprintLabel }: { isLead: boolean; canAddCases: boolean; sprintLabel: string | null }) {
+export function Sidebar({ isLead, sprintLabel }: { isLead: boolean; sprintLabel: string | null }) {
   const path = usePathname()
   const items = ITEMS.filter((i) => !i.lead || isLead)
   return (
@@ -39,9 +38,6 @@ export function Sidebar({ isLead, canAddCases, sprintLabel }: { isLead: boolean;
           <span className="mono block text-[10px] tracking-[0.08em] text-white/55 uppercase">Tracker</span>
         </span>
       </Link>
-      <div className="px-3 pb-3">
-        <CreateMenu canAddCases={canAddCases} block />
-      </div>
       {sprintLabel && (
         <Link href="/sprint" className="mx-3 mb-2 block bg-white/10 px-3 py-2 text-[11.5px] text-white/80 hover:bg-white/15">
           <span className="mono block text-[10px] tracking-[0.08em] text-white/50 uppercase">Now</span>
@@ -67,7 +63,7 @@ export function Sidebar({ isLead, canAddCases, sprintLabel }: { isLead: boolean;
 }
 
 /** Phone: the four most used places plus "More". */
-export function BottomBar({ isLead, canAddCases }: { isLead: boolean; canAddCases: boolean }) {
+export function BottomBar({ isLead }: { isLead: boolean }) {
   const path = usePathname()
   const [more, setMore] = useState(false)
   useEffect(() => setMore(false), [path])
@@ -83,8 +79,6 @@ export function BottomBar({ isLead, canAddCases }: { isLead: boolean; canAddCase
               <i.icon />{i.label}
             </Link>
           ))}
-          <Link href="/tickets/new" className="flex h-11 items-center gap-3 px-3 text-[14px] text-[var(--ink-2)]"><span className="w-[18px] text-center text-[18px]">+</span>New ticket</Link>
-          {canAddCases && <Link href="/cases/new" className="flex h-11 items-center gap-3 px-3 text-[14px] text-[var(--ink-2)]"><span className="w-[18px] text-center text-[18px]">+</span>New test case</Link>}
         </div>
       )}
       <nav className="fixed inset-x-0 bottom-0 z-40 grid h-14 grid-cols-5 border-t border-[var(--navy)] bg-[var(--navy)] pb-[env(safe-area-inset-bottom)] md:hidden">

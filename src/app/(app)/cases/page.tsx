@@ -38,7 +38,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
       <PageHeader sub={scopeText ? <>{scopeText} · <Link href="/cases" className="text-[var(--accent)] hover:underline">show all</Link></> : `${all.length} cases across ${areas.length} areas`}>
         <Link href="/cases?mismatch=1" className="btn">Mismatches</Link>
         {canEdit && <Link href="/cases/import" className="btn">Import</Link>}
-        {canEdit && <Link href="/cases/new" className="btn btn-primary">New test case</Link>}
+        {canEdit && <Link href="/cases/new" data-create className="btn btn-primary">+ New test case</Link>}
       </PageHeader>
       <CasesGrid rows={rows} canEdit={canEdit} areas={areas.map((a) => ({ value: a.id, label: `${a.zone} · ${a.page}` }))} />
     </>

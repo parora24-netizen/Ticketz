@@ -52,7 +52,7 @@ export function PageTitle() {
   )
 }
 
-/** "/" jumps to search, "c" opens Create, from anywhere that isn't a text field. */
+/** "/" jumps to search; "c" presses the page's own create button, if it has one. */
 export function Shortcuts() {
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
@@ -63,7 +63,7 @@ export function Shortcuts() {
         document.querySelector<HTMLInputElement>('#global-search')?.focus()
       } else if (e.key === 'c') {
         e.preventDefault()
-        window.dispatchEvent(new Event('open-create'))
+        document.querySelector<HTMLElement>('[data-create]')?.click()
       }
     }
     window.addEventListener('keydown', on)

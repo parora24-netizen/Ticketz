@@ -40,7 +40,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
         {canEdit && <Link href="/cases/import" className="btn">Import</Link>}
         {canEdit && <Link href="/cases/new" data-create className="btn btn-primary">+ New test case</Link>}
       </PageHeader>
-      <CasesGrid rows={rows} canEdit={canEdit} areas={areas.map((a) => ({ value: a.id, label: `${a.zone} · ${a.page}` }))} />
+      <CasesGrid rows={rows} inSprint={!!sprint} canEdit={canEdit} areas={areas.map((a) => ({ value: a.id, label: `${a.zone} · ${a.page}` }))} />
     </>
   )
 }

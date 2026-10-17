@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { Dialog } from '@/components/dialog'
 import { toast } from '@/components/toast'
-import { recordCaseResult } from '@/app/(app)/actions'
+import { recordCaseResult, updateCases } from '@/app/(app)/actions'
 
 type Result = 'passed' | 'failed' | 'blocked'
 
@@ -59,5 +59,29 @@ export function CaseResultActions({ caseId, size = 'md' }: { caseId: string; siz
         )}
       </Dialog>
     </>
+  )
+}
+
+/** Automation status in the case's side panel: change and it saves. */
+export function CaseAutomationField({ caseId, value, disabled }: { caseId: string; value: string; disabled?: boolean }) {
+  const router = useRouter()
+  const [v, setV] = useState(value)
+  const [pending, start] = useTransition()
+  return (
+    <select value={v} disabled={disabled || pending} aria-label="Automation" className="select w-full"
+      onChange={(e) => {
+        const next = e.target.value as 'not_automated' | 'automated' | 'manual_only'
+        const before = v
+        setV(next)
+        start(async () => {
+          const res = await updateCases([caseId], { automation: next })
+          if (res.error) { setV(before); toast(res.error, 'error') }
+          else { toast('Automation saved'); router.refresh() }
+        })
+      }}>
+      <option value="not_automated">Not automated yet</option>
+      <option value="automated">Automated</option>
+      <option value="manual_only">Manual only</option>
+    </select>
   )
 }

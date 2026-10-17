@@ -21,7 +21,10 @@ export type CaseInput = {
   test_type: string | null
 }
 
-export type ParseResult = { cases: CaseInput[]; errors: { row: number; message: string }[] }
+/** `present`: the optional fields the file actually has a column for. Others are left untouched on update. */
+export type ParseResult = { cases: CaseInput[]; errors: { row: number; message: string }[]; present: OptionalField[] }
+export const OPTIONAL_FIELDS = ['preconditions', 'steps', 'test_data', 'expected', 'test_type'] as const
+export type OptionalField = (typeof OPTIONAL_FIELDS)[number]
 
 /** Header spellings we accept, normalised to lower case without punctuation. */
 const ALIASES: Record<keyof Omit<CaseInput, 'area_id' | 'source_page'>, string[]> = {
@@ -70,7 +73,8 @@ export function toPriority(p: string): Priority | null {
 export function parseCases(rows: Record<string, string>[], areas: AreaRef[], firstRow = 2, rowNumbers?: number[]): ParseResult {
   const headers = rows.length ? Object.keys(rows[0]) : []
   const { map, missing } = mapHeaders(headers)
-  if (missing.length) return { cases: [], errors: [{ row: 1, message: `Missing columns: ${missing.join(', ')}` }] }
+  const present = OPTIONAL_FIELDS.filter((f) => map[f])
+  if (missing.length) return { cases: [], errors: [{ row: 1, message: `Missing columns: ${missing.join(', ')}` }], present }
   const areaByKey = new Map(areas.map((a) => [`${norm(a.zone)}|${norm(a.page)}`, a]))
   const get = (r: Record<string, string>, f: keyof typeof ALIASES) => (map[f] ? (r[map[f]!] ?? '').trim() : '')
 
@@ -112,7 +116,7 @@ export function parseCases(rows: Record<string, string>[], areas: AreaRef[], fir
       test_type: get(r, 'test_type') || null,
     })
   })
-  return { cases, errors }
+  return { cases, errors, present }
 }
 
 /** Rows pasted from Excel arrive as tab-separated lines; the first line holds the headers. */
@@ -156,9 +160,10 @@ export function parseDelimited(text: string, sep: string): string[][] {
 export type Existing = Pick<CaseInput, 'title' | 'area_id' | 'priority' | 'preconditions' | 'steps' | 'test_data' | 'expected' | 'test_type'> & { tc_id: string }
 
 /** Compare parsed cases with what the tracker holds. */
-export function diffCases(cases: CaseInput[], existing: Existing[]) {
+export function diffCases(cases: CaseInput[], existing: Existing[], present: readonly OptionalField[] = OPTIONAL_FIELDS) {
   const byId = new Map(existing.map((e) => [e.tc_id, e]))
-  const fields = ['title', 'area_id', 'priority', 'preconditions', 'steps', 'test_data', 'expected', 'test_type'] as const
+  // Only columns the file has can change; a missing column never blanks what is stored.
+  const fields = ['title', 'area_id', 'priority', ...present] as const
   return cases.map((c) => {
     const e = c.tc_id ? byId.get(c.tc_id) : undefined
     if (!e) return { case: c, status: 'new' as const, changed: [] as string[] }

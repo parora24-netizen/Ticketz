@@ -6,8 +6,8 @@ import { getMe } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { fmtDate, loadSprints } from '@/lib/data'
 import { mismatch } from '@/lib/workflow/case-stage'
-import { raiseTicket, setAutomation } from '../../actions'
-import { CaseResultActions } from '@/components/case-controls'
+import { raiseTicket } from '../../actions'
+import { CaseAutomationField, CaseResultActions } from '@/components/case-controls'
 
 export default async function CasePage({
   params, searchParams,
@@ -58,23 +58,9 @@ export default async function CasePage({
               <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Last automated</dt><dd><ResultChip r={lastAuto} /></dd></div>
               <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Last manual</dt><dd><ResultChip r={lastManual} /></dd></div>
               {c.test_type && <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Type</dt><dd>{c.test_type}</dd></div>}
+              <div className="px-4 py-2.5"><dt className="label mb-1">Automation</dt><dd><CaseAutomationField caseId={c.id} value={c.automation} disabled={!canTest} /></dd></div>
             </dl>
           </section>
-          {canTest && (
-            <section className="card p-4">
-              <h2 className="font-semibold">Automation</h2>
-              <form action={setAutomation} className="mt-2 flex gap-2">
-                <input type="hidden" name="case_id" value={c.id} />
-                <input type="hidden" name="back" value={back} />
-                <select name="automation" defaultValue={c.automation} className="select flex-1">
-                  <option value="not_automated">Not automated yet</option>
-                  <option value="automated">Automated</option>
-                  <option value="manual_only">Manual only</option>
-                </select>
-                <SubmitButton primary>Save</SubmitButton>
-              </form>
-            </section>
-          )}
           <section className="card p-4">
             <h2 className="font-semibold">Tickets</h2>
             <ul className="mt-2 space-y-1.5">

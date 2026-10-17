@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { getMe } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/data'
-import { diffCases, nextIds, parseCases, parseCsv, parseTsv, type CaseInput, type Existing } from '@/lib/import-cases'
+import { OPTIONAL_FIELDS, diffCases, nextIds, parseCases, parseCsv, parseTsv, type CaseInput, type Existing, type OptionalField } from '@/lib/import-cases'
 import { xlsxRecords } from '@/lib/xlsx-records'
 
 export type PreviewRow = {
@@ -60,11 +60,11 @@ export async function previewImport(_prev: ImportState, formData: FormData): Pro
 
   const supabase = await createClient()
   const { data: areas } = await supabase.from('areas').select('id, zone, page')
-  const { cases, errors } = parseCases(records, areas ?? [], 2, rowNumbers)
+  const { cases, errors, present } = parseCases(records, areas ?? [], 2, rowNumbers)
   const existing = await fetchAll<Existing>((from, to) =>
     supabase.from('test_cases').select('tc_id, title, area_id, priority, preconditions, steps, test_data, expected, test_type').range(from, to),
   )
-  const diff = diffCases(cases, existing)
+  const diff = diffCases(cases, existing, present)
   const areaName = new Map((areas ?? []).map((a) => [a.id, `${a.zone} · ${a.page}`]))
   const counts = { new: 0, updated: 0, unchanged: 0 }
   for (const d of diff) counts[d.status]++
@@ -81,7 +81,7 @@ export async function previewImport(_prev: ImportState, formData: FormData): Pro
       status: d.status,
       changed: d.changed,
     })),
-    payload: JSON.stringify(diff.filter((d) => d.status !== 'unchanged').map((d) => d.case)),
+    payload: JSON.stringify({ present, cases: diff.filter((d) => d.status !== 'unchanged').map((d) => d.case) }),
   }
 }
 
@@ -105,8 +105,11 @@ export async function commitImport(_prev: ImportState, formData: FormData): Prom
   const me = await getMe()
   if (me.role === 'dev') return { error: 'Only QA or the lead import test cases' }
   let parsed: CaseInput[]
+  let present: OptionalField[]
   try {
-    parsed = z.array(CaseSchema).max(5000).parse(JSON.parse(String(formData.get('payload') ?? '[]')))
+    const body = z.object({ present: z.array(z.enum(OPTIONAL_FIELDS)), cases: z.array(CaseSchema).max(5000) }).parse(JSON.parse(String(formData.get('payload') ?? '{}')))
+    parsed = body.cases
+    present = body.present
   } catch {
     return { error: 'The preview expired. Upload the file again.' }
   }
@@ -126,7 +129,9 @@ export async function commitImport(_prev: ImportState, formData: FormData): Prom
   for (const c of parsed) {
     const { zone: _z, page: _p, ...rest } = c
     const tc_id = c.tc_id ?? fresh.shift()!
-    if (taken.has(tc_id)) toUpdate.push({ ...rest, tc_id, updated_at: now })
+    // Existing cases: only the columns the file had. Fields with no column keep their stored value.
+    const keep = Object.fromEntries(Object.entries(rest).filter(([k]) => !(OPTIONAL_FIELDS as readonly string[]).includes(k) || present.includes(k as OptionalField)))
+    if (taken.has(tc_id)) toUpdate.push({ ...keep, tc_id, updated_at: now })
     else toAdd.push({ ...rest, tc_id, updated_at: now, created_by: me.id })
   }
   for (const [batch, label] of [[toAdd, 'adding'], [toUpdate, 'updating']] as const) {

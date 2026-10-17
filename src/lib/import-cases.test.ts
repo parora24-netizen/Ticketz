@@ -76,6 +76,13 @@ describe('case import', () => {
     expect(d[1].changed).toEqual(['title'])
   })
 
+  it('never blanks fields the file has no column for', () => {
+    const { cases, present } = parseCases([{ 'Test Case ID': 'TC_FN_001', Zone: 'Engine', Page: 'Sign-On', Title: 'Same', Priority: 'High' }], areas)
+    expect(present).toEqual([])
+    const d = diffCases(cases, [{ tc_id: 'TC_FN_001', title: 'Same', area_id: 'a-signon', priority: 'High', preconditions: 'p', steps: 's', test_data: null, expected: 'e', test_type: 'UI' }], present)
+    expect(d[0].status).toBe('unchanged')
+  })
+
   it('numbers new cases after the highest id', () => {
     expect(nextIds(931, 2)).toEqual(['TC_FN_932', 'TC_FN_933'])
     expect(nextIds(7, 1)).toEqual(['TC_FN_008'])

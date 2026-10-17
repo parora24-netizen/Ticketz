@@ -7,8 +7,8 @@ const mono = IBM_Plex_Mono({ subsets: ['latin'], weight: ['400', '500', '600'], 
 const display = Space_Grotesk({ subsets: ['latin'], weight: ['500', '600'], variable: '--font-display' })
 
 export const metadata: Metadata = {
-  title: 'Vulqan 26.111 Tracker',
-  description: 'Sprints, test results and tickets for the Vulqan 26.111 release',
+  title: 'Launchpad · Vulqan releases',
+  description: 'Sprints, test results and tickets for Vulqan releases',
   icons: { icon: '/vulqan-logo.png' },
 }
 

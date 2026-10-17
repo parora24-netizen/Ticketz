@@ -24,7 +24,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <main className="grid min-h-screen bg-white md:grid-cols-2">
       <div className="relative hidden flex-col justify-end bg-[#0f1b33] p-8 md:flex"
         style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,.08) 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
-        <p className="mono text-[11px] tracking-[0.1em] text-white/50 uppercase">Release 26.111 · tracker</p>
+        <p className="mono text-[11px] tracking-[0.1em] text-white/50 uppercase">Launchpad · Vulqan releases</p>
       </div>
       <div className="flex items-center justify-center px-6">
         <div className="w-full max-w-sm">
@@ -32,8 +32,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 
           {!codeMode && (
             <>
-              <h1 className="mt-5 text-[26px] font-semibold text-[var(--navy-ink)]">Sign in</h1>
-              <p className="mt-1 text-[13px] text-[var(--muted)]">Sprints, test results and tickets for the 26.111 release.</p>
+              <h1 className="mt-5 text-[26px] font-semibold text-[var(--navy-ink)]">Sign in to Launchpad</h1>
+              <p className="mt-1 text-[13px] text-[var(--muted)]">Sprints, test results and tickets for Vulqan releases.</p>
               <form action={signInWithPassword} className="mt-6 space-y-3">
                 <input type="hidden" name="next" value={nextValue} />
                 <label className="block"><span className="label">Work email</span>

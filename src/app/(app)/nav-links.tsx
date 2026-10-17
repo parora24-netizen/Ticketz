@@ -29,13 +29,13 @@ export function Sidebar({ isLead, sprintLabel }: { isLead: boolean; sprintLabel:
   const items = ITEMS.filter((i) => !i.lead || isLead)
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[216px] flex-col bg-[var(--navy)] md:flex">
-      <Link href="/" className="flex h-14 items-center gap-2.5 px-4" aria-label="Vulqan release tracker home">
+      <Link href="/" className="flex h-14 items-center gap-2.5 px-4" aria-label="Launchpad home">
         <span className="flex h-[34px] items-center rounded-[3px] bg-white px-1.5">
           <Image src="/vulqan-logo.png" alt="" width={20} height={27} priority />
         </span>
         <span className="leading-tight">
-          <span className="block text-[13px] font-semibold text-white">Release 26.111</span>
-          <span className="mono block text-[10px] tracking-[0.08em] text-white/55 uppercase">Tracker</span>
+          <span className="block text-[14px] font-semibold text-white">Launchpad</span>
+          <span className="mono block text-[10px] tracking-[0.08em] text-white/55 uppercase">Releases · 26.111</span>
         </span>
       </Link>
       {sprintLabel && (

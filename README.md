@@ -1,4 +1,4 @@
-# Vulqan 26.111 Tracker
+# Launchpad · Vulqan releases
 
 Plans and tracks the 26.111 release: sprints of 2–4 working days over the Framework areas of the test
 workbook, and every test case through **automate → automated run → manual test → fix → retest → close**.

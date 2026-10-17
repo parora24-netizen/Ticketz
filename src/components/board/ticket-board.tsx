@@ -4,7 +4,6 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { Dialog } from '@/components/dialog'
 import { toast } from '@/components/toast'
-import { PriorityChip } from '@/components/ui'
 import { STATE_LABEL, canMove, requiredFor, type Role, type TicketState } from '@/lib/workflow/ticket-machine'
 import { moveTicketFromBoard } from '@/app/(app)/actions'
 
@@ -45,13 +44,15 @@ export function TicketBoard({ tickets, role, meId, zones }: { tickets: BoardTick
   const [high, setHigh] = useState(false)
   const [zone, setZone] = useState('')
   const [lane, setLane] = useState<Lane>('none')
+  const [q, setQ] = useState('')
 
   useEffect(() => setLocal({}), [tickets])
 
   const stateOf = (t: BoardTicket) => local[t.id] ?? t.state
   const visible = useMemo(
-    () => tickets.filter((t) => (!mine || t.owner_id === meId) && (!high || t.severity === 'Critical' || t.severity === 'High') && (!zone || t.zone === zone)),
-    [tickets, mine, high, zone, meId],
+    () => tickets.filter((t) => (!mine || t.owner_id === meId) && (!high || t.severity === 'Critical' || t.severity === 'High') && (!zone || t.zone === zone)
+      && (!q || `${t.key} ${t.title} ${t.tc_id ?? ''}`.toLowerCase().includes(q.toLowerCase()))),
+    [tickets, mine, high, zone, meId, q],
   )
   const parked = visible.filter((t) => ['deferred', 'duplicate'].includes(stateOf(t))).length
 
@@ -94,6 +95,7 @@ export function TicketBoard({ tickets, role, meId, zones }: { tickets: BoardTick
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search tickets" aria-label="Search tickets" className="input w-56" />
         <button type="button" onClick={() => setMine((v) => !v)} className={`btn ${mine ? 'btn-primary' : ''}`}>Only mine</button>
         <button type="button" onClick={() => setHigh((v) => !v)} className={`btn ${high ? 'btn-primary' : ''}`}>Critical &amp; High</button>
         <select value={zone} onChange={(e) => setZone(e.target.value)} className="select" aria-label="Zone">
@@ -135,26 +137,23 @@ export function TicketBoard({ tickets, role, meId, zones }: { tickets: BoardTick
                           <span className="mono text-[11px] text-[var(--faint)]">{visible.filter((t) => stateOf(t) === col).length}</span>
                         </div>
                       )}
-                      <div className="space-y-1.5">
+                      <div className="max-h-[calc(100vh-250px)] min-h-16 space-y-1.5 overflow-y-auto">
                         {shown.map((t) => (
                           <article key={t.id} draggable
                             onDragStart={(e) => { setDragging(t); e.dataTransfer.effectAllowed = 'move' }}
                             onDragEnd={() => setDragging(null)}
                             className={`cursor-grab border border-[var(--line)] bg-white p-2 active:cursor-grabbing ${
                               t.severity === 'Critical' ? 'shadow-[inset_3px_0_0_var(--crit)]' : t.severity === 'High' ? 'shadow-[inset_3px_0_0_var(--warn)]' : ''}`}>
-                            <div className="flex items-center justify-between gap-1">
-                              <Link href={`/tickets/${encodeURIComponent(t.key)}`} draggable={false}
-                                className="mono truncate text-[11px] font-medium text-[var(--accent)] hover:underline">{t.key}</Link>
-                              <PriorityChip p={t.severity} />
-                            </div>
+                            <Link href={`/tickets/${encodeURIComponent(t.key)}`} draggable={false}
+                              className="mono block truncate text-[11px] font-medium text-[var(--accent)] hover:underline" title={t.key}>{t.key}</Link>
                             <p className="mt-1 line-clamp-2 text-[12.5px] leading-snug text-[var(--ink)]">{t.title}</p>
-                            <div className="mt-1.5 flex items-center justify-between gap-1 text-[11px] text-[var(--faint)]">
-                              <span className="truncate">{t.page ?? ''}</span>
-                              <span title={t.owner_name ?? 'Unassigned'}
-                                className={`flex h-5 min-w-5 items-center justify-center px-1 text-[10px] font-semibold ${
-                                  t.owner_name ? 'bg-[#2b57c4] text-white' : 'border border-dashed border-[var(--line)] text-[var(--faint)]'}`}>
-                                {t.owner_name ? t.owner_name.slice(0, 2).toUpperCase() : '?'}
-                              </span>
+                            <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-[var(--faint)]">
+                              <span className={`font-semibold ${t.severity === 'Critical' ? 'text-[var(--crit)]' : t.severity === 'High' ? 'text-[var(--warn)]' : 'text-[var(--muted)]'}`}>{t.severity}</span>
+                              <span>·</span>
+                              <span className="min-w-0 flex-1 truncate">{t.page ?? ''}</span>
+                              {t.owner_name
+                                ? <span title={t.owner_name} className="flex h-5 min-w-5 items-center justify-center bg-[#2b57c4] px-1 text-[10px] font-semibold text-white">{t.owner_name.slice(0, 2).toUpperCase()}</span>
+                                : <span className="text-[var(--faint)]">Unassigned</span>}
                             </div>
                           </article>
                         ))}

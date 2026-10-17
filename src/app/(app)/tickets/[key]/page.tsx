@@ -18,9 +18,11 @@ export default async function TicketPage({
   const supabase = await createClient()
   const { data: t } = await supabase.from('ticket_list').select('*').eq('key', decodeURIComponent(key)).maybeSingle()
   if (!t) notFound()
-  const [{ data: events }, { data: comments }, people, sprints] = await Promise.all([
+  const [{ data: events }, { data: comments }, { data: tc }, { data: lastFail }, people, sprints] = await Promise.all([
     supabase.from('ticket_events').select('*, people(name)').eq('ticket_id', t.id).order('at', { ascending: false }),
     supabase.from('ticket_comments').select('id, body, created_at, people(name)').eq('ticket_id', t.id).order('created_at', { ascending: false }),
+    t.case_id ? supabase.from('test_cases').select('preconditions, steps, test_data, expected').eq('id', t.case_id).maybeSingle() : Promise.resolve({ data: null }),
+    t.case_id ? supabase.from('test_runs').select('result, note, build, recorded_at, kind').eq('case_id', t.case_id).in('result', ['failed', 'known_defect', 'blocked']).order('recorded_at', { ascending: false }).limit(1).maybeSingle() : Promise.resolve({ data: null }),
     loadPeople(),
     loadSprints(),
   ])
@@ -53,6 +55,20 @@ export default async function TicketPage({
           <p className="mt-1.5 whitespace-pre-wrap text-[13px] text-[var(--ink-2)]">{t.description || 'No description.'}</p>
           {t.defer_reason && <p className="mt-3 border border-[var(--line-soft)] bg-[var(--surface-3)] p-2.5 text-[13px]"><b>Deferred:</b> {t.defer_reason}</p>}
 
+          {tc && (tc.steps || tc.expected) && (
+            <div className="mt-5 border border-[var(--line-soft)] bg-[var(--surface-3)] p-3.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <h3 className="label">How to reproduce · from <CaseLink tcId={t.tc_id!} /></h3>
+                {lastFail && <span className="text-[11.5px] text-[var(--muted)]">Last {lastFail.result.replace('_', ' ')} {fmtDate(lastFail.recorded_at)}{lastFail.build ? ` on ${lastFail.build}` : ''} ({lastFail.kind})</span>}
+              </div>
+              {tc.preconditions && <p className="mt-2 text-[12.5px]"><b className="font-semibold">Before you start:</b> {tc.preconditions}</p>}
+              {tc.steps && <p className="mt-2 whitespace-pre-wrap text-[12.5px]">{tc.steps}</p>}
+              {tc.test_data && <p className="mt-2 text-[12.5px]"><b className="font-semibold">Data:</b> {tc.test_data}</p>}
+              {tc.expected && <p className="mt-2 text-[12.5px]"><b className="font-semibold">Expected:</b> {tc.expected}</p>}
+              {lastFail?.note && <p className="mt-2 text-[12.5px] text-[var(--crit)]"><b className="font-semibold">What happened:</b> {lastFail.note}</p>}
+            </div>
+          )}
+
           <h3 className="label mt-6">Activity</h3>
           <form action={addComment} className="mt-2 space-y-2">
             <input type="hidden" name="ticket_id" value={t.id} />
@@ -65,7 +81,9 @@ export default async function TicketPage({
               ...(comments ?? []).map((c) => ({ id: `c-${c.id}`, at: c.created_at as string, who: (c.people as unknown as { name: string } | null)?.name ?? 'Someone', comment: c.body as string, text: '' })),
               ...(events ?? []).map((e) => ({
                 id: `e-${e.id}`, at: e.at as string, who: e.people?.name ?? 'System', comment: '',
-                text: `${e.from_state && e.from_state !== e.to_state ? `${STATE_LABEL[e.from_state as TicketState]} → ${STATE_LABEL[e.to_state as TicketState]}` : e.from_state ? '' : `Opened as ${STATE_LABEL[e.to_state as TicketState]}`}${e.note ? `${e.from_state !== e.to_state && e.from_state ? ' · ' : ''}${e.note}` : ''}`,
+                text: !e.from_state ? 'Opened the ticket' : e.from_state !== e.to_state
+                  ? `${STATE_LABEL[e.from_state as TicketState]} → ${STATE_LABEL[e.to_state as TicketState]}${e.note ? ` · ${e.note}` : ''}`
+                  : e.note ?? '',
               })),
             ]
               .sort((a, b) => b.at.localeCompare(a.at))

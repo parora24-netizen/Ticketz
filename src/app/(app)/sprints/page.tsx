@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Flash } from '@/components/flash'
 import { SprintsGrid } from '@/components/grid/list-grids'
-import { Tabs, sprintTabs } from '@/components/tabs'
+import { Tabs, nowSprint, sprintTabs } from '@/components/tabs'
 import { PageHeader } from '@/components/ui'
 import { getMe } from '@/lib/auth'
 import { currentSprint, fmtDate, loadAreas, loadCases, loadSprintAreas, loadSprints } from '@/lib/data'
@@ -40,7 +40,7 @@ export default async function SprintsPage({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <Tabs items={sprintTabs(current?.id ?? null)} active="all" />
+      <Tabs items={sprintTabs(nowSprint(sprints, current))} active="all" />
       <PageHeader sub="Each sprint runs 2 to 4 working days over a set of Framework areas.">
         {me.role === 'lead' && <Link href="/sprints/new" data-create className="btn btn-primary">+ New sprint</Link>}
       </PageHeader>

@@ -13,16 +13,15 @@ export function SprintsGrid({ rows }: { rows: SprintRow[] }) {
   const cols: Column<SprintRow>[] = [
     { key: 'name', header: 'Sprint', width: 90, value: (r) => r.name,
       render: (r) => <Link href={`/sprints/${r.id}`} className="font-semibold text-[var(--accent)] hover:underline">{r.name}{r.current ? ' · now' : ''}</Link> },
-    { key: 'start', header: 'Starts', width: 110, mono: true, value: (r) => r.starts_on },
-    { key: 'dates', header: 'Dates', width: 150, value: (r) => r.dates },
+    { key: 'status', header: 'Status', width: 110, value: (r) => r.status,
+      render: (r) => <Chip tone={r.status === 'Running' ? 'accent' : r.status === 'Closed' ? 'good' : 'muted'}>{r.status}</Chip> },
+    { key: 'dates', header: 'Dates', width: 150, value: (r) => r.dates, sortValue: (r) => r.starts_on },
     { key: 'days', header: 'Days', width: 70, align: 'right', value: (r) => r.days },
     { key: 'goal', header: 'Goal', width: 320, value: (r) => r.goal },
     { key: 'areas', header: 'Areas', width: 420, value: (r) => r.areas, filter: 'text' },
     { key: 'cases', header: 'Cases', width: 80, align: 'right', value: (r) => r.cases },
-    { key: 'status', header: 'Status', width: 110, value: (r) => r.status,
-      render: (r) => <Chip tone={r.status === 'Running' ? 'accent' : r.status === 'Closed' ? 'good' : 'muted'}>{r.status}</Chip> },
   ]
-  return <DataGrid rows={rows} columns={cols} csvName="sprints" selectable={false} defaultSort={[{ key: 'start', dir: 1 }]} searchPlaceholder="Search sprints" />
+  return <DataGrid rows={rows} columns={cols} csvName="sprints" selectable={false} defaultSort={[{ key: 'dates', dir: 1 }]} searchPlaceholder="Search sprints" />
 }
 
 // ---- Plan ------------------------------------------------------------------------------------

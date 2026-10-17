@@ -21,9 +21,16 @@ export const RELEASE_TABS = [
   { key: 'areas', href: '/areas', label: 'Areas' },
 ]
 
-export function sprintTabs(currentId: string | null) {
+/** The running sprint's board (or the next one, before any has started), then all sprints. */
+export function sprintTabs(now: { id: string; name: string; running: boolean } | null) {
   return [
-    ...(currentId ? [{ key: 'board', href: `/sprints/${currentId}`, label: 'Board' }] : []),
+    ...(now ? [{ key: 'board', href: `/sprints/${now.id}`, label: now.running ? `Board · ${now.name}` : `Next · ${now.name}` }] : []),
     { key: 'all', href: '/sprints', label: 'All sprints' },
   ]
+}
+
+export function nowSprint<S extends { id: string; name: string; status: string; starts_on: string }>(sprints: S[], current: S | null) {
+  if (current) return { id: current.id, name: current.name, running: true }
+  const next = sprints.find((s) => s.status === 'planned')
+  return next ? { id: next.id, name: next.name, running: false } : null
 }

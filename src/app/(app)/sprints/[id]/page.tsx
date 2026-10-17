@@ -1,4 +1,4 @@
-import { RELEASE_TABS, Tabs, sprintTabs } from '@/components/tabs'
+import { Tabs, nowSprint, sprintTabs } from '@/components/tabs'
 import { SubmitButton } from '@/components/submit-button'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -42,7 +42,7 @@ export default async function SprintPage({
   const [me, sprints, areas, sprintAreas] = await Promise.all([getMe(), loadSprints(), loadAreas(), loadSprintAreas()])
   const sprint = sprints.find((s) => s.id === id)
   if (!sprint) notFound()
-  const nowId = currentSprint(sprints)?.id ?? null
+  const now = nowSprint(sprints, currentSprint(sprints))
   const areaIds = sprintAreas.filter((x) => x.sprint_id === id).map((x) => x.area_id)
   const [cases, runs, allTickets] = await Promise.all([loadCases(areaIds), loadSprintRuns(id), loadTickets()])
   const caseIds = new Set(cases.map((c) => c.id))
@@ -60,7 +60,7 @@ export default async function SprintPage({
 
   return (
     <>
-      <Tabs items={[...sprintTabs(nowId), ...(id !== nowId ? [{ key: 'this', href: `/sprints/${id}`, label: `Sprint ${sprint.name}` }] : [])]} active={id === nowId ? 'board' : 'this'} />
+      <Tabs items={[...sprintTabs(now), ...(id !== now?.id ? [{ key: 'this', href: `/sprints/${id}`, label: `Sprint ${sprint.name}` }] : [])]} active={id === now?.id ? 'board' : 'this'} />
       <PageHeader
         title={`Sprint ${sprint.name}`}
         sub={<>{fmtDate(sprint.starts_on)} to {fmtDate(sprint.ends_on)} · {areaIds.length} areas · {cases.length} cases{sprint.goal ? ` · ${sprint.goal}` : ''}</>}>

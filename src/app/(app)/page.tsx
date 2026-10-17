@@ -8,6 +8,7 @@ import {
   timeAgo, toStageInput, type TicketRow,
 } from '@/lib/data'
 import { lastWorkingDayStart } from '@/lib/standup'
+import { istDate } from '@/lib/trends'
 import { caseStage, needsTicket } from '@/lib/workflow/case-stage'
 import { sprintGate } from '@/lib/workflow/sprint-gate'
 import { STATE_LABEL } from '@/lib/workflow/ticket-machine'
@@ -36,7 +37,7 @@ function TicketRows({ rows, note, limit = 12, all }: { rows: TicketRow[]; note?:
         <li key={t.id} className="flex items-center gap-3 px-4 py-2">
           <TicketLink k={t.key} />
           <span className="min-w-0 flex-1 truncate text-[12.5px]">{t.title}</span>
-          {note && <span className="text-[11.5px] text-[var(--faint)]">{note(t)}</span>}
+          {note && <span className="hidden text-[11.5px] text-[var(--faint)] sm:inline">{note(t)}</span>}
           <PriorityChip p={t.severity} />
         </li>
       ))}
@@ -78,7 +79,8 @@ export default async function Home() {
   const openHigh = tickets.filter((t) => t.severity === 'High' && !['closed', 'deferred', 'duplicate'].includes(t.state)).length
   const nextSprint = sprint ? null : sprints.find((x) => x.status === 'planned' && x.starts_on >= now.toISOString().slice(0, 10)) ?? null
   const late = tasks.filter((k) => k.status !== 'done' && k.due_on < now.toISOString().slice(0, 10))
-  const feed = activity.filter((a) => (me.role === 'lead' ? true : a.subject_owner_id === me.id || a.actor_id === me.id)).slice(0, 25)
+  // Rows with no person behind them (the workbook import) are not news.
+  const feed = activity.filter((a) => a.actor_id && (me.role === 'lead' || a.subject_owner_id === me.id || a.actor_id === me.id)).slice(0, 25)
 
   const hour = Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hour12: false, timeZone: 'Asia/Kolkata' }).format(now))
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
@@ -237,7 +239,7 @@ export default async function Home() {
             </ol>
           </Panel>
           <p className="mt-3 text-[11.5px] text-[var(--faint)]">
-            Since {fmtDate(since.toISOString())} (the last working day). <Link href="/release" className="text-[var(--accent)] hover:underline">Release overview</Link>
+            Since {fmtDate(istDate(since.toISOString()))} (the last working day). <Link href="/release" className="text-[var(--accent)] hover:underline">Release overview</Link>
           </p>
         </aside>
       </div>

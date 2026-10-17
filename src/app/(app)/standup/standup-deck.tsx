@@ -26,7 +26,7 @@ function Items({ items, empty }: { items: StandupItem[]; empty: string }) {
 
 function Card({ card, big }: { card: StandupCard; big?: boolean }) {
   return (
-    <article className={`card flex flex-col ${big ? 'min-h-[420px]' : ''}`}>
+    <article className={`card flex flex-col ${big ? 'min-h-[260px]' : ''}`}>
       <header className="flex items-center gap-3 border-b border-[var(--line)] px-4 py-3">
         <span className="flex h-8 w-8 items-center justify-center bg-[#2b57c4] text-[12px] font-semibold text-white">{card.person.name.slice(0, 2).toUpperCase()}</span>
         <div className="flex-1">

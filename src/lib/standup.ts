@@ -31,6 +31,8 @@ export type StandupCard = {
 
 const TZ_OFFSET_MIN = 330 // IST, UTC+5:30
 
+const shortDate = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+
 /** Midnight (India time) at the start of the last working day before `now`, as a UTC instant. */
 export function lastWorkingDayStart(now: Date): Date {
   const local = new Date(now.getTime() + TZ_OFFSET_MIN * 60_000)
@@ -85,14 +87,14 @@ export function buildStandup(input: {
     const dueSoon = (k: StandupTask) => !late(k) && workingDaysBetween(input.now, new Date(`${k.due_on}T12:00:00Z`)) <= 2
     // Late tasks show under Blocked, not Today.
     for (const k of input.tasks.filter((k) => k.owner_id === person.id && !late(k) && (k.status === 'in_progress' || (k.status === 'not_started' && dueSoon(k))))) {
-      today.push({ ref: `#${k.num}`, title: k.title, note: k.status === 'in_progress' ? `In progress · due ${k.due_on}` : `Due ${k.due_on}`, href: '/plan' })
+      today.push({ ref: `#${k.num}`, title: k.title, note: k.status === 'in_progress' ? `In progress · due ${shortDate(k.due_on)}` : `Due ${shortDate(k.due_on)}`, href: '/plan' })
     }
 
     const blocked: StandupItem[] = []
     for (const k of input.tasks.filter((k) => k.owner_id === person.id)) {
       if (k.status === 'blocked') blocked.push({ ref: `#${k.num}`, title: k.title, note: 'Marked blocked', href: '/plan', tone: 'crit' })
       else if (late(k))
-        blocked.push({ ref: `#${k.num}`, title: k.title, note: `Late, was due ${k.due_on}`, href: '/plan', tone: 'warn' })
+        blocked.push({ ref: `#${k.num}`, title: k.title, note: `Late, was due ${shortDate(k.due_on)}`, href: '/plan', tone: 'warn' })
     }
     for (const t of mine) {
       if (t.state === 'reopened') blocked.push({ ref: t.key, title: t.title, note: 'Reopened after retest', href: ticketHref(t.key), tone: 'crit' })

@@ -73,7 +73,7 @@ export function ImportForm() {
               <form action={commitAction}>
                 <input type="hidden" name="payload" value={preview.payload} />
                 <SubmitButton primary pendingText="Saving…" disabled={!preview.counts.new && !preview.counts.updated}>
-                  Save {preview.counts.new + preview.counts.updated} cases
+                  Save {preview.counts.new + preview.counts.updated} {preview.counts.new + preview.counts.updated === 1 ? 'case' : 'cases'}
                 </SubmitButton>
               </form>
             </div>

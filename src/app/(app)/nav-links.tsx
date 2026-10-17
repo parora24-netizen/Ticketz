@@ -74,6 +74,9 @@ export function BottomBar({ isLead }: { isLead: boolean }) {
     <>
       {more && (
         <div className="fixed inset-x-0 bottom-14 z-40 border-t border-[var(--line)] bg-white p-2 shadow-[0_-12px_32px_rgba(15,27,51,.18)] md:hidden">
+          <form action="/search" role="search" className="px-1 pb-2">
+            <input name="q" placeholder="Search tickets and test cases" aria-label="Search tickets and test cases" className="input h-10 w-full" />
+          </form>
           {rest.map((i) => (
             <Link key={i.href} href={i.href} className={`flex h-11 items-center gap-3 px-3 text-[14px] ${isOn(i, path) ? 'font-semibold text-[var(--navy)]' : 'text-[var(--ink-2)]'}`}>
               <i.icon />{i.label}

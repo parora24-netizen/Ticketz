@@ -159,38 +159,37 @@ const Move = z.object({
   note: z.string().trim().max(2000).optional(),
 })
 
-export async function moveTicket(formData: FormData) {
-  const path = back(formData, '/tickets')
-  const me = await getMe()
-  const parsed = Move.safeParse(Object.fromEntries(formData))
-  if (!parsed.success) fail(path, 'That move is not valid')
-  const v = parsed.data
+type MoveInput = z.infer<typeof Move>
+
+/** Moves a ticket for the signed-in person. Returns an error message, or null when it worked. */
+async function applyMove(me: Awaited<ReturnType<typeof getMe>>, v: MoveInput): Promise<string | null> {
   const supabase = await createClient()
   const { data: t } = await supabase.from('tickets').select('id, state, case_id, owner_id').eq('id', v.ticket_id).single()
-  if (!t) fail(path, 'Ticket not found')
+  if (!t) return 'Ticket not found'
   const from = t.state as TicketState
-  if (!canMove(from, v.to, me.role)) fail(path, `A ${me.role} cannot move a ticket from ${from} to ${v.to}`)
+  if (!canMove(from, v.to, me.role)) return `A ${me.role} cannot move a ticket from ${from} to ${v.to}`
 
   const patch: Record<string, unknown> = { state: v.to }
   const need = requiredFor(v.to)
   if (need === 'fixed_in_build') {
-    if (!v.fixed_in_build) fail(path, 'Say which build has the fix')
+    if (!v.fixed_in_build) return 'Say which build has the fix'
     patch.fixed_in_build = v.fixed_in_build
   }
   if (need === 'defer_reason') {
-    if (!v.defer_reason) fail(path, 'Give a reason for deferring')
+    if (!v.defer_reason) return 'Give a reason for deferring'
     patch.defer_reason = v.defer_reason
   }
   if (need === 'duplicate_of') {
-    const { data: dup } = await supabase.from('tickets').select('id').eq('key', v.duplicate_key ?? '').maybeSingle()
-    if (!dup) fail(path, 'Enter the key of the ticket this duplicates')
+    const { data: dup } = await supabase.from('tickets').select('id').eq('key', (v.duplicate_key ?? '').toUpperCase()).maybeSingle()
+    if (!dup) return 'Enter the key of the ticket this duplicates'
+    if (dup.id === t.id) return 'A ticket cannot duplicate itself'
     patch.duplicate_of = dup.id
   }
   // A dev who starts a fix on an unowned ticket takes it.
   if (v.to === 'in_fix' && !t.owner_id && me.role === 'dev') patch.owner_id = me.id
 
   const { error } = await supabase.from('tickets').update(patch).eq('id', t.id)
-  if (error) fail(path, error.message)
+  if (error) return error.message
 
   const retest = retestResult(from, v.to)
   if (retest && t.case_id && me.role !== 'dev') {
@@ -203,8 +202,29 @@ export async function moveTicket(formData: FormData) {
       recorded_by: me.id,
     })
   }
+  return null
+}
+
+export async function moveTicket(formData: FormData) {
+  const path = back(formData, '/tickets')
+  const me = await getMe()
+  const parsed = Move.safeParse(Object.fromEntries(formData))
+  if (!parsed.success) fail(path, 'That move is not valid')
+  const err = await applyMove(me, parsed.data)
+  if (err) fail(path, err)
   revalidatePath('/', 'layout')
   redirect(withMessage(path, 'ok', 'Ticket updated'))
+}
+
+/** Called from the board's drag and drop. */
+export async function moveTicketFromBoard(input: MoveInput): Promise<{ error?: string }> {
+  const me = await getMe()
+  const parsed = Move.safeParse(input)
+  if (!parsed.success) return { error: 'That move is not valid' }
+  const err = await applyMove(me, parsed.data)
+  if (err) return { error: err }
+  revalidatePath('/', 'layout')
+  return {}
 }
 
 export async function updateTicket(formData: FormData) {
@@ -393,4 +413,131 @@ export async function revokeCiToken(formData: FormData) {
   if (error) fail('/admin', error.message)
   revalidatePath('/admin')
   redirect(withMessage('/admin', 'ok', 'Token revoked'))
+}
+
+// ---- Workflow: comments, assignment, bulk edits from the grids ------------------------------
+
+export async function addComment(formData: FormData) {
+  const path = back(formData, '/tickets')
+  const me = await getMe()
+  const v = z.object({ ticket_id: z.uuid(), body: z.string().trim().min(1).max(5000) }).safeParse(Object.fromEntries(formData))
+  if (!v.success) fail(path, 'Write something first')
+  const supabase = await createClient()
+  const { error } = await supabase.from('ticket_comments').insert({ ticket_id: v.data.ticket_id, body: v.data.body, author_id: me.id })
+  if (error) fail(path, error.message)
+  revalidatePath(path)
+  redirect(withMessage(path, 'ok', 'Comment added'))
+}
+
+export async function assignToMe(formData: FormData) {
+  const path = back(formData, '/tickets')
+  const me = await getMe()
+  const supabase = await createClient()
+  const { error } = await supabase.from('tickets').update({ owner_id: me.id }).eq('id', String(formData.get('ticket_id')))
+  if (error) fail(path, error.message)
+  revalidatePath('/', 'layout')
+  redirect(withMessage(path, 'ok', 'Assigned to you'))
+}
+
+const CasePatch = z.object({
+  title: z.string().trim().min(3).max(300).optional(),
+  priority: z.enum(['Critical', 'High', 'Medium', 'Low']).optional(),
+  automation: z.enum(['not_automated', 'automated', 'manual_only']).optional(),
+  area_id: z.uuid().optional(),
+})
+
+/** Inline and bulk edits from the test cases grid. */
+export async function updateCases(ids: string[], patch: z.infer<typeof CasePatch>): Promise<{ error?: string }> {
+  const me = await getMe()
+  if (me.role === 'dev') return { error: 'Only QA or the lead edit test cases' }
+  const p = CasePatch.safeParse(patch)
+  const idList = z.array(z.uuid()).min(1).max(2000).safeParse(ids)
+  if (!p.success || !idList.success || !Object.keys(p.data).length) return { error: 'Nothing valid to save' }
+  const supabase = await createClient()
+  const { error } = await supabase.from('test_cases').update({ ...p.data, updated_at: new Date().toISOString() }).in('id', idList.data)
+  if (error) return { error: error.message }
+  revalidatePath('/', 'layout')
+  return {}
+}
+
+/** Bulk "record result" from the test cases grid. */
+export async function recordResults(ids: string[], result: 'passed' | 'failed' | 'blocked'): Promise<{ error?: string }> {
+  const me = await getMe()
+  if (me.role === 'dev') return { error: 'Only QA or the lead record results' }
+  const idList = z.array(z.uuid()).min(1).max(500).safeParse(ids)
+  if (!idList.success || !['passed', 'failed', 'blocked'].includes(result)) return { error: 'Nothing valid to save' }
+  const supabase = await createClient()
+  const sprintId = await activeSprintId()
+  const { error } = await supabase.from('test_runs').insert(
+    idList.data.map((case_id) => ({ case_id, kind: 'manual', result, sprint_id: sprintId, recorded_by: me.id })),
+  )
+  if (error) return { error: error.message }
+  revalidatePath('/', 'layout')
+  return {}
+}
+
+const TicketPatch = z.object({
+  owner_id: z.uuid().nullable().optional(),
+  severity: z.enum(['Critical', 'High', 'Medium', 'Low']).optional(),
+  title: z.string().trim().min(3).max(300).optional(),
+})
+
+/** Inline and bulk edits from the tickets grid. The database still enforces who may change what. */
+export async function updateTickets(ids: string[], patch: z.infer<typeof TicketPatch>): Promise<{ error?: string }> {
+  await getMe()
+  const p = TicketPatch.safeParse(patch)
+  const idList = z.array(z.uuid()).min(1).max(1000).safeParse(ids)
+  if (!p.success || !idList.success || !Object.keys(p.data).length) return { error: 'Nothing valid to save' }
+  const supabase = await createClient()
+  const { error } = await supabase.from('tickets').update(p.data).in('id', idList.data)
+  if (error) return { error: error.message }
+  revalidatePath('/', 'layout')
+  return {}
+}
+
+// ---- Adding test cases ----------------------------------------------------------------------
+
+export async function createTestCase(formData: FormData) {
+  const path = '/cases/new'
+  const me = await getMe()
+  if (me.role === 'dev') fail(path, 'Only QA or the lead add test cases')
+  const v = z
+    .object({
+      tc_id: z.string().trim().toUpperCase().regex(/^TC_[A-Z0-9_]+$/, 'IDs look like TC_FN_070').or(z.literal('')),
+      area_id: z.uuid(),
+      title: z.string().trim().min(3).max(300),
+      priority: z.enum(['Critical', 'High', 'Medium', 'Low']),
+      test_type: z.string().trim().max(50).optional(),
+      preconditions: z.string().trim().max(5000).optional(),
+      steps: z.string().trim().max(10000).optional(),
+      test_data: z.string().trim().max(5000).optional(),
+      expected: z.string().trim().max(5000).optional(),
+      another: z.string().optional(),
+    })
+    .safeParse(Object.fromEntries(formData))
+  if (!v.success) fail(path, v.error.issues[0]?.message ?? 'Check the form')
+  const supabase = await createClient()
+  let tcId = v.data.tc_id
+  if (!tcId) {
+    const { data } = await supabase.rpc('next_tc_id')
+    tcId = String(data)
+  }
+  const { data: area } = await supabase.from('areas').select('page').eq('id', v.data.area_id).single()
+  const { error } = await supabase.from('test_cases').insert({
+    tc_id: tcId,
+    area_id: v.data.area_id,
+    source_page: area?.page ?? null,
+    title: v.data.title,
+    priority: v.data.priority,
+    test_type: v.data.test_type || null,
+    preconditions: v.data.preconditions || null,
+    steps: v.data.steps || null,
+    test_data: v.data.test_data || null,
+    expected: v.data.expected || null,
+    created_by: me.id,
+  })
+  if (error) fail(path, error.code === '23505' ? `${tcId} already exists` : error.message)
+  revalidatePath('/', 'layout')
+  if (v.data.another) redirect(withMessage(`/cases/new?area=${v.data.area_id}`, 'ok', `${tcId} added`))
+  redirect(withMessage(`/cases/${tcId}`, 'ok', `${tcId} added`))
 }

@@ -6,7 +6,7 @@ import { getMe } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { fmtDate, loadPeople, loadSprints } from '@/lib/data'
 import { ACTION_LABEL, STATE_LABEL, allowedMoves, requiredFor, type TicketState } from '@/lib/workflow/ticket-machine'
-import { moveTicket, updateTicket } from '../../actions'
+import { addComment, assignToMe, moveTicket, updateTicket } from '../../actions'
 
 export default async function TicketPage({
   params, searchParams,
@@ -17,8 +17,9 @@ export default async function TicketPage({
   const supabase = await createClient()
   const { data: t } = await supabase.from('ticket_list').select('*').eq('key', decodeURIComponent(key)).maybeSingle()
   if (!t) notFound()
-  const [{ data: events }, people, sprints] = await Promise.all([
+  const [{ data: events }, { data: comments }, people, sprints] = await Promise.all([
     supabase.from('ticket_events').select('*, people(name)').eq('ticket_id', t.id).order('at', { ascending: false }),
+    supabase.from('ticket_comments').select('id, body, created_at, people(name)').eq('ticket_id', t.id).order('created_at', { ascending: false }),
     loadPeople(),
     loadSprints(),
   ])
@@ -32,6 +33,13 @@ export default async function TicketPage({
       <PageHeader title={t.title} sub={<><span className="font-mono">{t.key}</span>{t.tc_id && <> · <CaseLink tcId={t.tc_id} /></>}{t.zone && ` · ${t.zone} · ${t.page}`}</>}>
         <PriorityChip p={t.severity} /><StateChip s={t.state} />
         {t.kind === 'test_mismatch' && <Chip>Test issue</Chip>}
+        {t.owner_id !== me.id && !['closed', 'deferred', 'duplicate'].includes(t.state) && (
+          <form action={assignToMe}>
+            <input type="hidden" name="ticket_id" value={t.id} />
+            <input type="hidden" name="back" value={back} />
+            <SubmitButton pendingText="Assigning…">Assign to me</SubmitButton>
+          </form>
+        )}
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
 
@@ -48,17 +56,30 @@ export default async function TicketPage({
             {t.defer_reason && <div className="col-span-2"><dt className="label">Deferred because</dt><dd>{t.defer_reason}</dd></div>}
           </dl>
 
-          <h2 className="label mt-6">History</h2>
-          <ol className="mt-2 space-y-2 border-l border-[var(--line)] pl-4">
-            {(events ?? []).map((e) => (
-              <li key={e.id} className="text-sm">
-                <span className="text-[var(--muted)]">{fmtDate(e.at)} · {e.people?.name ?? 'System'}</span>
-                <div>
-                  {e.from_state && e.from_state !== e.to_state ? `${STATE_LABEL[e.from_state as TicketState]} → ${STATE_LABEL[e.to_state as TicketState]}` : e.from_state ? '' : `Opened as ${STATE_LABEL[e.to_state as TicketState]}`}
-                  {e.note && <span className="text-[var(--muted)]">{e.from_state !== e.to_state && e.from_state ? ' · ' : ''}{e.note}</span>}
-                </div>
-              </li>
-            ))}
+          <h2 className="label mt-6">Activity</h2>
+          <form action={addComment} className="mt-2 space-y-2">
+            <input type="hidden" name="ticket_id" value={t.id} />
+            <input type="hidden" name="back" value={back} />
+            <textarea name="body" required rows={3} placeholder="Add a comment: what you found, what you tried, what is blocking" className="input w-full" />
+            <SubmitButton primary pendingText="Posting…">Comment</SubmitButton>
+          </form>
+          <ol className="mt-4 space-y-3 border-l border-[var(--line)] pl-4">
+            {[
+              ...(comments ?? []).map((c) => ({ id: `c-${c.id}`, at: c.created_at as string, who: (c.people as unknown as { name: string } | null)?.name ?? 'Someone', comment: c.body as string, text: '' })),
+              ...(events ?? []).map((e) => ({
+                id: `e-${e.id}`, at: e.at as string, who: e.people?.name ?? 'System', comment: '',
+                text: `${e.from_state && e.from_state !== e.to_state ? `${STATE_LABEL[e.from_state as TicketState]} → ${STATE_LABEL[e.to_state as TicketState]}` : e.from_state ? '' : `Opened as ${STATE_LABEL[e.to_state as TicketState]}`}${e.note ? `${e.from_state !== e.to_state && e.from_state ? ' · ' : ''}${e.note}` : ''}`,
+              })),
+            ]
+              .sort((a, b) => b.at.localeCompare(a.at))
+              .map((x) => (
+                <li key={x.id} className="text-[13px]">
+                  <span className="text-[12px] text-[var(--muted)]"><b className="font-semibold text-[var(--ink-2)]">{x.who}</b> · {fmtDate(x.at)}</span>
+                  {x.comment
+                    ? <p className="mt-1 whitespace-pre-wrap border border-[var(--line-soft)] bg-[var(--surface-3)] p-2.5">{x.comment}</p>
+                    : <div className="text-[var(--ink-2)]">{x.text}</div>}
+                </li>
+              ))}
           </ol>
         </section>
 

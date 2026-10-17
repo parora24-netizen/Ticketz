@@ -160,3 +160,39 @@ export function fmtDate(d: string | null): string {
   const dt = new Date(d.length === 10 ? `${d}T00:00:00Z` : d)
   return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
 }
+
+export type Activity = {
+  kind: 'ticket' | 'comment' | 'result' | 'case' | 'task'
+  at: string
+  actor_id: string | null
+  subject_owner_id: string | null
+  ref: string
+  title: string
+  what: string
+  detail: string | null
+}
+
+export async function loadActivity(since: Date, limit = 1000): Promise<Activity[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('activity').select('*').gte('at', since.toISOString()).order('at', { ascending: false }).limit(limit)
+  if (error) throw new Error(error.message)
+  return (data ?? []) as Activity[]
+}
+
+export type PlanTask = { id: string; num: number; phase: string; title: string; owner_label: string; owner_id: string | null; due_on: string; status: string }
+
+export async function loadTasks(): Promise<PlanTask[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('plan_tasks').select('id, num, phase, title, owner_label, owner_id, due_on, status').order('num')
+  if (error) throw new Error(error.message)
+  return (data ?? []) as PlanTask[]
+}
+
+export function timeAgo(iso: string, now = new Date()): string {
+  const mins = Math.round((now.getTime() - Date.parse(iso)) / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const h = Math.round(mins / 60)
+  if (h < 24) return `${h}h ago`
+  return `${Math.round(h / 24)}d ago`
+}

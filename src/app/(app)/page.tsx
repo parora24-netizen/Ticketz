@@ -1,188 +1,213 @@
 import Link from 'next/link'
-import { Bar, PageHeader, Stat } from '@/components/ui'
-import { HEALTH_CLASS, HEALTH_LABEL, summarizeArea } from '@/lib/areas'
+import { CaseLink, PriorityChip, TicketLink } from '@/components/ui'
+import { getMe } from '@/lib/auth'
 import {
-  GO_NO_GO_DATE, RELEASE_DATE, currentSprint, daysUntil, fmtDate,
-  loadAreas, loadCases, loadSprintAreas, loadSprintRuns, loadSprints, loadTickets, toStageInput,
+  currentSprint, daysUntil, fmtDate, loadActivity, loadCases, loadSprintAreas, loadSprintRuns, loadSprints, loadTasks, loadTickets,
+  timeAgo, toStageInput, type TicketRow,
 } from '@/lib/data'
-import { mismatch, needsTicket } from '@/lib/workflow/case-stage'
+import { lastWorkingDayStart } from '@/lib/standup'
+import { caseStage, needsTicket } from '@/lib/workflow/case-stage'
 import { sprintGate } from '@/lib/workflow/sprint-gate'
-import { OPEN_STATES, STATE_LABEL, type TicketState } from '@/lib/workflow/ticket-machine'
+import { STATE_LABEL } from '@/lib/workflow/ticket-machine'
 
-export default async function Dashboard() {
-  const [areas, cases, tickets, sprints, sprintAreas] = await Promise.all([
-    loadAreas(), loadCases(), loadTickets(), loadSprints(), loadSprintAreas(),
+const SEV = ['Critical', 'High', 'Medium', 'Low']
+const bySeverity = (a: TicketRow, b: TicketRow) => SEV.indexOf(a.severity) - SEV.indexOf(b.severity)
+
+function Panel({ title, count, href, children, empty }: { title: string; count?: number; href?: string; children: React.ReactNode; empty?: string }) {
+  return (
+    <section className="card">
+      <header className="flex items-center justify-between border-b border-[var(--line)] px-4 py-2.5">
+        <h2 className="text-[14px] font-semibold text-[var(--navy-ink)]">
+          {title}{count !== undefined && <span className="mono ml-2 text-[11px] font-normal text-[var(--faint)]">{count}</span>}
+        </h2>
+        {href && <Link href={href} className="text-[12px] text-[var(--accent)] hover:underline">Open</Link>}
+      </header>
+      {count === 0 && empty ? <p className="px-4 py-4 text-[12.5px] text-[var(--muted)]">{empty}</p> : children}
+    </section>
+  )
+}
+
+function TicketRows({ rows, note }: { rows: TicketRow[]; note?: (t: TicketRow) => string }) {
+  return (
+    <ul className="divide-y divide-[var(--row)]">
+      {rows.slice(0, 12).map((t) => (
+        <li key={t.id} className="flex items-center gap-3 px-4 py-2">
+          <TicketLink k={t.key} />
+          <span className="min-w-0 flex-1 truncate text-[12.5px]">{t.title}</span>
+          {note && <span className="text-[11.5px] text-[var(--faint)]">{note(t)}</span>}
+          <PriorityChip p={t.severity} />
+        </li>
+      ))}
+      {rows.length > 12 && <li className="px-4 py-2 text-[12px] text-[var(--muted)]">+{rows.length - 12} more</li>}
+    </ul>
+  )
+}
+
+export default async function Home() {
+  const me = await getMe()
+  const now = new Date()
+  const since = lastWorkingDayStart(now)
+  const [tickets, sprints, sprintAreas, tasks, activity] = await Promise.all([
+    loadTickets(), loadSprints(), loadSprintAreas(), loadTasks(), loadActivity(since, 300),
   ])
   const sprint = currentSprint(sprints)
+  const areaIds = sprint ? sprintAreas.filter((x) => x.sprint_id === sprint.id).map((x) => x.area_id) : []
+  const [cases, runs] = sprint ? await Promise.all([loadCases(areaIds), loadSprintRuns(sprint.id)]) : [[], undefined]
+  const caseIds = new Set(cases.map((c) => c.id))
+  const gate = sprint ? sprintGate(cases.map((c) => toStageInput(c, runs)), tickets.filter((t) => (t.case_id && caseIds.has(t.case_id)) || t.current_sprint_id === sprint.id)) : null
+  const stages = cases.map((c) => caseStage(toStageInput(c, runs)))
+  const left = stages.filter((s) => s !== 'done').length
 
-  const open = tickets.filter((t) => OPEN_STATES.includes(t.state))
-  const openCrit = open.filter((t) => t.severity === 'Critical').length
-  const openHigh = open.filter((t) => t.severity === 'High').length
-  const high = cases.filter((c) => c.priority === 'Critical' || c.priority === 'High')
-  const highRun = high.filter((c) => c.manual_result)
-  const highPass = highRun.filter((c) => c.manual_result === 'passed').length
-  const highPassRate = highRun.length ? Math.round((highPass / highRun.length) * 100) : 0
-  const mismatches = cases.filter((c) => mismatch(c.auto_result, c.manual_result)).length
-  const untracked = cases.filter((c) => needsTicket(toStageInput(c))).length
-  const automated = cases.filter((c) => c.automation === 'automated').length
-  const manualTested = cases.filter((c) => c.manual_result).length
+  const mine = tickets.filter((t) => t.owner_id === me.id)
+  const myTasks = tasks.filter((k) => k.owner_id === me.id && k.status !== 'done')
+  const retests = tickets.filter((t) => t.state === 'ready_for_retest').sort(bySeverity)
+  const manualDue = cases.filter((c, i) => stages[i] === 'manual').sort((a, b) => SEV.indexOf(a.priority) - SEV.indexOf(b.priority))
+  const untracked = cases.filter((c) => needsTicket(toStageInput(c, runs)))
+  const toTriage = tickets.filter((t) => t.state === 'new').sort(bySeverity)
+  const unownedHigh = tickets.filter((t) => !t.owner_id && ['Critical', 'High'].includes(t.severity) && !['closed', 'deferred', 'duplicate'].includes(t.state))
+  const late = tasks.filter((k) => k.status !== 'done' && k.due_on < now.toISOString().slice(0, 10))
+  const feed = activity.filter((a) => (me.role === 'lead' ? true : a.subject_owner_id === me.id || a.actor_id === me.id)).slice(0, 25)
 
-  const byArea = new Map(areas.map((a) => [a.id, { cases: [] as typeof cases, tickets: [] as typeof tickets }]))
-  for (const c of cases) byArea.get(c.area_id)?.cases.push(c)
-  for (const t of tickets) if (t.area_id) byArea.get(t.area_id)?.tickets.push(t)
-  const summaries = areas.map((a) => ({ area: a, s: summarizeArea(byArea.get(a.id)!.cases, byArea.get(a.id)!.tickets) }))
-  const covered = summaries.filter((x) => x.s.cases > 0).length
-  const areasPassing = summaries.filter((x) => x.s.passed > 0).length
-  const zones = [...new Set(areas.map((a) => a.zone))]
-  const sprintOfArea = new Map<string, string>()
-  for (const sa of sprintAreas) {
-    const s = sprints.find((x) => x.id === sa.sprint_id)
-    if (s && !s.name.startsWith('S11') && !sprintOfArea.has(sa.area_id)) sprintOfArea.set(sa.area_id, s.name)
-  }
-
-  let gate: ReturnType<typeof sprintGate> | null = null
-  if (sprint) {
-    const ids = sprintAreas.filter((x) => x.sprint_id === sprint.id).map((x) => x.area_id)
-    const runs = await loadSprintRuns(sprint.id)
-    const scoped = cases.filter((c) => ids.includes(c.area_id))
-    const caseIds = new Set(scoped.map((c) => c.id))
-    gate = sprintGate(
-      scoped.map((c) => toStageInput(c, runs)),
-      tickets.filter((t) => (t.case_id && caseIds.has(t.case_id)) || t.current_sprint_id === sprint.id),
-    )
-  }
-
-  const bar = [
-    { label: 'No open Critical tickets', ok: openCrit === 0, detail: `${openCrit} open` },
-    { label: 'High tickets closed or worked around', ok: openHigh === 0, detail: `${openHigh} open` },
-    { label: 'Critical/High cases run manually, 90% passing', ok: highRun.length === high.length && highPassRate >= 90, detail: `${highRun.length} of ${high.length} run · ${highPassRate}% pass` },
-    { label: 'Every area has a passing case', ok: areasPassing === areas.length, detail: `${areasPassing} of ${areas.length} areas` },
-    { label: 'Every failure tracked', ok: untracked === 0, detail: `${untracked} manual failures without a ticket` },
-    { label: 'Automation agrees with manual testing', ok: mismatches === 0, detail: `${mismatches} mismatches` },
-  ]
-
-  const stateRows: TicketState[] = ['new', 'triaged', 'in_fix', 'reopened', 'ready_for_retest', 'closed', 'deferred']
-  const sev = ['Critical', 'High', 'Medium', 'Low'] as const
+  const hour = Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hour12: false, timeZone: 'Asia/Kolkata' }).format(now))
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
 
   return (
     <>
-      <PageHeader
-        title={`Release in ${daysUntil(RELEASE_DATE)} days`}
-        sub={`26.111 ships ${fmtDate(RELEASE_DATE)}; go/no-go ${fmtDate(GO_NO_GO_DATE)}. Ask MAIA ships behind a flag if it slips.`}
-      />
-
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        <Stat label="Cases written" value={cases.length} sub={`${covered} of ${areas.length} areas have cases`} />
-        <Stat label="Automated" value={automated} sub={`${Math.round((automated / Math.max(cases.length, 1)) * 100)}% of cases`} />
-        <Stat label="Manually tested" value={manualTested} sub={`${cases.length - manualTested} not yet`} />
-        <Stat label="Open Critical" value={openCrit} tone={openCrit ? 'crit' : 'good'} />
-        <Stat label="Open High" value={openHigh} tone={openHigh ? 'warn' : 'good'} />
-        <Stat label="Untracked failures" value={untracked} tone={untracked ? 'warn' : 'good'} sub={`${mismatches} auto/manual mismatches`} />
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="label">{new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Kolkata' }).format(now)}</p>
+          <h1 className="mt-1 text-[24px] font-semibold text-[var(--navy-ink)]">{greeting}, {me.name.split(' ')[0]}</h1>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/standup" className="btn">Run standup</Link>
+          <Link href="/tickets/new" className="btn">New ticket</Link>
+          {me.role !== 'dev' && <Link href="/cases/new" className="btn">New test case</Link>}
+          {me.role !== 'dev' && <Link href="/cases/import" className="btn">Import cases</Link>}
+          {sprint && me.role !== 'dev' && <Link href={`/sprints/${sprint.id}`} className="btn btn-primary">Record results</Link>}
+        </div>
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-3">
-        <section className="card p-4 lg:col-span-1">
-          <h2 className="font-semibold">Release bar</h2>
-          <ul className="mt-3 space-y-2">
-            {bar.map((b) => (
-              <li key={b.label} className="flex gap-2 text-sm">
-                <span aria-hidden className={b.ok ? 'text-[var(--good)]' : 'text-[var(--crit)]'}>{b.ok ? '✓' : '✗'}</span>
-                <span>
-                  {b.label}
-                  <span className="block text-xs text-[var(--muted)]">{b.detail}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section className="card p-4 lg:col-span-2">
-          <div className="flex items-baseline justify-between">
-            <h2 className="font-semibold">{sprint ? `Current sprint: ${sprint.name}` : 'No sprint running'}</h2>
-            <Link href={sprint ? `/sprints/${sprint.id}` : '/sprints'} className="text-sm text-[var(--accent)] hover:underline">
-              {sprint ? 'Open board' : 'Plan sprints'}
-            </Link>
+      {sprint && gate && (
+        <Link href={`/sprints/${sprint.id}`} className="card mb-5 flex flex-wrap items-center gap-x-8 gap-y-2 px-4 py-3 hover:border-[var(--navy)]">
+          <div>
+            <div className="label">Current sprint</div>
+            <div className="mt-0.5 text-[15px] font-semibold text-[var(--navy-ink)]">{sprint.name} · {fmtDate(sprint.starts_on)} to {fmtDate(sprint.ends_on)}</div>
           </div>
-          {sprint && (
-            <p className="mt-1 text-sm text-[var(--muted)]">
-              {fmtDate(sprint.starts_on)} to {fmtDate(sprint.ends_on)} · ends in {Math.max(daysUntil(sprint.ends_on), 0)} days
-            </p>
-          )}
-          {gate && (
-            <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-              {gate.checks.map((c) => (
-                <li key={c.label} className={`rounded-[2px] border p-2 text-sm ${c.ok ? 'border-[var(--good)]' : 'border-[var(--line)]'}`}>
-                  <span className={c.ok ? 'text-[var(--good)]' : 'text-[var(--warn)]'}>{c.ok ? '✓ ' : '• '}</span>
-                  {c.label}
-                  <span className="block text-xs text-[var(--muted)]">{c.detail}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <h3 className="label mt-5">Tickets by state</h3>
-          <table className="table mt-1">
-            <thead>
-              <tr><th>State</th>{sev.map((s) => <th key={s} className="text-right">{s}</th>)}</tr>
-            </thead>
-            <tbody>
-              {stateRows.map((st) => (
-                <tr key={st}>
-                  <td><Link href={`/tickets?state=${st}`} className="hover:underline">{STATE_LABEL[st]}</Link></td>
-                  {sev.map((s) => (
-                    <td key={s} className="text-right tabular-nums">
-                      {tickets.filter((t) => t.state === st && t.severity === s).length || <span className="text-[var(--muted)]">·</span>}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      </div>
-
-      <section className="mt-6">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="font-semibold">Coverage by area</h2>
-          <div className="flex flex-wrap gap-3 text-xs text-[var(--muted)]">
-            {(['passing', 'testing', 'failing', 'blocked', 'none'] as const).map((h) => (
-              <span key={h} className="flex items-center gap-1">
-                <span className={`inline-block h-3 w-3 rounded border ${HEALTH_CLASS[h]}`} />{HEALTH_LABEL[h]}
+          <div><div className="label">Days left</div><div className="heading mt-0.5 text-[18px] font-semibold">{Math.max(daysUntil(sprint.ends_on), 0)}</div></div>
+          <div><div className="label">Cases left</div><div className="heading mt-0.5 text-[18px] font-semibold">{left} <span className="text-[12px] font-normal text-[var(--faint)]">of {cases.length}</span></div></div>
+          <div className="flex gap-1.5">
+            {gate.checks.map((c) => (
+              <span key={c.label} title={`${c.label}: ${c.detail}`}
+                className={`chip ${c.ok ? 'border-[var(--good-line)] bg-[var(--good-soft)] text-[var(--good)]' : 'border-[var(--line-soft)] bg-[var(--surface-2)] text-[var(--muted)]'}`}>
+                {c.ok ? '✓' : '•'} {c.label}
               </span>
             ))}
           </div>
-        </div>
-        <div className="mt-3 space-y-4">
-          {zones.map((z) => (
-            <div key={z}>
-              <h3 className="label mb-1.5">{z}</h3>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                {summaries.filter((x) => x.area.zone === z).map(({ area, s }) => (
-                  <Link key={area.id} href={`/areas/${area.id}`}
-                    className={`rounded-[2px] border p-3 hover:opacity-90 ${HEALTH_CLASS[s.health]}`}>
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="font-medium text-[var(--ink)]">{area.page}</span>
-                      <span className="text-xs text-[var(--muted)]">{sprintOfArea.get(area.id) ?? ''}</span>
-                    </div>
-                    <div className="mt-1 text-xs text-[var(--muted)]">
-                      {s.cases ? `${s.tested}/${s.cases} tested · ${s.open} open` : 'No cases yet'}
-                    </div>
-                    {s.cases > 0 && (
-                      <div className="mt-2">
-                        <Bar parts={[
-                          { label: 'Passed', value: s.passed, tone: 'good' },
-                          { label: 'Failed', value: s.failed, tone: 'crit' },
-                          { label: 'Other results', value: s.tested - s.passed - s.failed, tone: 'warn' },
-                          { label: 'Not tested', value: s.cases - s.tested, tone: 'muted' },
-                        ]} />
-                      </div>
-                    )}
-                  </Link>
+        </Link>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
+        <div className="space-y-4">
+          {me.role === 'dev' && (
+            <>
+              <Panel title="Reopened, needs another fix" count={mine.filter((t) => t.state === 'reopened').length} href="/tickets?view=grid" empty="Nothing bounced back.">
+                <TicketRows rows={mine.filter((t) => t.state === 'reopened').sort(bySeverity)} />
+              </Panel>
+              <Panel title="My fixes in progress" count={mine.filter((t) => t.state === 'in_fix').length} empty="Nothing in fix. Pick up a triaged ticket below.">
+                <TicketRows rows={mine.filter((t) => t.state === 'in_fix').sort(bySeverity)} note={(t) => `updated ${timeAgo(t.updated_at)}`} />
+              </Panel>
+              <Panel title="Assigned, not started" count={mine.filter((t) => ['new', 'triaged'].includes(t.state)).length} empty="Nothing waiting to start.">
+                <TicketRows rows={mine.filter((t) => ['new', 'triaged'].includes(t.state)).sort(bySeverity)} />
+              </Panel>
+              <Panel title="Waiting on QA retest" count={mine.filter((t) => t.state === 'ready_for_retest').length} empty="None of your fixes are waiting.">
+                <TicketRows rows={mine.filter((t) => t.state === 'ready_for_retest')} note={(t) => t.fixed_in_build ? `build ${t.fixed_in_build}` : ''} />
+              </Panel>
+            </>
+          )}
+          {me.role !== 'dev' && (
+            <>
+              {me.role === 'lead' && (
+                <Panel title="To triage" count={toTriage.length} href="/tickets?view=grid" empty="Nothing new to triage.">
+                  <TicketRows rows={toTriage} note={(t) => (t.owner_name ? t.owner_name : 'unowned')} />
+                </Panel>
+              )}
+              {me.role === 'lead' && unownedHigh.length > 0 && (
+                <Panel title="Critical and High without an owner" count={unownedHigh.length} href="/tickets?view=grid">
+                  <TicketRows rows={unownedHigh.sort(bySeverity)} note={(t) => STATE_LABEL[t.state]} />
+                </Panel>
+              )}
+              <Panel title="Retest queue" count={retests.length} href="/mine" empty="Nothing ready for retest.">
+                <TicketRows rows={retests} note={(t) => [t.owner_name, t.fixed_in_build && `build ${t.fixed_in_build}`].filter(Boolean).join(' · ')} />
+              </Panel>
+              {sprint && (
+                <Panel title={`Manual tests due in ${sprint.name}`} count={manualDue.length} href={`/cases?sprint=${sprint.id}&stage=manual`} empty="No manual tests waiting.">
+                  <ul className="divide-y divide-[var(--row)]">
+                    {manualDue.slice(0, 10).map((c) => (
+                      <li key={c.id} className="flex items-center gap-3 px-4 py-2">
+                        <CaseLink tcId={c.tc_id} />
+                        <span className="min-w-0 flex-1 truncate text-[12.5px]">{c.title}</span>
+                        <PriorityChip p={c.priority} />
+                      </li>
+                    ))}
+                  </ul>
+                </Panel>
+              )}
+              {untracked.length > 0 && (
+                <Panel title="Failures without a ticket" count={untracked.length}>
+                  <div className="flex flex-wrap gap-2 px-4 py-3">{untracked.map((c) => <CaseLink key={c.id} tcId={c.tc_id} />)}</div>
+                </Panel>
+              )}
+            </>
+          )}
+          <Panel title="My plan tasks" count={myTasks.length} href="/plan" empty="No open plan tasks.">
+            <ul className="divide-y divide-[var(--row)]">
+              {myTasks.map((k) => (
+                <li key={k.id} className="flex items-center gap-3 px-4 py-2 text-[12.5px]">
+                  <span className="mono text-[11px] text-[var(--faint)]">#{k.num}</span>
+                  <span className="min-w-0 flex-1 truncate">{k.title}</span>
+                  <span className={k.due_on < now.toISOString().slice(0, 10) ? 'font-semibold text-[var(--crit)]' : 'text-[var(--faint)]'}>due {fmtDate(k.due_on)}</span>
+                  <span className="text-[11.5px] text-[var(--muted)]">{k.status.replace('_', ' ')}</span>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+          {me.role === 'lead' && late.length > 0 && (
+            <Panel title="Late plan tasks (team)" count={late.length} href="/plan">
+              <ul className="divide-y divide-[var(--row)]">
+                {late.map((k) => (
+                  <li key={k.id} className="flex items-center gap-3 px-4 py-2 text-[12.5px]">
+                    <span className="mono text-[11px] text-[var(--faint)]">#{k.num}</span>
+                    <span className="min-w-0 flex-1 truncate">{k.title}</span>
+                    <span>{k.owner_label}</span>
+                    <span className="font-semibold text-[var(--crit)]">due {fmtDate(k.due_on)}</span>
+                  </li>
                 ))}
-              </div>
-            </div>
-          ))}
+              </ul>
+            </Panel>
+          )}
         </div>
-      </section>
+
+        <aside>
+          <Panel title={me.role === 'lead' ? 'Team activity since yesterday' : 'Since yesterday'} count={feed.length} empty="Nothing has moved yet.">
+            <ol className="divide-y divide-[var(--row)]">
+              {feed.map((a, i) => (
+                <li key={`${a.ref}-${a.at}-${i}`} className="px-4 py-2 text-[12.5px]">
+                  <div className="flex items-center gap-2">
+                    {a.kind === 'ticket' || a.kind === 'comment' ? <TicketLink k={a.ref} /> : a.kind === 'task' ? <span className="mono text-[12px]">{a.ref}</span> : <CaseLink tcId={a.ref} />}
+                    <span className="ml-auto text-[11px] text-[var(--faint)]">{timeAgo(a.at, now)}</span>
+                  </div>
+                  <div className="mt-0.5 truncate text-[var(--ink-2)]">{a.what.replaceAll('_', ' ')}</div>
+                  {a.kind === 'comment' && a.detail && <div className="mt-0.5 line-clamp-2 text-[var(--muted)]">“{a.detail}”</div>}
+                </li>
+              ))}
+            </ol>
+          </Panel>
+          <p className="mt-3 text-[11.5px] text-[var(--faint)]">
+            Since {fmtDate(since.toISOString())} (the last working day). <Link href="/release" className="text-[var(--accent)] hover:underline">Release overview</Link>
+          </p>
+        </aside>
+      </div>
+      {mine.length === 0 && me.role === 'dev' && <p className="mt-4 text-[12.5px] text-[var(--muted)]">Nothing is assigned to you yet. <Link href="/tickets" className="text-[var(--accent)] hover:underline">Open the board</Link> to pick something up.</p>}
     </>
   )
 }

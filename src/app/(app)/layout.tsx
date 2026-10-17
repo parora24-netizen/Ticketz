@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
+import { CreateMenu } from '@/components/create-menu'
 import { getMe } from '@/lib/auth'
 import { RELEASE_DATE, daysUntil } from '@/lib/data'
 import { NavLinks } from './nav-links'
@@ -20,9 +21,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <div className="flex h-[30px] items-center bg-white/15 px-3 text-[13px] font-medium whitespace-nowrap text-white">
             Release 26.111
           </div>
-          <span className="mono hidden text-[11px] text-white/60 sm:inline">{daysUntil(RELEASE_DATE)} days to release</span>
-          <div className="ml-auto flex items-center gap-2.5">
-            <span className="hidden text-[12.5px] text-white/80 md:inline">{me.name} · {ROLE[me.role]}</span>
+          <span className="mono hidden text-[11px] text-white/60 xl:inline">{daysUntil(RELEASE_DATE)} days to release</span>
+          <form action="/search" role="search" className="ml-auto hidden md:block">
+            <input name="q" placeholder="Jump to TC_FN_070, DEV-…, or search" aria-label="Search tickets and test cases"
+              className="h-[30px] w-72 rounded-[2px] border border-white/20 bg-white/10 px-3 text-[12.5px] text-white placeholder:text-white/50 focus:bg-white focus:text-[var(--ink)] focus:outline-none" />
+          </form>
+          <div className="ml-auto flex items-center gap-2.5 md:ml-0">
+            <CreateMenu canAddCases={me.role !== 'dev'} />
             <div className="flex h-[30px] w-[30px] items-center justify-center rounded-[2px] bg-[#2b57c4] text-[11px] font-semibold text-white" title={`${me.name} · ${ROLE[me.role]}`}>
               {initials}
             </div>
@@ -32,7 +37,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </div>
         <div className="flex h-12 items-center border-b border-[var(--navy)] bg-[var(--navy-2)] px-4">
-          <NavLinks />
+          <NavLinks isLead={me.role === 'lead'} />
         </div>
       </header>
       <main className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6">{children}</main>

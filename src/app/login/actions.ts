@@ -5,12 +5,23 @@ import { createClient } from '@/lib/supabase/server'
 import { serverEnv } from '@/lib/env'
 import { emailDomainAllowed, safeNext } from '@/lib/auth'
 
+/**
+ * The form sends the name and the domain separately (name + "@vulqan.ai"). A full address pasted
+ * into the name box wins, so people can still type it all.
+ */
+function emailFrom(formData: FormData): string {
+  const user = String(formData.get('user') ?? formData.get('email') ?? '').trim().toLowerCase()
+  if (user.includes('@')) return user
+  const domain = String(formData.get('domain') ?? '').trim().toLowerCase().replace(/^@/, '')
+  return user && domain ? `${user}@${domain}` : user
+}
+
 const q = (params: Record<string, string | undefined>) =>
   '?' + new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][]).toString()
 
 /** Day-to-day sign-in. */
 export async function signInWithPassword(formData: FormData) {
-  const email = String(formData.get('email') ?? '').trim().toLowerCase()
+  const email = emailFrom(formData)
   const password = String(formData.get('password') ?? '')
   const next = safeNext(formData.get('next'))
   const supabase = await createClient()
@@ -22,9 +33,9 @@ export async function signInWithPassword(formData: FormData) {
 
 /** First time, or forgot the password: email a one-time code. */
 export async function sendCode(formData: FormData) {
-  const email = String(formData.get('email') ?? '').trim().toLowerCase()
+  const email = emailFrom(formData)
   const next = safeNext(formData.get('next'))
-  if (!emailDomainAllowed(email, serverEnv().allowedDomains)) redirect(`/login${q({ mode: 'code', error: 'domain', next })}`)
+  if (!emailDomainAllowed(email, serverEnv().allowedDomains)) redirect(`/login${q({ mode: 'code', error: 'domain', email, next })}`)
   const supabase = await createClient()
   const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true } })
   if (error) {

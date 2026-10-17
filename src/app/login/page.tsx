@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { SubmitButton } from '@/components/submit-button'
+import { serverEnv } from '@/lib/env'
 import { sendCode, setPasswordWithCode, signInWithPassword } from './actions'
 
 const ERRORS: Record<string, string> = {
@@ -20,6 +21,10 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   const { error, sent, next, mode, email } = await searchParams
   const nextValue = next ?? '/'
   const codeMode = mode === 'code'
+  const domains = serverEnv().allowedDomains
+  // Each answer from the server remounts the form, so React's reset after an action refills the
+  // email from the address instead of emptying it.
+  const formKey = `${error ?? ''}:${email ?? ''}`
   return (
     <main className="grid min-h-screen bg-white md:grid-cols-2">
       <div className="relative hidden flex-col justify-end bg-[#0f1b33] p-8 md:flex"
@@ -34,13 +39,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <>
               <h1 className="mt-5 text-[26px] font-semibold text-[var(--navy-ink)]">Sign in to Launchpad</h1>
               <p className="mt-1 text-[13px] text-[var(--muted)]">Sprints, test results and tickets for Vulqan releases.</p>
-              <form action={signInWithPassword} className="mt-6 space-y-3">
+              <form key={formKey} action={signInWithPassword} className="mt-6 space-y-3">
                 <input type="hidden" name="next" value={nextValue} />
-                <label className="block"><span className="label">Work email</span>
-                  <input name="email" type="email" required autoComplete="username" defaultValue={email} className="input mt-1 w-full" placeholder="you@vulqan.ai" />
-                </label>
+                <EmailField email={email} domains={domains} />
                 <label className="block"><span className="label">Password</span>
-                  <input name="password" type="password" required autoComplete="current-password" className="input mt-1 w-full" />
+                  <input name="password" type="password" required autoComplete="current-password" autoFocus={!!email} className="input mt-1 w-full" />
                 </label>
                 {error && <p className="text-[12.5px] text-[var(--crit)]">{ERRORS[error] ?? 'Something went wrong.'}</p>}
                 <SubmitButton primary className="w-full" pendingText="Signing in…">Sign in</SubmitButton>
@@ -56,11 +59,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <>
               <h1 className="mt-5 text-[26px] font-semibold text-[var(--navy-ink)]">Set a password</h1>
               <p className="mt-1 text-[13px] text-[var(--muted)]">We email you an 8-digit code. Enter it here with your new password.</p>
-              <form action={sendCode} className="mt-6 space-y-3">
+              <form key={formKey} action={sendCode} className="mt-6 space-y-3">
                 <input type="hidden" name="next" value={nextValue} />
-                <label className="block"><span className="label">Work email</span>
-                  <input name="email" type="email" required autoComplete="email" defaultValue={email} className="input mt-1 w-full" placeholder="you@vulqan.ai" />
-                </label>
+                <EmailField email={email} domains={domains} />
                 {error && <p className="text-[12.5px] text-[var(--crit)]">{ERRORS[error] ?? 'Something went wrong.'}</p>}
                 <SubmitButton primary className="w-full" pendingText="Sending…">Email me a code</SubmitButton>
               </form>
@@ -95,5 +96,32 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </div>
       </div>
     </main>
+  )
+}
+
+/** Work email as a name plus the company domain, so people type only "parikshit.arora". */
+function EmailField({ email, domains }: { email?: string; domains: string[] }) {
+  const at = email?.lastIndexOf('@') ?? -1
+  const known = at > 0 && domains.includes(email!.slice(at + 1))
+  const user = known ? email!.slice(0, at) : email ?? ''
+  const domain = known ? email!.slice(at + 1) : domains[0]
+  return (
+    <div>
+      <label htmlFor="login-user" className="label">Work email</label>
+      <div className="mt-1 flex">
+        <input id="login-user" name="user" required autoComplete="username" autoCapitalize="none" spellCheck={false}
+          defaultValue={user} autoFocus={!email} className="input min-w-0 flex-1" placeholder="first.last" />
+        {domains.length > 1 ? (
+          <select name="domain" defaultValue={domain} aria-label="Email domain" className="select -ml-px w-auto shrink-0 bg-[var(--surface-3)]">
+            {domains.map((d) => <option key={d} value={d}>@{d}</option>)}
+          </select>
+        ) : (
+          <>
+            <input type="hidden" name="domain" value={domains[0]} />
+            <span className="-ml-px flex items-center border border-[var(--line)] bg-[var(--surface-3)] px-3 text-[13px] text-[var(--muted)]">@{domains[0]}</span>
+          </>
+        )}
+      </div>
+    </div>
   )
 }

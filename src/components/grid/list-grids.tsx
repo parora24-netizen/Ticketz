@@ -47,7 +47,12 @@ export function PlanGrid({ rows }: { rows: TaskRow[] }) {
       edit: { field: 'status', kind: 'select', options: STATUS } },
   ]
   return (
-    <DataGrid rows={rows} columns={cols} csvName="release-plan" defaultSort={[{ key: 'num', dir: 1 }]} searchPlaceholder="Search tasks"
+    <DataGrid rows={rows} columns={cols} csvName="release-plan"
+      charts={[
+        { key: 'status', title: 'By status', order: ['Not started', 'In progress', 'Blocked', 'Done'] },
+        { key: 'phase', title: 'By phase' },
+        { key: 'owner', title: 'By owner' },
+      ]} defaultSort={[{ key: 'num', dir: 1 }]} searchPlaceholder="Search tasks"
       onSave={(ids, patch) => updateTasks(ids, patch as { status?: string })}
       bulkFields={[{ field: 'status', label: 'Set status', options: STATUS }]} />
   )
@@ -70,7 +75,7 @@ export function AreasGrid({ rows }: { rows: AreaRow[] }) {
     { key: 'health', header: 'Status', width: 150, value: (r) => r.health,
       render: (r) => <Chip tone={r.health === 'Passing' ? 'good' : r.health === 'Critical/High open' ? 'crit' : r.health === 'Failures open' ? 'warn' : r.health === 'Testing' ? 'accent' : 'muted'}>{r.health}</Chip> },
   ]
-  return <DataGrid rows={rows} columns={cols} csvName="areas" selectable={false} searchPlaceholder="Search areas" />
+  return <DataGrid rows={rows} columns={cols} csvName="areas" charts={[{ key: 'zone', title: 'By zone' }, { key: 'health', title: 'By status' }]} selectable={false} searchPlaceholder="Search areas" />
 }
 
 // ---- Team ------------------------------------------------------------------------------------
@@ -95,7 +100,7 @@ export function TeamGrid({ rows }: { rows: PersonRow[] }) {
     { key: 'active', header: 'Access', width: 110, value: (r) => (r.active ? 'Active' : 'Off'), edit: { field: 'active', kind: 'select', options: ACTIVE } },
   ]
   return (
-    <DataGrid rows={rows} columns={cols} csvName="team" searchPlaceholder="Search people"
+    <DataGrid rows={rows} columns={cols} csvName="team" charts={[{ key: 'role', title: 'By role' }, { key: 'active', title: 'Access' }]} searchPlaceholder="Search people"
       onSave={(ids, patch) => updatePeople(ids, patch)}
       bulkFields={[{ field: 'role', label: 'Set role', options: ROLES }, { field: 'active', label: 'Set access', options: ACTIVE }]} />
   )

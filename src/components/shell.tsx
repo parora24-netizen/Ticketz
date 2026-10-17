@@ -5,8 +5,8 @@ import { useEffect, useRef, useState } from 'react'
 
 const TITLES: [string, string][] = [
   ['/standup', 'Standup'],
-  ['/sprints', 'Sprint'],
-  ['/sprint', 'Sprint'],
+  ['/sprints', 'Sprints'],
+  ['/sprint', 'Sprints'],
   ['/tickets/new', 'New ticket'],
   ['/tickets', 'Tickets'],
   ['/cases/new', 'New test case'],

@@ -30,6 +30,12 @@ export function TicketsGrid({ rows, people, canTriage, state }: { rows: Row[]; p
       rows={rows}
       columns={columns}
       csvName="tickets"
+      charts={[
+        { key: 'state', title: 'By state', order: Object.values(STATE_LABEL) },
+        { key: 'severity', title: 'By severity', order: ['Critical', 'High', 'Medium', 'Low'] },
+        { key: 'owner', title: 'By owner' },
+        { key: 'area', title: 'By area' },
+      ]}
       defaultFilters={state && state in STATE_LABEL ? { state: [STATE_LABEL[state as keyof typeof STATE_LABEL]] } : undefined}
       defaultSort={[{ key: 'severity', dir: 1 }]}
       emptyText="No tickets match."

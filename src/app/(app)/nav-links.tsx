@@ -11,7 +11,7 @@ type Item = { href: string; label: string; icon: (p: { className?: string }) => 
 /** The process, top to bottom: my work, the sprint where testing happens, its tickets and cases, the daily check-in, the release. */
 const ITEMS: Item[] = [
   { href: '/', label: 'For you', icon: HomeIcon, match: ['/mine'] },
-  { href: '/sprint', label: 'Sprint', icon: SprintIcon, match: ['/sprint', '/sprints'] },
+  { href: '/sprint', label: 'Sprints', icon: SprintIcon, match: ['/sprint', '/sprints'] },
   { href: '/tickets', label: 'Tickets', icon: TicketIcon, match: ['/tickets'] },
   { href: '/cases', label: 'Test cases', icon: CasesIcon, match: ['/cases'] },
   { href: '/standup', label: 'Standup', icon: StandupIcon, match: ['/standup'] },

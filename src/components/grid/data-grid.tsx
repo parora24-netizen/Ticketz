@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from '@/components/toast'
+import { GridCharts, type ChartData, type ChartSpec } from './grid-charts'
+import { exportCsv, exportXlsx } from './export'
 
 export type Option = { value: string; label: string }
 export type Column<T> = {
@@ -42,6 +44,8 @@ type Props<T extends { id: string }> = {
   emptyText?: string
   selectable?: boolean
   footerNote?: string
+  /** Small bar charts above the grid, one per column key; clicking a bar filters that column. */
+  charts?: ChartSpec[]
 }
 
 type Sort = { key: string; dir: 1 | -1 }
@@ -57,7 +61,7 @@ const EMPTY = '(blank)'
  */
 export function DataGrid<T extends { id: string }>({
   rows, columns, onSave, bulkFields = [], bulkActions = [], csvName = 'export', toolbar, actions,
-  defaultSort = [], defaultFilters, searchPlaceholder = 'Search', emptyText = 'No rows.', selectable = true, footerNote,
+  defaultSort = [], defaultFilters, searchPlaceholder = 'Search', emptyText = 'No rows.', selectable = true, footerNote, charts,
 }: Props<T>) {
   const [overrides, setOverrides] = useState<Record<string, Record<string, string | null>>>({})
   const [filters, setFilters] = useState<Record<string, Filter>>(() =>
@@ -73,6 +77,17 @@ export function DataGrid<T extends { id: string }>({
   const [busy, setBusy] = useState(false)
   const [limit, setLimit] = useState(300)
   const gridRef = useRef<HTMLDivElement>(null)
+  const [showCharts, setShowCharts] = useState(true)
+  const [exportOpen, setExportOpen] = useState(false)
+  useEffect(() => {
+    try { if (localStorage.getItem(`grid-charts:${csvName}`) === 'hidden') setShowCharts(false) } catch {}
+  }, [csvName])
+  function toggleCharts() {
+    setShowCharts((v) => {
+      try { localStorage.setItem(`grid-charts:${csvName}`, v ? 'hidden' : 'shown') } catch {}
+      return !v
+    })
+  }
 
   useEffect(() => setOverrides({}), [rows])
 
@@ -92,16 +107,58 @@ export function DataGrid<T extends { id: string }>({
     return distinct <= 30 ? 'values' : 'text'
   }, [rows])
 
-  const view = useMemo(() => {
+  /** Whether a row passes the search and every column filter (optionally ignoring one column's). */
+  const matches = useCallback((r: T, except?: string) => {
     const q = query.trim().toLowerCase()
-    let out = rows.filter((r) =>
-      columns.every((c) => {
-        const f = filters[c.key]
-        if (!f) return true
-        const v = String(cellValue(r, c) ?? '')
-        return f.kind === 'values' ? f.values.includes(v || EMPTY) : v.toLowerCase().includes(f.q.toLowerCase())
-      }) && (!q || columns.some((c) => String(cellValue(r, c) ?? '').toLowerCase().includes(q))),
-    )
+    return columns.every((c) => {
+      if (c.key === except) return true
+      const f = filters[c.key]
+      if (!f) return true
+      const v = String(cellValue(r, c) ?? '')
+      return f.kind === 'values' ? f.values.includes(v || EMPTY) : v.toLowerCase().includes(f.q.toLowerCase())
+    }) && (!q || columns.some((c) => String(cellValue(r, c) ?? '').toLowerCase().includes(q)))
+  }, [columns, filters, query, cellValue])
+
+  // Each chart counts the rows that pass every other filter, so clicking its own bars never empties it.
+  const chartData: ChartData[] = useMemo(() => (charts ?? []).map((spec) => {
+    const col = columns.find((c) => c.key === spec.key)
+    if (!col) return { spec, bars: [], total: 0, selected: [] }
+    const counts = new Map<string, number>()
+    let total = 0
+    for (const r of rows) {
+      if (!matches(r, spec.key)) continue
+      const v = String(cellValue(r, col) ?? '') || EMPTY
+      counts.set(v, (counts.get(v) ?? 0) + 1)
+      total++
+    }
+    let bars = [...counts.entries()].map(([label, count]) => ({ label, count }))
+    bars = spec.order
+      ? bars.sort((a, b) => (spec.order!.indexOf(a.label) + 1 || 99) - (spec.order!.indexOf(b.label) + 1 || 99))
+      : bars.sort((a, b) => b.count - a.count)
+    const top = spec.top ?? 8
+    if (bars.length > top) {
+      const rest = bars.slice(top - 1).reduce((s, b) => s + b.count, 0)
+      bars = [...bars.slice(0, top - 1), { label: `Other (${bars.length - top + 1})`, count: rest }]
+    }
+    const f = filters[spec.key]
+    return { spec, bars, total, selected: f?.kind === 'values' ? f.values : [] }
+  }), [charts, columns, rows, matches, cellValue, filters])
+
+  function toggleChartValue(key: string, value: string) {
+    if (value.startsWith('Other (')) return
+    setFilters((x) => {
+      const f = x[key]
+      const cur = f?.kind === 'values' ? f.values : []
+      const next = cur.includes(value) ? cur.filter((v) => v !== value) : [...cur, value]
+      const n = { ...x }
+      if (next.length) n[key] = { kind: 'values', values: next }
+      else delete n[key]
+      return n
+    })
+  }
+
+  const view = useMemo(() => {
+    let out = rows.filter((r) => matches(r))
     const active = sorts.map((s) => ({ s, col: columns.find((c) => c.key === s.key) })).filter((x) => x.col)
     if (active.length) {
       out = [...out].sort((a, b) => {
@@ -117,7 +174,7 @@ export function DataGrid<T extends { id: string }>({
       })
     }
     return out
-  }, [rows, columns, filters, query, sorts, cellValue])
+  }, [rows, columns, sorts, cellValue, matches])
 
   const shown = view.slice(0, limit)
 
@@ -210,18 +267,13 @@ export function DataGrid<T extends { id: string }>({
     })
   }
 
-  function exportCsv() {
-    const esc = (v: unknown) => {
-      const s = String(v ?? '')
-      return /[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s
-    }
-    const lines = [columns.map((c) => esc(c.header)).join(','), ...view.map((r) => columns.map((c) => esc(cellValue(r, c))).join(','))]
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `${csvName}.csv`
-    a.click()
-    URL.revokeObjectURL(a.href)
+  function exportAs(kind: 'csv' | 'xlsx') {
+    setExportOpen(false)
+    const cols = columns.map((c) => ({ header: c.header, width: c.width, numeric: c.align === 'right' }))
+    const data = view.map((r) => columns.map((c) => cellValue(r, c)))
+    const name = `${csvName}-${new Date().toISOString().slice(0, 10)}`
+    if (kind === 'csv') exportCsv(name, cols, data)
+    else exportXlsx(name, cols, data).catch(() => toast('The Excel file could not be built. Try CSV.', 'error'))
   }
 
   const ids = [...selected]
@@ -237,9 +289,29 @@ export function DataGrid<T extends { id: string }>({
         {toolbar}
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {actions}
-          <button type="button" onClick={exportCsv} className="btn" title="Download what is shown as CSV">Export</button>
+          {charts && charts.length > 0 && (
+            <button type="button" onClick={toggleCharts} className="btn" aria-pressed={!showCharts}>{showCharts ? 'Hide charts' : 'Show charts'}</button>
+          )}
+          <div className="relative">
+            <button type="button" onClick={() => setExportOpen((v) => !v)} aria-expanded={exportOpen} className="btn">Export ▾</button>
+            {exportOpen && (
+              <div role="menu" className="absolute right-0 z-30 mt-1 w-56 border border-[var(--line)] bg-white py-1 shadow-[0_18px_44px_rgba(9,17,38,.24)]">
+                <button type="button" role="menuitem" onClick={() => exportAs('xlsx')} className="block w-full px-3 py-2 text-left hover:bg-[var(--accent-soft)]">
+                  <span className="block text-[13px] font-semibold">Excel (.xlsx)</span>
+                  <span className="text-[11.5px] text-[var(--muted)]">Formatted, header frozen</span>
+                </button>
+                <button type="button" role="menuitem" onClick={() => exportAs('csv')} className="block w-full px-3 py-2 text-left hover:bg-[var(--accent-soft)]">
+                  <span className="block text-[13px] font-semibold">CSV</span>
+                  <span className="text-[11.5px] text-[var(--muted)]">Plain text, any tool</span>
+                </button>
+                <p className="border-t border-[var(--line-soft)] px-3 pt-1.5 pb-1 text-[11px] text-[var(--faint)]">Exports the {view.length} rows shown, with current filters and sort.</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {charts && charts.length > 0 && showCharts && <GridCharts charts={chartData} onToggle={toggleChartValue} />}
 
       {/* Sort and filter summary, like "Sorted by Name ▲ × + then by…" */}
       <div className="flex flex-wrap items-center gap-1.5 pb-2 text-[12px] text-[var(--muted)]">

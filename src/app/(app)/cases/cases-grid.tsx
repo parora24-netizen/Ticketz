@@ -37,8 +37,8 @@ export function CasesGrid({ rows, areas, canEdit }: { rows: CaseGridRow[]; areas
       edit: canEdit ? { field: 'priority', kind: 'select', options: PRIORITY } : undefined },
     { key: 'automation', header: 'Automation', width: 130, value: (r) => AUTOMATION.find((a) => a.value === r.automation)!.label,
       edit: canEdit ? { field: 'automation', kind: 'select', options: AUTOMATION } : undefined },
-    { key: 'auto', header: 'Auto result', width: 120, value: (r) => (r.auto_result ? RESULT_LABEL[r.auto_result] : ''), render: (r) => <ResultChip r={r.auto_result} /> },
-    { key: 'manual', header: 'Manual result', width: 120, value: (r) => (r.manual_result ? RESULT_LABEL[r.manual_result] : ''), render: (r) => <ResultChip r={r.manual_result} /> },
+    { key: 'auto', header: 'Auto result', width: 120, value: (r) => (r.auto_result ? RESULT_LABEL[r.auto_result] : 'Not run'), render: (r) => <ResultChip r={r.auto_result} /> },
+    { key: 'manual', header: 'Manual result', width: 120, value: (r) => (r.manual_result ? RESULT_LABEL[r.manual_result] : 'Not tested'), render: (r) => <ResultChip r={r.manual_result} /> },
     { key: 'stage', header: 'Stage', width: 120, value: (r) => r.stage },
     { key: 'tickets', header: 'Open tickets', width: 100, align: 'right', value: (r) => r.open_tickets || null },
   ]
@@ -47,6 +47,12 @@ export function CasesGrid({ rows, areas, canEdit }: { rows: CaseGridRow[]; areas
       rows={rows}
       columns={columns}
       csvName="test-cases"
+      charts={[
+        { key: 'area', title: 'By area' },
+        { key: 'priority', title: 'By priority', order: ['Critical', 'High', 'Medium', 'Low'] },
+        { key: 'manual', title: 'Manual result', order: ['Passed', 'Failed', 'Blocked', 'Not tested'] },
+        { key: 'stage', title: 'Stage', order: ['Automate', 'Automated run', 'Manual test', 'Fix', 'Retest', 'Closed'] },
+      ]}
       emptyText="No test cases match."
       onSave={canEdit ? (ids, patch) => updateCases(ids, patch as Parameters<typeof updateCases>[1]) : undefined}
       bulkFields={canEdit ? [

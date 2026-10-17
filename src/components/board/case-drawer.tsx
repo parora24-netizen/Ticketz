@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useCallback, useEffect, useState, useTransition } from 'react'
-import { CaseAutomationField, CaseResultActions } from '@/components/case-controls'
+import { CaseAutomationField, CaseResultActions, CaseTesterField } from '@/components/case-controls'
 import { TicketActions, TicketField } from '@/components/ticket-controls'
 import { toast } from '@/components/toast'
 import { PriorityChip, ResultChip, StateChip } from '@/components/ui'
@@ -134,9 +134,13 @@ export function CaseDrawer({ caseId, onClose, role, people, sprints, active = tr
                 <p className="text-[12.5px] text-[var(--muted)]">No open ticket. A Fail raises one.</p>
               )}
 
-              <section>
-                <h3 className="label mb-2">Automation</h3>
-                <CaseAutomationField caseId={c.id} value={c.automation} disabled={!tester} onDone={reload} />
+              <section className="grid grid-cols-2 gap-3">
+                <label><span className="label mb-1 block">Tester</span>
+                  <CaseTesterField caseId={c.id} value={c.tester_id} people={people} disabled={!tester} onDone={reload} />
+                </label>
+                <label><span className="label mb-1 block">Automation</span>
+                  <CaseAutomationField caseId={c.id} value={c.automation} disabled={!tester} onDone={reload} />
+                </label>
               </section>
 
               {(c.steps || c.expected) && (

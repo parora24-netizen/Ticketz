@@ -2,17 +2,15 @@ export type Priority = 'Critical' | 'High' | 'Medium' | 'Low'
 export type Automation = 'not_automated' | 'automated' | 'manual_only'
 export type RunResult = 'passed' | 'failed' | 'skipped' | 'known_defect' | 'blocked'
 
-/** The six columns of a sprint board, in order. */
-export const STAGES = ['automate', 'auto_run', 'manual', 'fix', 'retest', 'done'] as const
+/** The four columns of a sprint board, in order: QA tests, devs fix, QA retests, done. */
+export const STAGES = ['test', 'fix', 'retest', 'done'] as const
 export type Stage = (typeof STAGES)[number]
 
 export const STAGE_LABEL: Record<Stage, string> = {
-  automate: 'Automate',
-  auto_run: 'Automated run',
-  manual: 'Manual test',
+  test: 'To test',
   fix: 'Fix',
   retest: 'Retest',
-  done: 'Closed',
+  done: 'Done',
 }
 
 export type CaseForStage = {
@@ -20,10 +18,6 @@ export type CaseForStage = {
   automation: Automation
   auto_result: RunResult | null
   manual_result: RunResult | null
-  /** An automated result was posted during this sprint. */
-  auto_in_sprint: boolean
-  /** A manual result was recorded during this sprint. */
-  manual_in_sprint: boolean
   open_fix: number
   awaiting_retest: number
 }
@@ -46,21 +40,20 @@ export function needsTicket(c: CaseForStage): boolean {
 }
 
 /**
- * Where a case sits on the sprint board.
- * Critical/High cases must be tested again inside the sprint; Medium/Low may rely on an
- * earlier result, so a sprint over a large area stays achievable.
+ * Where a case sits on the sprint board. Any recorded result counts, including the ones imported
+ * from the workbook: those were real runs.
  */
 export function caseStage(c: CaseForStage): Stage {
   if (c.awaiting_retest > 0) return 'retest'
   if (c.open_fix > 0 || needsTicket(c)) return 'fix'
-  const high = HIGH.includes(c.priority)
-  const hasAuto = high ? c.auto_in_sprint : c.auto_result !== null
-  const hasManual = high ? c.manual_in_sprint : c.manual_result !== null
-  // Critical/High never wait on automation: if nobody has automated them, they go to manual testing.
-  if (c.automation === 'not_automated' && !hasAuto && !hasManual) return high ? 'manual' : 'automate'
-  if (c.automation === 'automated' && !hasAuto) return 'auto_run'
-  if (needsManual(c) && !hasManual) return 'manual'
+  if (c.automation === 'automated' && c.auto_result === null) return 'test'
+  if (needsManual(c) && c.manual_result === null) return 'test'
   return 'done'
+}
+
+/** How a case in To test gets tested: by the automated suite, or by a person. */
+export function testBy(c: CaseForStage): 'auto' | 'manual' {
+  return c.automation === 'automated' && c.auto_result === null ? 'auto' : 'manual'
 }
 
 /**

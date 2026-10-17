@@ -63,6 +63,31 @@ export function CaseResultActions({ caseId, size = 'md', onDone }: { caseId: str
   )
 }
 
+/** Who tests the case, in the side panel: change and it saves. */
+export function CaseTesterField({ caseId, value, people, disabled, onDone }: {
+  caseId: string; value: string | null; people: { id: string; name: string }[]; disabled?: boolean; onDone?: () => void
+}) {
+  const router = useRouter()
+  const [v, setV] = useState(value ?? '')
+  const [pending, start] = useTransition()
+  return (
+    <select value={v} disabled={disabled || pending} aria-label="Tester" className="select w-full"
+      onChange={(e) => {
+        const next = e.target.value
+        const before = v
+        setV(next)
+        start(async () => {
+          const res = await updateCases([caseId], { tester_id: next || null })
+          if (res.error) { setV(before); toast(res.error, 'error') }
+          else { toast('Tester saved'); router.refresh(); onDone?.() }
+        })
+      }}>
+      <option value="">No tester</option>
+      {people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+    </select>
+  )
+}
+
 /** Automation status in the case's side panel: change and it saves. */
 export function CaseAutomationField({ caseId, value, disabled, onDone }: { caseId: string; value: string; disabled?: boolean; onDone?: () => void }) {
   const router = useRouter()

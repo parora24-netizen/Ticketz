@@ -1,9 +1,9 @@
 import type { Stage } from './case-stage'
+import { STAGES } from './case-stage'
 import { canMove, type Role, type TicketState } from './ticket-machine'
 
 /** What dropping a case on another sprint-board column does. */
 export type BoardMove =
-  | { kind: 'automation'; value: 'automated' | 'manual_only'; label: string }
   | { kind: 'result'; result: 'passed' | 'failed'; ask: boolean; label: string }
   | { kind: 'ticket'; to: TicketState; ask: 'build' | 'note' | null; label: string }
 
@@ -13,17 +13,10 @@ export type BoardMove =
  */
 export function boardMove(from: Stage, to: Stage, role: Role, ticketState: TicketState | null): BoardMove | { error: string } {
   const tester = role !== 'dev'
-  const key = `${from}>${to}`
-  switch (key) {
-    case 'automate>auto_run':
-      return tester ? { kind: 'automation', value: 'automated', label: 'Marked automated' } : { error: 'QA or the lead decides what is automated' }
-    case 'automate>manual':
-      return tester ? { kind: 'automation', value: 'manual_only', label: 'Marked manual only' } : { error: 'QA or the lead decides what is automated' }
-    case 'manual>done':
-    case 'auto_run>done':
+  switch (`${from}>${to}`) {
+    case 'test>done':
       return tester ? { kind: 'result', result: 'passed', ask: false, label: 'Pass recorded' } : { error: 'QA or the lead records results' }
-    case 'manual>fix':
-    case 'auto_run>fix':
+    case 'test>fix':
       return tester ? { kind: 'result', result: 'failed', ask: true, label: 'Fail recorded' } : { error: 'QA or the lead records results' }
     case 'fix>retest': {
       if (!ticketState) return { error: 'Raise a ticket for this failure first' }
@@ -47,6 +40,5 @@ export function boardMove(from: Stage, to: Stage, role: Role, ticketState: Ticke
 
 /** Columns a dragged case can be dropped on, for highlighting. */
 export function droppableStages(from: Stage, role: Role, ticketState: TicketState | null): Stage[] {
-  const all: Stage[] = ['automate', 'auto_run', 'manual', 'fix', 'retest', 'done']
-  return all.filter((to) => to !== from && !('error' in boardMove(from, to, role, ticketState)))
+  return STAGES.filter((to) => to !== from && !('error' in boardMove(from, to, role, ticketState)))
 }

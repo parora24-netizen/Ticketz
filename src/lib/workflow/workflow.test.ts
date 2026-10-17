@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { TRANSITIONS, allowedMoves, canMove, requiredFor, retestResult, type Role, type TicketState } from './ticket-machine'
-import { caseStage, mismatch, needsTicket, type CaseForStage } from './case-stage'
+import { caseStage, mismatch, needsTicket, type CaseForStage, testBy } from './case-stage'
 import { sprintGate } from './sprint-gate'
 
 describe('ticket machine', () => {
@@ -55,39 +55,35 @@ const base: CaseForStage = {
   automation: 'automated',
   auto_result: null,
   manual_result: null,
-  auto_in_sprint: false,
-  manual_in_sprint: false,
   open_fix: 0,
   awaiting_retest: 0,
 }
 
 describe('case stage', () => {
   it('walks a case through the board', () => {
-    expect(caseStage({ ...base, automation: 'not_automated' })).toBe('automate')
-    expect(caseStage(base)).toBe('auto_run')
-    expect(caseStage({ ...base, auto_result: 'failed', auto_in_sprint: true })).toBe('manual')
-    expect(caseStage({ ...base, auto_result: 'failed', manual_result: 'failed', auto_in_sprint: true, manual_in_sprint: true })).toBe('fix')
+    expect(caseStage({ ...base, automation: 'not_automated' })).toBe('test')
+    expect(caseStage(base)).toBe('test')
+    expect(caseStage({ ...base, auto_result: 'failed' })).toBe('test')
+    expect(caseStage({ ...base, auto_result: 'failed', manual_result: 'failed' })).toBe('fix')
     expect(caseStage({ ...base, auto_result: 'failed', manual_result: 'failed', open_fix: 1 })).toBe('fix')
     expect(caseStage({ ...base, manual_result: 'failed', awaiting_retest: 1 })).toBe('retest')
-    expect(caseStage({ ...base, auto_result: 'passed', auto_in_sprint: true })).toBe('done')
-  })
-
-  it('sends Critical and High cases that are not automated straight to manual testing', () => {
-    expect(caseStage({ ...base, priority: 'High', automation: 'not_automated' })).toBe('manual')
-    expect(caseStage({ ...base, priority: 'Low', automation: 'not_automated' })).toBe('automate')
-  })
-
-  it('makes Critical and High cases be tested again inside the sprint', () => {
-    const high = { ...base, priority: 'High' as const, auto_result: 'passed' as const, manual_result: 'passed' as const }
-    expect(caseStage(high)).toBe('auto_run')
-    expect(caseStage({ ...high, auto_in_sprint: true })).toBe('manual')
-    expect(caseStage({ ...high, auto_in_sprint: true, manual_in_sprint: true })).toBe('done')
-    // Medium can rely on an earlier result.
     expect(caseStage({ ...base, auto_result: 'passed' })).toBe('done')
   })
 
+  it('says how a case in To test gets tested', () => {
+    expect(testBy(base)).toBe('auto')
+    expect(testBy({ ...base, auto_result: 'failed' })).toBe('manual')
+    expect(testBy({ ...base, automation: 'not_automated' })).toBe('manual')
+  })
+
+  it('counts earlier real results for Critical and High cases too', () => {
+    const high = { ...base, priority: 'High' as const }
+    expect(caseStage({ ...high, auto_result: 'passed' })).toBe('test')
+    expect(caseStage({ ...high, auto_result: 'passed', manual_result: 'passed' })).toBe('done')
+  })
+
   it('treats manual-only cases as manual work', () => {
-    expect(caseStage({ ...base, automation: 'manual_only' })).toBe('manual')
+    expect(caseStage({ ...base, automation: 'manual_only' })).toBe('test')
     expect(caseStage({ ...base, automation: 'manual_only', manual_result: 'passed' })).toBe('done')
   })
 

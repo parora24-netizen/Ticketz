@@ -444,6 +444,7 @@ const CasePatch = z.object({
   priority: z.enum(['Critical', 'High', 'Medium', 'Low']).optional(),
   automation: z.enum(['not_automated', 'automated', 'manual_only']).optional(),
   area_id: z.uuid().optional(),
+  tester_id: z.uuid().nullable().optional(),
 })
 
 /** Inline and bulk edits from the test cases grid. */
@@ -631,7 +632,7 @@ export async function recordCaseResult(input: {
 // ---- Sprint board: detail panel and comments without leaving the board ----------------------
 
 export type CaseDetail = {
-  case: { id: string; tc_id: string; title: string; priority: string; automation: string; preconditions: string | null; steps: string | null; test_data: string | null; expected: string | null; zone: string; page: string }
+  case: { id: string; tc_id: string; title: string; priority: string; automation: string; tester_id: string | null; preconditions: string | null; steps: string | null; test_data: string | null; expected: string | null; zone: string; page: string }
   ticket: { id: string; key: string; title: string; state: string; severity: string; owner_id: string | null; current_sprint_id: string | null; fixed_in_build: string | null } | null
   runs: { kind: string; result: string; recorded_at: string; note: string | null; who: string | null }[]
   comments: { body: string; created_at: string; who: string | null }[]
@@ -643,7 +644,7 @@ export async function getCaseDetail(caseId: string): Promise<CaseDetail | { erro
   if (!z.uuid().safeParse(caseId).success) return { error: 'Unknown test case' }
   const supabase = await createClient()
   const [{ data: c }, { data: t }, { data: runs }] = await Promise.all([
-    supabase.from('test_cases').select('id, tc_id, title, priority, automation, preconditions, steps, test_data, expected, areas(zone, page)').eq('id', caseId).single(),
+    supabase.from('test_cases').select('id, tc_id, title, priority, automation, tester_id, preconditions, steps, test_data, expected, areas(zone, page)').eq('id', caseId).single(),
     supabase.from('tickets').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build')
       .eq('case_id', caseId).in('state', ['new', 'triaged', 'in_fix', 'reopened', 'ready_for_retest']).order('logged_on', { ascending: false }).limit(1).maybeSingle(),
     supabase.from('test_runs').select('kind, result, recorded_at, note, people(name)').eq('case_id', caseId).order('recorded_at', { ascending: false }).limit(6),

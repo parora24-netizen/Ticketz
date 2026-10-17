@@ -40,7 +40,7 @@ export function TicketBoard({ tickets, role, meId, zones }: { tickets: BoardTick
   const [pending, setPending] = useState<{ t: BoardTicket; to: TicketState } | null>(null)
   const [input, setInput] = useState('')
   const setMsg = (m: { tone: 'ok' | 'error'; text: string }) => toast(m.text, m.tone)
-  const [mine, setMine] = useState(false)
+  const [owner, setOwner] = useState('') // '' everyone, '__none' nobody, else a person id
   const [high, setHigh] = useState(false)
   const [zone, setZone] = useState('')
   const [lane, setLane] = useState<Lane>('none')
@@ -50,10 +50,28 @@ export function TicketBoard({ tickets, role, meId, zones }: { tickets: BoardTick
 
   const stateOf = (t: BoardTicket) => local[t.id] ?? t.state
   const visible = useMemo(
-    () => tickets.filter((t) => (!mine || t.owner_id === meId) && (!high || t.severity === 'Critical' || t.severity === 'High') && (!zone || t.zone === zone)
+    () => tickets.filter((t) => (!owner || (owner === '__none' ? !t.owner_id : t.owner_id === owner)) && (!high || t.severity === 'Critical' || t.severity === 'High') && (!zone || t.zone === zone)
       && (!q || `${t.key} ${t.title} ${t.tc_id ?? ''}`.toLowerCase().includes(q.toLowerCase()))),
-    [tickets, mine, high, zone, meId, q],
+    [tickets, owner, high, zone, q],
   )
+  // Open tickets per owner, for the owner filter and the ‹ › walk at standup.
+  const load = useMemo(() => {
+    const m = new Map<string, { name: string; n: number }>()
+    for (const t of tickets) {
+      if (['closed', 'deferred', 'duplicate'].includes(t.state)) continue
+      const id = t.owner_id ?? '__none'
+      const e = m.get(id) ?? { name: t.owner_name ?? 'No owner', n: 0 }
+      e.n++
+      m.set(id, e)
+    }
+    return m
+  }, [tickets])
+  const walk = [...load.entries()].filter(([id]) => id !== '__none').sort((a, b) => a[1].name.localeCompare(b[1].name))
+  function step(d: 1 | -1) {
+    if (!walk.length) return
+    const i = walk.findIndex(([id]) => id === owner)
+    setOwner(walk[(i + d + walk.length) % walk.length][0])
+  }
   const parked = visible.filter((t) => ['deferred', 'duplicate'].includes(stateOf(t))).length
 
   async function move(t: BoardTicket, to: TicketState, extra: Record<string, string> = {}) {
@@ -96,7 +114,16 @@ export function TicketBoard({ tickets, role, meId, zones }: { tickets: BoardTick
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search tickets" aria-label="Search tickets" className="input w-56" />
-        <button type="button" onClick={() => setMine((v) => !v)} className={`btn ${mine ? 'btn-primary' : ''}`}>Only mine</button>
+        <div className="flex items-center">
+          <button type="button" onClick={() => step(-1)} aria-label="Previous person" className="btn px-2">‹</button>
+          <select value={owner} onChange={(e) => setOwner(e.target.value)} aria-label="Owner" className="select -ml-px min-w-44">
+            <option value="">Everyone</option>
+            {load.has(meId) && <option value={meId}>Me · {load.get(meId)!.n} open</option>}
+            {walk.filter(([id]) => id !== meId).map(([id, e]) => <option key={id} value={id}>{e.name} · {e.n} open</option>)}
+            {load.has('__none') && <option value="__none">No owner · {load.get('__none')!.n} open</option>}
+          </select>
+          <button type="button" onClick={() => step(1)} aria-label="Next person" className="btn -ml-px px-2">›</button>
+        </div>
         <button type="button" onClick={() => setHigh((v) => !v)} className={`btn ${high ? 'btn-primary' : ''}`}>Critical &amp; High</button>
         <select value={zone} onChange={(e) => setZone(e.target.value)} className="select" aria-label="Zone">
           <option value="">All zones</option>

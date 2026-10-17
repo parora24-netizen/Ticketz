@@ -14,7 +14,7 @@ import {
   loadSprints, loadTickets, toStageInput, type CaseRow, type TicketRow,
 } from '@/lib/data'
 import { casesTestedByDay, istDate } from '@/lib/trends'
-import { STAGES, caseStage, needsTicket, type Stage } from '@/lib/workflow/case-stage'
+import { STAGES, caseStage, needsTicket, testBy, type Stage } from '@/lib/workflow/case-stage'
 import { sprintGate } from '@/lib/workflow/sprint-gate'
 import { startSprint } from '../../actions'
 import { SprintForm } from '../sprint-form'
@@ -104,8 +104,8 @@ export default async function SprintPage({
       </section>
 
       <SprintBoard
-        sprintId={id}
         role={me.role}
+        meId={me.id}
         active={sprint.status === 'active'}
         people={people.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name }))}
         sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ id: s.id, name: s.name }))}
@@ -113,11 +113,11 @@ export default async function SprintPage({
         cards={cases.map((c) => {
           const t = openTicket(c)
           return {
-            id: c.id, tc_id: c.tc_id, title: c.title, priority: c.priority, area: `${c.zone} · ${c.page}`,
-            stage: stageOf.get(c.id)!,
+            id: c.id, tc_id: c.tc_id, title: c.title, priority: c.priority, zone: c.zone, page: c.page,
+            stage: stageOf.get(c.id)!, test_by: testBy(toStageInput(c)), tester_id: c.tester_id, tester_name: c.tester_name,
             auto_result: c.auto_result, manual_result: c.manual_result,
             needs_ticket: needsTicket(toStageInput(c, runs)),
-            ticket: t ? { id: t.id, key: t.key, state: t.state, owner_name: t.owner_name } : null,
+            ticket: t ? { id: t.id, key: t.key, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name } : null,
           }
         })}
       />

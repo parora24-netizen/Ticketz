@@ -12,7 +12,7 @@ export type GateCheck = { label: string; ok: boolean; detail: string }
 export function sprintGate(cases: CaseForStage[], tickets: GateTicket[]): { ok: boolean; checks: GateCheck[] } {
   const untested = cases.filter((c) => {
     const s = caseStage(c)
-    return s === 'automate' || s === 'auto_run' || s === 'manual'
+    return s === 'test'
   }).length
   const unticketed = cases.filter(needsTicket).length
   const untriaged = tickets.filter((t) => t.state === 'new' || t.state === 'triaged').length
@@ -26,7 +26,7 @@ export function sprintGate(cases: CaseForStage[], tickets: GateTicket[]): { ok: 
     {
       label: 'Every case tested',
       ok: untested === 0,
-      detail: untested === 0 ? `All ${cases.length} cases have results` : `${untested} cases still to automate or test`,
+      detail: untested === 0 ? `All ${cases.length} cases have results` : `${untested} cases still to test`,
     },
     {
       label: 'Every failure has a ticket',

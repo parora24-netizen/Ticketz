@@ -3,7 +3,7 @@ import { STAGES, STAGE_LABEL } from '@/lib/workflow/case-stage'
 
 // One hue, light to dark as cases move along; Fix is red because those cases failed.
 const FILL: Record<Stage, string> = {
-  automate: '#dfe6f5', auto_run: '#b9c8ea', manual: '#8aa3dc', fix: '#d03b3b', retest: '#4f6fbf', done: '#16327a',
+  test: '#c3d0ee', fix: '#d03b3b', retest: '#6f8bd0', done: '#16327a',
 }
 
 /** Where the sprint's cases are, as one bar in process order, with counts. */
@@ -14,7 +14,7 @@ export function SprintProgress({ counts }: { counts: Record<Stage, number> }) {
     <div>
       <div className="flex items-baseline justify-between">
         <h3 className="text-[13px] font-semibold text-[var(--navy-ink)]">Progress</h3>
-        <span className="text-[12px] text-[var(--muted)]"><b className="text-[var(--ink)]">{pct}%</b> closed · {counts.done} of {total}</span>
+        <span className="text-[12px] text-[var(--muted)]"><b className="text-[var(--ink)]">{pct}%</b> done · {counts.done} of {total}</span>
       </div>
       <div className="mt-2 flex h-4 gap-[2px]" role="img" aria-label={STAGES.map((s) => `${STAGE_LABEL[s]} ${counts[s]}`).join(', ')}>
         {STAGES.map((s, i) => counts[s] > 0 && (

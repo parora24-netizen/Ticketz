@@ -9,7 +9,7 @@ import {
 } from '@/lib/data'
 import { lastWorkingDayStart } from '@/lib/standup'
 import { istDate } from '@/lib/trends'
-import { caseStage, needsTicket } from '@/lib/workflow/case-stage'
+import { caseStage, testBy, needsTicket } from '@/lib/workflow/case-stage'
 import { sprintGate } from '@/lib/workflow/sprint-gate'
 import { STATE_LABEL } from '@/lib/workflow/ticket-machine'
 
@@ -71,7 +71,8 @@ export default async function Home() {
   const mine = tickets.filter((t) => t.owner_id === me.id)
   const myTasks = tasks.filter((k) => k.owner_id === me.id && k.status !== 'done')
   const retests = tickets.filter((t) => t.state === 'ready_for_retest').sort(bySeverity)
-  const manualDue = cases.filter((c, i) => stages[i] === 'manual').sort((a, b) => SEV.indexOf(a.priority) - SEV.indexOf(b.priority))
+  // Manual tests that are mine, or that nobody has taken yet.
+  const manualDue = cases.filter((c, i) => stages[i] === 'test' && testBy(toStageInput(c)) === 'manual' && (c.tester_id === me.id || !c.tester_id)).sort((a, b) => SEV.indexOf(a.priority) - SEV.indexOf(b.priority))
   const untracked = cases.filter((c) => needsTicket(toStageInput(c, runs)))
   const toTriage = tickets.filter((t) => t.state === 'new').sort(bySeverity)
   const unownedHigh = tickets.filter((t) => !t.owner_id && ['Critical', 'High'].includes(t.severity) && !['closed', 'deferred', 'duplicate'].includes(t.state))
@@ -176,7 +177,7 @@ export default async function Home() {
                 <TicketRows rows={retests} limit={8} all={{ href: '/tickets?view=grid&state=ready_for_retest', label: `All ${retests.length} retests` }} note={(t) => [t.owner_name, t.fixed_in_build && `build ${t.fixed_in_build}`].filter(Boolean).join(' · ')} />
               </Panel>
               {sprint && (
-                <Panel title={`Manual tests due in ${sprint.name}`} count={manualDue.length} href={`/cases?sprint=${sprint.id}&stage=manual`} empty="No manual tests waiting.">
+                <Panel title={`Manual tests due in ${sprint.name}`} count={manualDue.length} href={`/cases?sprint=${sprint.id}&stage=test`} empty="No manual tests waiting.">
                   <ul className="divide-y divide-[var(--row)]">
                     {manualDue.slice(0, 10).map((c) => (
                       <li key={c.id} className="flex items-center gap-3 px-4 py-2">

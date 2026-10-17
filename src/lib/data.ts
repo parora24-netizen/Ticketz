@@ -31,6 +31,8 @@ export type CaseRow = {
   manual_result: RunResult | null
   manual_at: string | null
   manual_sprint_id: string | null
+  tester_id: string | null
+  tester_name: string | null
   open_fix: number
   awaiting_retest: number
 }
@@ -127,14 +129,14 @@ export async function loadSprintRuns(sprintId: string): Promise<{ auto: Set<stri
   return { auto, manual }
 }
 
-export function toStageInput(c: CaseRow, runs?: { auto: Set<string>; manual: Set<string> }): CaseForStage {
+// Every real result counts toward the stage, so sprint runs are no longer needed here; the
+// argument stays so callers don't change.
+export function toStageInput(c: CaseRow, _runs?: { auto: Set<string>; manual: Set<string> }): CaseForStage {
   return {
     priority: c.priority,
     automation: c.automation,
     auto_result: c.auto_result,
     manual_result: c.manual_result,
-    auto_in_sprint: runs?.auto.has(c.id) ?? false,
-    manual_in_sprint: runs?.manual.has(c.id) ?? false,
     open_fix: c.open_fix,
     awaiting_retest: c.awaiting_retest,
   }

@@ -15,7 +15,7 @@ const ASK = {
 } as const
 
 /** The ticket's next moves, as header buttons. Moves that need a detail ask for it in a dialog. */
-export function TicketActions({ ticketId, moves }: { ticketId: string; moves: TicketState[] }) {
+export function TicketActions({ ticketId, moves, onDone }: { ticketId: string; moves: TicketState[]; onDone?: () => void }) {
   const router = useRouter()
   const [pending, start] = useTransition()
   const [ask, setAsk] = useState<{ to: TicketState; kind: keyof typeof ASK } | null>(null)
@@ -28,6 +28,7 @@ export function TicketActions({ ticketId, moves }: { ticketId: string; moves: Ti
       else {
         toast(`Moved to ${STATE_LABEL[to]}`)
         router.refresh()
+        onDone?.()
       }
     })
   }
@@ -69,9 +70,10 @@ export function TicketActions({ ticketId, moves }: { ticketId: string; moves: Ti
 }
 
 /** Owner and severity in the side panel: change and it saves. */
-export function TicketField({ ticketId, field, value, options, disabled }: {
+export function TicketField({ ticketId, field, value, options, disabled, onDone }: {
   ticketId: string
-  field: 'owner_id' | 'severity'
+  field: 'owner_id' | 'severity' | 'current_sprint_id'
+  onDone?: () => void
   value: string
   options: { value: string; label: string }[]
   disabled?: boolean
@@ -80,7 +82,7 @@ export function TicketField({ ticketId, field, value, options, disabled }: {
   const [v, setV] = useState(value)
   const [pending, start] = useTransition()
   return (
-    <select value={v} disabled={disabled || pending} className="select w-full" aria-label={field === 'owner_id' ? 'Owner' : 'Severity'}
+    <select value={v} disabled={disabled || pending} className="select w-full" aria-label={field === 'owner_id' ? 'Owner' : field === 'severity' ? 'Severity' : 'Sprint'}
       onChange={(e) => {
         const next = e.target.value
         const before = v
@@ -91,8 +93,9 @@ export function TicketField({ ticketId, field, value, options, disabled }: {
             setV(before)
             toast(res.error, 'error')
           } else {
-            toast(field === 'owner_id' ? 'Owner saved' : 'Severity saved')
+            toast(field === 'owner_id' ? 'Owner saved' : field === 'severity' ? 'Severity saved' : 'Moved to that sprint')
             router.refresh()
+            onDone?.()
           }
         })
       }}>

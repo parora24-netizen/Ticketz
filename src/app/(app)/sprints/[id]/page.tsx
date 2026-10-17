@@ -5,12 +5,13 @@ import { notFound } from 'next/navigation'
 import { CaseLink, Chip, PageHeader, PriorityChip, ResultChip, StateChip, TicketLink } from '@/components/ui'
 import { Flash } from '@/components/flash'
 import { getMe } from '@/lib/auth'
-import { currentSprint, fmtDate, loadAreas, loadCases, loadSprintAreas, loadSprintRuns, loadSprints, loadTickets, toStageInput, type CaseRow, type TicketRow } from '@/lib/data'
+import { currentSprint, fmtDate, loadPeople, loadAreas, loadCases, loadSprintAreas, loadSprintRuns, loadSprints, loadTickets, toStageInput, type CaseRow, type TicketRow } from '@/lib/data'
 import { STAGES, STAGE_LABEL, caseStage, needsTicket, type Stage } from '@/lib/workflow/case-stage'
 import { sprintGate } from '@/lib/workflow/sprint-gate'
 import { closeSprint, startSprint } from '../../actions'
 import { CaseResultActions } from '@/components/case-controls'
 import { SprintForm } from '../sprint-form'
+import { SprintBoard } from '@/components/board/sprint-board'
 
 const PER_COLUMN = 40
 
@@ -39,7 +40,7 @@ export default async function SprintPage({
 }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { id } = await params
   const sp = await searchParams
-  const [me, sprints, areas, sprintAreas] = await Promise.all([getMe(), loadSprints(), loadAreas(), loadSprintAreas()])
+  const [me, sprints, areas, sprintAreas, people] = await Promise.all([getMe(), loadSprints(), loadAreas(), loadSprintAreas(), loadPeople()])
   const sprint = sprints.find((s) => s.id === id)
   if (!sprint) notFound()
   const now = nowSprint(sprints, currentSprint(sprints))
@@ -89,56 +90,23 @@ export default async function SprintPage({
         ))}
       </div>
 
-      {/* The process, left to right: each column is one step every case passes through */}
-      <div className="overflow-x-auto pb-2">
-        <div className="grid min-w-[1180px] grid-cols-6 gap-2">
-          {STAGES.map((stage, n) => {
-            const list = columns.get(stage)!
-            return (
-              <section key={stage} className="flex min-w-0 flex-col bg-[var(--surface-2)]">
-                <header className={`border-t-2 px-2.5 pt-2 pb-2 ${list.length && stage !== 'done' ? 'border-[var(--navy)]' : 'border-[var(--line)]'}`}>
-                  <div className="flex items-baseline justify-between">
-                    <h3 className="text-[12.5px] font-semibold text-[var(--navy-ink)]"><span className="mono mr-1.5 text-[11px] text-[var(--faint)]">{n + 1}</span>{STAGE_LABEL[stage]}</h3>
-                    <span className="mono text-[11.5px] text-[var(--muted)]">{list.length}</span>
-                  </div>
-                  <p className="text-[11px] leading-snug text-[var(--muted)]">{STAGE_HELP[stage]}</p>
-                </header>
-                <div className="max-h-[calc(100vh-330px)] min-h-24 space-y-1.5 overflow-y-auto px-1.5 pb-1.5">
-                  {list.slice(0, PER_COLUMN).map((c) => {
-                    const t = openTicket(c)
-                    return (
-                      <article key={c.id} className={`border border-[var(--line)] bg-white p-2 ${
-                        c.priority === 'Critical' ? 'shadow-[inset_3px_0_0_var(--crit)]' : c.priority === 'High' ? 'shadow-[inset_3px_0_0_var(--warn)]' : ''}`}>
-                        <div className="flex items-center justify-between gap-2">
-                          <CaseLink tcId={c.tc_id} /><PriorityChip p={c.priority} />
-                        </div>
-                        <p className="mt-1 line-clamp-2 text-[12.5px] leading-snug">{c.title}</p>
-                        <div className="mt-1 flex items-center gap-3 text-[11px] text-[var(--faint)]">
-                          <span>Auto <ResultText r={c.auto_result} /></span>
-                          <span>Manual <ResultText r={c.manual_result} /></span>
-                        </div>
-                        {t && <div className="mt-1.5 flex items-center gap-1.5"><TicketLink k={t.key} /><StateChip s={t.state} /></div>}
-                        {stage === 'fix' && needsTicket(toStageInput(c, runs)) && (
-                          <Link href={`/cases/${c.tc_id}#ticket`} className="mt-1.5 block text-[11.5px] font-semibold text-[var(--crit)] hover:underline">Raise a ticket</Link>
-                        )}
-                        {stage === 'manual' && canRecord && sprint.status === 'active' && (
-                          <div className="mt-2 flex gap-1"><CaseResultActions caseId={c.id} size="sm" /></div>
-                        )}
-                      </article>
-                    )
-                  })}
-                  {list.length === 0 && <p className="px-1 py-3 text-center text-[11.5px] text-[var(--faint)]">Empty</p>}
-                  {list.length > PER_COLUMN && (
-                    <Link href={`/cases?sprint=${id}&stage=${stage}`} className="block px-1 py-1 text-[12px] text-[var(--accent)] hover:underline">
-                      All {list.length} in the grid
-                    </Link>
-                  )}
-                </div>
-              </section>
-            )
-          })}
-        </div>
-      </div>
+      <SprintBoard
+        sprintId={id}
+        role={me.role}
+        active={sprint.status === 'active'}
+        people={people.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name }))}
+        sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ id: s.id, name: s.name }))}
+        cards={cases.map((c) => {
+          const t = openTicket(c)
+          return {
+            id: c.id, tc_id: c.tc_id, title: c.title, priority: c.priority,
+            stage: caseStage(toStageInput(c, runs)),
+            auto_result: c.auto_result, manual_result: c.manual_result,
+            needs_ticket: needsTicket(toStageInput(c, runs)),
+            ticket: t ? { id: t.id, key: t.key, state: t.state, owner_name: t.owner_name } : null,
+          }
+        })}
+      />
 
       {me.role === 'lead' && sprint.status !== 'closed' && (
         <details className="card mt-4 p-4">

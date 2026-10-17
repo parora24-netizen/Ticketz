@@ -9,7 +9,7 @@ import { recordCaseResult, updateCases } from '@/app/(app)/actions'
 type Result = 'passed' | 'failed' | 'blocked'
 
 /** Pass records at once; Fail and Blocked ask what was seen (and Fail raises the ticket). */
-export function CaseResultActions({ caseId, size = 'md' }: { caseId: string; size?: 'sm' | 'md' }) {
+export function CaseResultActions({ caseId, size = 'md', onDone }: { caseId: string; size?: 'sm' | 'md'; onDone?: () => void }) {
   const router = useRouter()
   const [pending, start] = useTransition()
   const [ask, setAsk] = useState<Result | null>(null)
@@ -24,6 +24,7 @@ export function CaseResultActions({ caseId, size = 'md' }: { caseId: string; siz
       else {
         toast(result === 'passed' ? 'Pass recorded' : result === 'blocked' ? 'Blocked recorded' : res.ticketKey ? `Fail recorded · ticket ${res.ticketKey}` : 'Fail recorded')
         router.refresh()
+        onDone?.()
       }
     })
   }
@@ -63,7 +64,7 @@ export function CaseResultActions({ caseId, size = 'md' }: { caseId: string; siz
 }
 
 /** Automation status in the case's side panel: change and it saves. */
-export function CaseAutomationField({ caseId, value, disabled }: { caseId: string; value: string; disabled?: boolean }) {
+export function CaseAutomationField({ caseId, value, disabled, onDone }: { caseId: string; value: string; disabled?: boolean; onDone?: () => void }) {
   const router = useRouter()
   const [v, setV] = useState(value)
   const [pending, start] = useTransition()
@@ -76,7 +77,7 @@ export function CaseAutomationField({ caseId, value, disabled }: { caseId: strin
         start(async () => {
           const res = await updateCases([caseId], { automation: next })
           if (res.error) { setV(before); toast(res.error, 'error') }
-          else { toast('Automation saved'); router.refresh() }
+          else { toast('Automation saved'); router.refresh(); onDone?.() }
         })
       }}>
       <option value="not_automated">Not automated yet</option>

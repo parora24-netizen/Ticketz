@@ -1,0 +1,52 @@
+import type { Stage } from './case-stage'
+import { canMove, type Role, type TicketState } from './ticket-machine'
+
+/** What dropping a case on another sprint-board column does. */
+export type BoardMove =
+  | { kind: 'automation'; value: 'automated' | 'manual_only'; label: string }
+  | { kind: 'result'; result: 'passed' | 'failed'; ask: boolean; label: string }
+  | { kind: 'ticket'; to: TicketState; ask: 'build' | 'note' | null; label: string }
+
+/**
+ * The step a drop stands for, or why it can't happen. `ticketState` is the case's open ticket,
+ * if it has one. QA and the lead record results; devs move their fixes along.
+ */
+export function boardMove(from: Stage, to: Stage, role: Role, ticketState: TicketState | null): BoardMove | { error: string } {
+  const tester = role !== 'dev'
+  const key = `${from}>${to}`
+  switch (key) {
+    case 'automate>auto_run':
+      return tester ? { kind: 'automation', value: 'automated', label: 'Marked automated' } : { error: 'QA or the lead decides what is automated' }
+    case 'automate>manual':
+      return tester ? { kind: 'automation', value: 'manual_only', label: 'Marked manual only' } : { error: 'QA or the lead decides what is automated' }
+    case 'manual>done':
+    case 'auto_run>done':
+      return tester ? { kind: 'result', result: 'passed', ask: false, label: 'Pass recorded' } : { error: 'QA or the lead records results' }
+    case 'manual>fix':
+    case 'auto_run>fix':
+      return tester ? { kind: 'result', result: 'failed', ask: true, label: 'Fail recorded' } : { error: 'QA or the lead records results' }
+    case 'fix>retest': {
+      if (!ticketState) return { error: 'Raise a ticket for this failure first' }
+      if (ticketState !== 'in_fix') return { error: 'Start the fix first (the ticket is not in fix yet)' }
+      return canMove('in_fix', 'ready_for_retest', role)
+        ? { kind: 'ticket', to: 'ready_for_retest', ask: 'build', label: 'Ready for retest' }
+        : { error: 'A developer or the lead marks a fix ready' }
+    }
+    case 'retest>done':
+      return canMove('ready_for_retest', 'closed', role)
+        ? { kind: 'ticket', to: 'closed', ask: null, label: 'Retest passed, ticket closed' }
+        : { error: 'QA or the lead retests' }
+    case 'retest>fix':
+      return canMove('ready_for_retest', 'reopened', role)
+        ? { kind: 'ticket', to: 'reopened', ask: 'note', label: 'Retest failed, ticket reopened' }
+        : { error: 'QA or the lead retests' }
+    default:
+      return { error: 'That step does not follow from here' }
+  }
+}
+
+/** Columns a dragged case can be dropped on, for highlighting. */
+export function droppableStages(from: Stage, role: Role, ticketState: TicketState | null): Stage[] {
+  const all: Stage[] = ['automate', 'auto_run', 'manual', 'fix', 'retest', 'done']
+  return all.filter((to) => to !== from && !('error' in boardMove(from, to, role, ticketState)))
+}

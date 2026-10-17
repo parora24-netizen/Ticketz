@@ -480,6 +480,7 @@ const TicketPatch = z.object({
   owner_id: z.uuid().nullable().optional(),
   severity: z.enum(['Critical', 'High', 'Medium', 'Low']).optional(),
   title: z.string().trim().min(3).max(300).optional(),
+  current_sprint_id: z.uuid().nullable().optional(),
 })
 
 /** Inline and bulk edits from the tickets grid. The database still enforces who may change what. */
@@ -625,4 +626,49 @@ export async function recordCaseResult(input: {
   }
   revalidatePath('/', 'layout')
   return { ticketKey }
+}
+
+// ---- Sprint board: detail panel and comments without leaving the board ----------------------
+
+export type CaseDetail = {
+  case: { id: string; tc_id: string; title: string; priority: string; automation: string; preconditions: string | null; steps: string | null; test_data: string | null; expected: string | null; zone: string; page: string }
+  ticket: { id: string; key: string; title: string; state: string; severity: string; owner_id: string | null; current_sprint_id: string | null; fixed_in_build: string | null } | null
+  runs: { kind: string; result: string; recorded_at: string; note: string | null; who: string | null }[]
+  comments: { body: string; created_at: string; who: string | null }[]
+}
+
+/** Everything the board's side panel shows for one case. */
+export async function getCaseDetail(caseId: string): Promise<CaseDetail | { error: string }> {
+  await getMe()
+  if (!z.uuid().safeParse(caseId).success) return { error: 'Unknown test case' }
+  const supabase = await createClient()
+  const [{ data: c }, { data: t }, { data: runs }] = await Promise.all([
+    supabase.from('test_cases').select('id, tc_id, title, priority, automation, preconditions, steps, test_data, expected, areas(zone, page)').eq('id', caseId).single(),
+    supabase.from('tickets').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build')
+      .eq('case_id', caseId).in('state', ['new', 'triaged', 'in_fix', 'reopened', 'ready_for_retest']).order('logged_on', { ascending: false }).limit(1).maybeSingle(),
+    supabase.from('test_runs').select('kind, result, recorded_at, note, people(name)').eq('case_id', caseId).order('recorded_at', { ascending: false }).limit(6),
+  ])
+  if (!c) return { error: 'Test case not found' }
+  const area = c.areas as unknown as { zone: string; page: string } | null
+  const { data: comments } = t
+    ? await supabase.from('ticket_comments').select('body, created_at, people(name)').eq('ticket_id', t.id).order('created_at', { ascending: false }).limit(10)
+    : { data: [] }
+  return {
+    case: { ...c, zone: area?.zone ?? '', page: area?.page ?? '' } as CaseDetail['case'],
+    ticket: (t as CaseDetail['ticket']) ?? null,
+    runs: (runs ?? []).map((r) => ({ kind: r.kind, result: r.result, recorded_at: r.recorded_at, note: r.note, who: (r.people as unknown as { name: string } | null)?.name ?? null })),
+    comments: (comments ?? []).map((m) => ({ body: m.body, created_at: m.created_at, who: (m.people as unknown as { name: string } | null)?.name ?? null })),
+  }
+}
+
+/** A comment from the side panel. */
+export async function addTicketComment(ticketId: string, body: string): Promise<{ error?: string }> {
+  const me = await getMe()
+  const v = z.object({ ticketId: z.uuid(), body: z.string().trim().min(1).max(5000) }).safeParse({ ticketId, body })
+  if (!v.success) return { error: 'Write something first' }
+  const supabase = await createClient()
+  const { error } = await supabase.from('ticket_comments').insert({ ticket_id: v.data.ticketId, body: v.data.body, author_id: me.id })
+  if (error) return { error: error.message }
+  revalidatePath('/', 'layout')
+  return {}
 }

@@ -47,7 +47,7 @@ export default async function TicketPage({
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section className="card p-5">
           <h3 className="label">Description</h3>
           <p className="mt-1.5 whitespace-pre-wrap text-[13px] text-[var(--ink-2)]">{t.description || 'No description.'}</p>

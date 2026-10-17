@@ -15,7 +15,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const sprintLabel = sprint
     ? `${sprint.name} · ${fmtDate(sprint.starts_on)} to ${fmtDate(sprint.ends_on)} · ${Math.max(daysUntil(sprint.ends_on), 0)} days left`
     : null
-  const initials = me.name.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase()
+  const words = me.name.trim().split(/\s+/)
+  const initials = (words.length > 1 ? words[0][0] + words[1][0] : me.name.slice(0, 2)).toUpperCase()
   return (
     <div className="min-h-screen">
       <DensityInit />

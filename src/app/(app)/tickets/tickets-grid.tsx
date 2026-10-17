@@ -10,13 +10,13 @@ import { updateTickets } from '../actions'
 type Row = BoardTicket & { kind: 'defect' | 'test_mismatch'; logged_on: string }
 const SEVERITY = ['Critical', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: p }))
 
-export function TicketsGrid({ rows, people, canTriage }: { rows: Row[]; people: { value: string; label: string }[]; canTriage: boolean }) {
+export function TicketsGrid({ rows, people, canTriage, state }: { rows: Row[]; people: { value: string; label: string }[]; canTriage: boolean; state?: string }) {
   const owners = [{ value: '__none', label: 'Unassigned' }, ...people]
   const columns: Column<Row>[] = [
     { key: 'key', header: 'Ticket', width: 170, mono: true, value: (r) => r.key,
       render: (r) => <Link href={`/tickets/${encodeURIComponent(r.key)}`} className="font-medium text-[var(--accent)] hover:underline">{r.key}</Link> },
     { key: 'title', header: 'Title', width: 360, value: (r) => r.title, edit: canTriage ? { field: 'title', kind: 'text' } : undefined },
-    { key: 'severity', header: 'Severity', width: 110, value: (r) => r.severity, render: (r) => <PriorityChip p={r.severity} />,
+    { key: 'severity', header: 'Severity', width: 110, sortValue: (r) => ['Critical', 'High', 'Medium', 'Low'].indexOf(r.severity), value: (r) => r.severity, render: (r) => <PriorityChip p={r.severity} />,
       edit: canTriage ? { field: 'severity', kind: 'select', options: SEVERITY } : undefined },
     { key: 'state', header: 'State', width: 140, value: (r) => STATE_LABEL[r.state], render: (r) => <StateChip s={r.state} /> },
     { key: 'owner', header: 'Owner', width: 140, value: (r) => r.owner_name ?? 'Unassigned',
@@ -30,6 +30,8 @@ export function TicketsGrid({ rows, people, canTriage }: { rows: Row[]; people: 
       rows={rows}
       columns={columns}
       csvName="tickets"
+      defaultFilters={state && state in STATE_LABEL ? { state: [STATE_LABEL[state as keyof typeof STATE_LABEL]] } : undefined}
+      defaultSort={[{ key: 'severity', dir: 1 }]}
       emptyText="No tickets match."
       onSave={(ids, patch) => {
         const p: Record<string, string | null> = { ...patch }

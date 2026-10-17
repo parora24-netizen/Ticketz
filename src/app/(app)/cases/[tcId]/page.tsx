@@ -38,7 +38,7 @@ export default async function CasePage({
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section className="card space-y-4 p-5">
           {[
             ['Pre-conditions', c.preconditions],

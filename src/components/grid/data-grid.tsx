@@ -11,6 +11,8 @@ export type Column<T> = {
   /** Plain value for sorting, filtering and CSV. */
   value: (row: T) => string | number | null
   render?: (row: T) => React.ReactNode
+  /** Sort by this instead of the shown value (e.g. Critical before High). */
+  sortValue?: (row: T) => number | string
   /** Makes the cell editable; `field` is the patch key sent to onSave. */
   edit?: { field: string; kind: 'text' } | { field: string; kind: 'select'; options: Option[] }
   /** "values" filters by ticking values (default for selects and short lists); "text" by typing. */
@@ -34,6 +36,8 @@ type Props<T extends { id: string }> = {
   /** The page's own buttons, always at the right end of the toolbar. */
   actions?: React.ReactNode
   defaultSort?: { key: string; dir: 1 | -1 }[]
+  /** Column filters to start with, e.g. from a link like /tickets?view=grid&state=new. */
+  defaultFilters?: Record<string, string[]>
   searchPlaceholder?: string
   emptyText?: string
   selectable?: boolean
@@ -53,10 +57,11 @@ const EMPTY = '(blank)'
  */
 export function DataGrid<T extends { id: string }>({
   rows, columns, onSave, bulkFields = [], bulkActions = [], csvName = 'export', toolbar, actions,
-  defaultSort = [], searchPlaceholder = 'Search', emptyText = 'No rows.', selectable = true, footerNote,
+  defaultSort = [], defaultFilters, searchPlaceholder = 'Search', emptyText = 'No rows.', selectable = true, footerNote,
 }: Props<T>) {
   const [overrides, setOverrides] = useState<Record<string, Record<string, string | null>>>({})
-  const [filters, setFilters] = useState<Record<string, Filter>>({})
+  const [filters, setFilters] = useState<Record<string, Filter>>(() =>
+    Object.fromEntries(Object.entries(defaultFilters ?? {}).map(([k, values]) => [k, { kind: 'values' as const, values }])))
   const [query, setQuery] = useState('')
   const [sorts, setSorts] = useState<Sort[]>(defaultSort)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -101,7 +106,7 @@ export function DataGrid<T extends { id: string }>({
     if (active.length) {
       out = [...out].sort((a, b) => {
         for (const { s, col } of active) {
-          const x = cellValue(a, col!), y = cellValue(b, col!)
+          const x = col!.sortValue ? col!.sortValue(a) : cellValue(a, col!), y = col!.sortValue ? col!.sortValue(b) : cellValue(b, col!)
           if (x === y) continue
           if (x === null || x === '') return 1
           if (y === null || y === '') return -1

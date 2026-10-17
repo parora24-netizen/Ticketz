@@ -1,8 +1,10 @@
 import Link from 'next/link'
-import { CaseLink, PriorityChip, TicketLink } from '@/components/ui'
+import { CaseLink, PriorityChip, Stat, TicketLink } from '@/components/ui'
+import { SubmitButton } from '@/components/submit-button'
+import { startSprint } from './actions'
 import { getMe } from '@/lib/auth'
 import {
-  currentSprint, daysUntil, fmtDate, loadActivity, loadCases, loadSprintAreas, loadSprintRuns, loadSprints, loadTasks, loadTickets,
+  RELEASE_DATE, currentSprint, daysUntil, fmtDate, loadActivity, loadCases, loadSprintAreas, loadSprintRuns, loadSprints, loadTasks, loadTickets,
   timeAgo, toStageInput, type TicketRow,
 } from '@/lib/data'
 import { lastWorkingDayStart } from '@/lib/standup'
@@ -27,10 +29,10 @@ function Panel({ title, count, href, children, empty }: { title: string; count?:
   )
 }
 
-function TicketRows({ rows, note }: { rows: TicketRow[]; note?: (t: TicketRow) => string }) {
+function TicketRows({ rows, note, limit = 12, all }: { rows: TicketRow[]; note?: (t: TicketRow) => string; limit?: number; all?: { href: string; label: string } }) {
   return (
     <ul className="divide-y divide-[var(--row)]">
-      {rows.slice(0, 12).map((t) => (
+      {rows.slice(0, limit).map((t) => (
         <li key={t.id} className="flex items-center gap-3 px-4 py-2">
           <TicketLink k={t.key} />
           <span className="min-w-0 flex-1 truncate text-[12.5px]">{t.title}</span>
@@ -38,7 +40,11 @@ function TicketRows({ rows, note }: { rows: TicketRow[]; note?: (t: TicketRow) =
           <PriorityChip p={t.severity} />
         </li>
       ))}
-      {rows.length > 12 && <li className="px-4 py-2 text-[12px] text-[var(--muted)]">+{rows.length - 12} more</li>}
+      {rows.length > limit && (
+        <li className="px-4 py-2 text-[12.5px]">
+          {all ? <Link href={all.href} className="font-semibold text-[var(--accent)] hover:underline">{all.label} →</Link> : <span className="text-[var(--muted)]">+{rows.length - limit} more</span>}
+        </li>
+      )}
     </ul>
   )
 }
@@ -68,6 +74,9 @@ export default async function Home() {
   const untracked = cases.filter((c) => needsTicket(toStageInput(c, runs)))
   const toTriage = tickets.filter((t) => t.state === 'new').sort(bySeverity)
   const unownedHigh = tickets.filter((t) => !t.owner_id && ['Critical', 'High'].includes(t.severity) && !['closed', 'deferred', 'duplicate'].includes(t.state))
+  const openCrit = tickets.filter((t) => t.severity === 'Critical' && !['closed', 'deferred', 'duplicate'].includes(t.state)).length
+  const openHigh = tickets.filter((t) => t.severity === 'High' && !['closed', 'deferred', 'duplicate'].includes(t.state)).length
+  const nextSprint = sprint ? null : sprints.find((x) => x.status === 'planned' && x.starts_on >= now.toISOString().slice(0, 10)) ?? null
   const late = tasks.filter((k) => k.status !== 'done' && k.due_on < now.toISOString().slice(0, 10))
   const feed = activity.filter((a) => (me.role === 'lead' ? true : a.subject_owner_id === me.id || a.actor_id === me.id)).slice(0, 25)
 
@@ -88,15 +97,26 @@ export default async function Home() {
         </div>
       </div>
 
-      {sprint && gate && (
-        <Link href={`/sprints/${sprint.id}`} className="card mb-5 flex flex-wrap items-center gap-x-8 gap-y-2 px-4 py-3 hover:border-[var(--navy)]">
+      {me.role === 'lead' && (
+        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <Stat label="To triage" value={toTriage.length} tone={toTriage.length ? 'warn' : 'good'} sub="new, no decision yet" />
+          <Stat label="Open Critical" value={openCrit} tone={openCrit ? 'crit' : 'good'} />
+          <Stat label="Open High" value={openHigh} tone={openHigh ? 'warn' : 'good'} />
+          <Stat label="Unowned Crit/High" value={unownedHigh.length} tone={unownedHigh.length ? 'crit' : 'good'} sub="need an owner" />
+          <Stat label="Ready for retest" value={retests.length} sub="waiting on QA" />
+          <Stat label="Days to release" value={daysUntil(RELEASE_DATE)} sub={`ships ${fmtDate(RELEASE_DATE)}`} />
+        </div>
+      )}
+
+      {sprint && gate ? (
+        <Link href={`/sprints/${sprint.id}`} className="card mb-4 flex flex-wrap items-center gap-x-8 gap-y-2 px-4 py-3 hover:border-[var(--navy)]">
           <div>
             <div className="label">Current sprint</div>
             <div className="mt-0.5 text-[15px] font-semibold text-[var(--navy-ink)]">{sprint.name} · {fmtDate(sprint.starts_on)} to {fmtDate(sprint.ends_on)}</div>
           </div>
           <div><div className="label">Days left</div><div className="heading mt-0.5 text-[18px] font-semibold">{Math.max(daysUntil(sprint.ends_on), 0)}</div></div>
           <div><div className="label">Cases left</div><div className="heading mt-0.5 text-[18px] font-semibold">{left} <span className="text-[12px] font-normal text-[var(--faint)]">of {cases.length}</span></div></div>
-          <div className="flex gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {gate.checks.map((c) => (
               <span key={c.label} title={`${c.label}: ${c.detail}`}
                 className={`chip ${c.ok ? 'border-[var(--good-line)] bg-[var(--good-soft)] text-[var(--good)]' : 'border-[var(--line-soft)] bg-[var(--surface-2)] text-[var(--muted)]'}`}>
@@ -105,9 +125,26 @@ export default async function Home() {
             ))}
           </div>
         </Link>
-      )}
+      ) : nextSprint ? (
+        <div className="card mb-4 flex flex-wrap items-center gap-x-8 gap-y-2 px-4 py-3">
+          <div>
+            <div className="label">Next sprint</div>
+            <div className="mt-0.5 text-[15px] font-semibold text-[var(--navy-ink)]">
+              <Link href={`/sprints/${nextSprint.id}`} className="hover:underline">{nextSprint.name}</Link> · starts {fmtDate(nextSprint.starts_on)}, ends {fmtDate(nextSprint.ends_on)}
+            </div>
+            {nextSprint.goal && <div className="text-[12.5px] text-[var(--muted)]">{nextSprint.goal}</div>}
+          </div>
+          <div><div className="label">Starts in</div><div className="heading mt-0.5 text-[18px] font-semibold">{Math.max(daysUntil(nextSprint.starts_on), 0)} days</div></div>
+          {me.role === 'lead' && (
+            <form action={startSprint} className="ml-auto">
+              <input type="hidden" name="sprint_id" value={nextSprint.id} />
+              <SubmitButton primary pendingText="Starting…">Start {nextSprint.name} now</SubmitButton>
+            </form>
+          )}
+        </div>
+      ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-4">
           {me.role === 'dev' && (
             <>
@@ -128,17 +165,13 @@ export default async function Home() {
           {me.role !== 'dev' && (
             <>
               {me.role === 'lead' && (
-                <Panel title="To triage" count={toTriage.length} href="/tickets?view=grid" empty="Nothing new to triage.">
-                  <TicketRows rows={toTriage} note={(t) => (t.owner_name ? t.owner_name : 'unowned')} />
+                <Panel title="To triage" count={toTriage.length} href="/tickets?view=grid&state=new" empty="Nothing new to triage.">
+                  <TicketRows rows={toTriage} limit={8} note={(t) => (t.owner_name ? t.owner_name : 'unowned')}
+                    all={{ href: '/tickets?view=grid&state=new', label: `Triage all ${toTriage.length} in the grid` }} />
                 </Panel>
               )}
-              {me.role === 'lead' && unownedHigh.length > 0 && (
-                <Panel title="Critical and High without an owner" count={unownedHigh.length} href="/tickets?view=grid">
-                  <TicketRows rows={unownedHigh.sort(bySeverity)} note={(t) => STATE_LABEL[t.state]} />
-                </Panel>
-              )}
-              <Panel title="Retest queue" count={retests.length} href="/tickets" empty="Nothing ready for retest.">
-                <TicketRows rows={retests} note={(t) => [t.owner_name, t.fixed_in_build && `build ${t.fixed_in_build}`].filter(Boolean).join(' · ')} />
+              <Panel title="Retest queue" count={retests.length} href="/tickets?view=grid&state=ready_for_retest" empty="Nothing ready for retest.">
+                <TicketRows rows={retests} limit={8} all={{ href: '/tickets?view=grid&state=ready_for_retest', label: `All ${retests.length} retests` }} note={(t) => [t.owner_name, t.fixed_in_build && `build ${t.fixed_in_build}`].filter(Boolean).join(' · ')} />
               </Panel>
               {sprint && (
                 <Panel title={`Manual tests due in ${sprint.name}`} count={manualDue.length} href={`/cases?sprint=${sprint.id}&stage=manual`} empty="No manual tests waiting.">

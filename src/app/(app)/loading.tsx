@@ -7,7 +7,7 @@ export default function Loading() {
       <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[0, 1, 2, 3].map((i) => <div key={i} className="card h-20" />)}
       </div>
-      <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_380px]">
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="card h-80" />
         <div className="card h-80" />
       </div>

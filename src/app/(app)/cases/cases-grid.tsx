@@ -33,7 +33,7 @@ export function CasesGrid({ rows, areas, canEdit }: { rows: CaseGridRow[]; areas
       render: (r) => <Link href={`/cases/${r.tc_id}`} className="font-medium text-[var(--accent)] hover:underline">{r.tc_id}</Link> },
     { key: 'title', header: 'Title', width: 380, value: (r) => r.title, edit: canEdit ? { field: 'title', kind: 'text' } : undefined },
     { key: 'area', header: 'Area', width: 220, value: (r) => r.area, edit: canEdit ? { field: 'area_id', kind: 'select', options: areas } : undefined },
-    { key: 'priority', header: 'Priority', width: 110, value: (r) => r.priority, render: (r) => <PriorityChip p={r.priority} />,
+    { key: 'priority', header: 'Priority', width: 110, sortValue: (r) => ['Critical', 'High', 'Medium', 'Low'].indexOf(r.priority), value: (r) => r.priority, render: (r) => <PriorityChip p={r.priority} />,
       edit: canEdit ? { field: 'priority', kind: 'select', options: PRIORITY } : undefined },
     { key: 'automation', header: 'Automation', width: 130, value: (r) => AUTOMATION.find((a) => a.value === r.automation)!.label,
       edit: canEdit ? { field: 'automation', kind: 'select', options: AUTOMATION } : undefined },

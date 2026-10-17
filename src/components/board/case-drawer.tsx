@@ -13,8 +13,10 @@ import { addTicketComment, getCaseDetail, type CaseDetail } from '@/app/(app)/ac
 const day = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 
 /** Work on one case, and its open ticket, without leaving the board. Esc or the backdrop closes it. */
-export function CaseDrawer({ caseId, onClose, role, people, sprints }: {
+export function CaseDrawer({ caseId, onClose, role, people, sprints, active = true }: {
   caseId: string | null
+  /** Results only count toward a running sprint, so the panel records them only then. */
+  active?: boolean
   onClose: () => void
   role: Role
   people: { id: string; name: string }[]
@@ -74,7 +76,9 @@ export function CaseDrawer({ caseId, onClose, role, people, sprints }: {
               {tester && (
                 <section>
                   <h3 className="label mb-2">Record a result</h3>
-                  <div className="flex flex-wrap items-center gap-2"><CaseResultActions caseId={c.id} onDone={reload} /></div>
+                  {active
+                    ? <div className="flex flex-wrap items-center gap-2"><CaseResultActions caseId={c.id} onDone={reload} /></div>
+                    : <p className="text-[12.5px] text-[var(--muted)]">Start the sprint to record results here, so they count toward it.</p>}
                 </section>
               )}
 
@@ -154,7 +158,7 @@ export function CaseDrawer({ caseId, onClose, role, people, sprints }: {
                         <span className="w-16 text-[var(--muted)]">{r.kind === 'auto' ? 'Automated' : 'Manual'}</span>
                         <ResultChip r={r.result as RunResult} />
                         <span className="min-w-0 flex-1 truncate text-[var(--muted)]" title={r.note ?? ''}>{r.note ?? ''}</span>
-                        <span className="text-[var(--faint)]">{r.who ?? (r.kind === 'auto' ? 'CI' : '')} · {day(r.recorded_at)}</span>
+                        <span className="text-[var(--faint)]">{r.who ?? (r.kind === 'auto' ? 'CI' : 'Workbook')} · {day(r.recorded_at)}</span>
                       </li>
                     ))}
                   </ul>

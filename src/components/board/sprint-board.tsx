@@ -9,6 +9,8 @@ import { STAGES, STAGE_LABEL, type Stage } from '@/lib/workflow/case-stage'
 import { boardMove, droppableStages } from '@/lib/workflow/board-moves'
 import { STATE_LABEL, type Role, type TicketState } from '@/lib/workflow/ticket-machine'
 import { moveTicketFromBoard, recordCaseResult } from '@/app/(app)/actions'
+import type { StandupCard } from '@/lib/standup'
+import { StandupPersonCard } from '@/app/(app)/standup/standup-deck'
 import { CaseDrawer } from './case-drawer'
 
 export type SprintCard = {
@@ -53,8 +55,10 @@ function ownerOf(c: SprintCard, stage: Stage): { id: string | null; name: string
  * pass, raise the failure, mark a fix ready, close on retest); click a card to work on it in place.
  * Filter by person to run the standup from here: ‹ › walks the team.
  */
-export function SprintBoard({ cards, role, meId, people, sprints, active, areas = [] }: {
+export function SprintBoard({ cards, role, meId, people, sprints, active, areas = [], standup = [] }: {
   cards: SprintCard[]
+  /** One card per active person, in the order standup goes round the room. */
+  standup?: StandupCard[]
   areas?: string[]
   role: Role
   meId: string
@@ -74,6 +78,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
   const [area, setArea] = useState('')
   const [owner, setOwner] = useState('') // '' everyone, '__none' nobody, else a person id
   const [byArea, setByArea] = useState(false)
+  const [turn, setTurn] = useState<number | null>(null) // standup: whose turn, or null when not running
   // Lanes the user folded, and finished lanes they opened (finished lanes start folded).
   const [folded, setFolded] = useState<Set<string>>(new Set())
   const [unfolded, setUnfolded] = useState<Set<string>>(new Set())
@@ -103,12 +108,39 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
     }
     return m
   }, [cards, local])
-  const walk = people.filter((p) => load.has(p.id))
+  // Round the room: the standup order when there is one, otherwise everyone on the team.
+  const order = standup.length ? standup.map((s) => s.person.id) : people.map((p) => p.id)
   function step(d: 1 | -1) {
-    if (!walk.length) return
-    const i = walk.findIndex((p) => p.id === owner)
-    setOwner(walk[(i + d + walk.length) % walk.length].id)
+    if (!order.length) return
+    const i = order.indexOf(owner)
+    const n = i < 0 ? (d === 1 ? 0 : order.length - 1) : (i + d + order.length) % order.length
+    setOwner(order[n])
+    if (turn !== null) setTurn(n)
   }
+  function startStandup() {
+    if (!order.length) return
+    setTurn(0)
+    setOwner(order[0])
+    setByArea(false)
+  }
+  function endStandup() {
+    setTurn(null)
+    setOwner('')
+  }
+  // ← → walk the room while standup runs (not while typing).
+  useEffect(() => {
+    if (turn === null) return
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement
+      if (open || ask || t.closest('input, textarea, select, dialog')) return
+      if (e.key === 'ArrowRight') { e.preventDefault(); step(1) }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1) }
+      if (e.key === 'Escape') endStandup()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+  const speaker = turn !== null ? standup.find((s) => s.person.id === owner) ?? null : null
 
   function toggleLane(lane: string, isFolded: boolean) {
     const flip = (s: Set<string>, on: boolean) => { const n = new Set(s); if (on) n.add(lane); else n.delete(lane); return n }
@@ -223,14 +255,18 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <div className="flex items-center">
           <button type="button" onClick={() => step(-1)} aria-label="Previous person" className="btn px-2">‹</button>
-          <select value={owner} onChange={(e) => setOwner(e.target.value)} aria-label="Owner" className="select -ml-px min-w-44">
+          <select value={owner} onChange={(e) => { setOwner(e.target.value); if (turn !== null) { const n = order.indexOf(e.target.value); if (n < 0) endStandup(); else setTurn(n) } }}
+            aria-label="Person" className="select -ml-px min-w-48">
             <option value="">Everyone · {cards.filter((c) => stageOf(c) !== 'done').length} open</option>
-            {load.has(meId) && <option value={meId}>Me · {load.get(meId)}</option>}
-            {walk.filter((p) => p.id !== meId).map((p) => <option key={p.id} value={p.id}>{p.name} · {load.get(p.id)}</option>)}
-            {load.has('__none') && <option value="__none">No owner · {load.get('__none')}</option>}
+            <option value={meId}>Me · {load.get(meId) ?? 0} open</option>
+            {people.filter((p) => p.id !== meId).map((p) => <option key={p.id} value={p.id}>{p.name} · {load.get(p.id) ?? 0} open</option>)}
+            {load.has('__none') && <option value="__none">No owner · {load.get('__none')} open</option>}
           </select>
           <button type="button" onClick={() => step(1)} aria-label="Next person" className="btn -ml-px px-2">›</button>
         </div>
+        {turn === null
+          ? <button type="button" onClick={startStandup} className="btn btn-primary">Run standup</button>
+          : <button type="button" onClick={endStandup} className="btn">End standup</button>}
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search cases or tickets" aria-label="Search the board" className="input w-56" />
         <button type="button" onClick={() => setOnlyHigh((v) => !v)} className={`btn ${onlyHigh ? 'btn-primary' : ''}`}>Critical &amp; High</button>
         {areas.length > 1 && (
@@ -249,8 +285,21 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
           </>
         )}
       </div>
+      {turn !== null && (
+        <div className="mb-3">
+          <div className="mb-2 flex flex-wrap items-center gap-3 border border-[var(--navy)] bg-[var(--accent-soft)] px-3 py-2 text-[12.5px]">
+            <b className="text-[var(--navy-ink)]">Standup · {turn + 1} of {order.length}</b>
+            <span className="text-[var(--muted)]">Ask for status, then → for the next person. Esc ends it.</span>
+            <span className="ml-auto flex gap-1">
+              <button type="button" onClick={() => step(-1)} className="btn btn-sm">‹ Previous</button>
+              <button type="button" onClick={() => step(1)} className="btn btn-sm btn-primary">{turn + 1 < order.length ? 'Next person ›' : 'Back to first ›'}</button>
+            </span>
+          </div>
+          {speaker && <StandupPersonCard card={speaker} big />}
+        </div>
+      )}
       <p className="mb-2 text-[12px] text-[var(--muted)]">
-        {owner ? <>Showing <b className="text-[var(--ink-2)]">{ownerLabel}</b>&apos;s cards · ‹ › for the next person at standup. </> : null}
+        {owner ? <>Showing <b className="text-[var(--ink-2)]">{ownerLabel}</b>&apos;s cards on this sprint{shown.length ? '' : ': none'}. </> : null}
         {active ? 'Drag a card to its next step, or click it to work on it here.' : 'Start the sprint to record results; you can still open cards and set owners.'}
       </p>
 

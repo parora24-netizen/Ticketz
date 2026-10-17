@@ -10,9 +10,10 @@ import { Tabs, nowSprint, sprintTabs } from '@/components/tabs'
 import { Chip, PageHeader, PriorityChip, StateChip, TicketLink } from '@/components/ui'
 import { getMe } from '@/lib/auth'
 import {
-  currentSprint, daysUntil, fmtDate, loadAreas, loadCases, loadPeople, loadRelease, loadSprintAreas, loadSprintRunTimes, loadSprintRuns,
-  loadSprints, loadTickets, toStageInput, type CaseRow, type TicketRow,
+  currentSprint, daysUntil, fmtDate, loadActivity, loadAreas, loadCases, loadPeople, loadRelease, loadSprintAreas, loadSprintRunTimes, loadSprintRuns,
+  loadSprints, loadTasks, loadTickets, toStageInput, type CaseRow, type TicketRow,
 } from '@/lib/data'
+import { buildStandup, lastWorkingDayStart } from '@/lib/standup'
 import { casesTestedByDay, istDate } from '@/lib/trends'
 import { STAGES, caseStage, needsTicket, testBy, type Stage } from '@/lib/workflow/case-stage'
 import { sprintGate } from '@/lib/workflow/sprint-gate'
@@ -29,13 +30,21 @@ export default async function SprintPage({
   ])
   const sprint = sprints.find((s) => s.id === id)
   if (!sprint) notFound()
-  const now = nowSprint(sprints, currentSprint(sprints))
+  const nowS = nowSprint(sprints, currentSprint(sprints))
   const areaIds = sprintAreas.filter((x) => x.sprint_id === id).map((x) => x.area_id)
-  const [cases, runs, allTickets, runTimes] = await Promise.all([loadCases(areaIds), loadSprintRuns(id), loadTickets(), loadSprintRunTimes(id)])
+  const now = new Date()
+  const [cases, runs, allTickets, runTimes, tasks, activity] = await Promise.all([
+    loadCases(areaIds), loadSprintRuns(id), loadTickets(), loadSprintRunTimes(id), loadTasks(), loadActivity(lastWorkingDayStart(now)),
+  ])
   const caseIds = new Set(cases.map((c) => c.id))
   const tickets = allTickets.filter((t) => (t.case_id && caseIds.has(t.case_id)) || t.current_sprint_id === id)
   const gate = sprintGate(cases.map((c) => toStageInput(c, runs)), tickets)
   const lead = me.role === 'lead'
+
+  // Standup goes round the whole team in this order: blocked first, then the busiest.
+  const activePeople = people.filter((p) => p.active)
+  const standup = buildStandup({ now, people: activePeople.map((p) => ({ id: p.id, name: p.name, role: p.role })), activity, tickets: allTickets, tasks }).cards
+    .sort((a, b) => b.blocked.length - a.blocked.length || (b.today.length + b.yesterday.length) - (a.today.length + a.yesterday.length))
 
   const stageOf = new Map(cases.map((c) => [c.id, caseStage(toStageInput(c, runs))]))
   const counts = Object.fromEntries(STAGES.map((s) => [s, 0])) as Record<Stage, number>
@@ -58,7 +67,7 @@ export default async function SprintPage({
 
   return (
     <>
-      <Tabs items={[...sprintTabs(now), ...(id !== now?.id ? [{ key: 'this', href: `/sprints/${id}`, label: `Sprint ${sprint.name}` }] : [])]} active={id === now?.id ? 'board' : 'this'} />
+      <Tabs items={[...sprintTabs(nowS), ...(id !== nowS?.id ? [{ key: 'this', href: `/sprints/${id}`, label: `Sprint ${sprint.name}` }] : [])]} active={id === nowS?.id ? 'board' : 'this'} />
       <PageHeader
         title={`Sprint ${sprint.name}`}
         sub={<>{fmtDate(sprint.starts_on)} to {fmtDate(sprint.ends_on)} · {areaIds.length} areas · {cases.length} cases{sprint.goal ? ` · ${sprint.goal}` : ''}</>}>
@@ -107,7 +116,8 @@ export default async function SprintPage({
         role={me.role}
         meId={me.id}
         active={sprint.status === 'active'}
-        people={people.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name }))}
+        people={activePeople.map((p) => ({ id: p.id, name: p.name }))}
+        standup={standup}
         sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ id: s.id, name: s.name }))}
         areas={areaIds.map((a) => areaName.get(a) ?? '').sort()}
         cards={cases.map((c) => {

@@ -24,7 +24,8 @@ function Items({ items, empty }: { items: StandupItem[]; empty: string }) {
   )
 }
 
-function Card({ card, big }: { card: StandupCard; big?: boolean }) {
+/** One person's standup: what moved since yesterday, what is on today, what is stuck. */
+export function StandupPersonCard({ card, big }: { card: StandupCard; big?: boolean }) {
   return (
     <article className={`card flex flex-col ${big ? 'min-h-[260px]' : ''}`}>
       <header className="flex items-center gap-3 border-b border-[var(--line)] px-4 py-3">
@@ -133,11 +134,11 @@ export function StandupDeck({ cards, unassigned }: { cards: StandupCard[]; unass
               </button>
             )}
           </div>
-          {at < list.length ? <Card card={list[at]} big /> : unassignedCard}
+          {at < list.length ? <StandupPersonCard card={list[at]} big /> : unassignedCard}
         </>
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {list.map((c) => <Card key={c.person.id} card={c} />)}
+          {list.map((c) => <StandupPersonCard key={c.person.id} card={c} />)}
           {unassigned.length > 0 && unassignedCard}
         </div>
       )}

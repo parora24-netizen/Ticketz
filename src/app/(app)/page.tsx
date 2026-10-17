@@ -47,12 +47,15 @@ export default async function Home() {
   const me = await getMe()
   const now = new Date()
   const since = lastWorkingDayStart(now)
-  const [tickets, sprints, sprintAreas, tasks, activity] = await Promise.all([
-    loadTickets(), loadSprints(), loadSprintAreas(), loadTasks(), loadActivity(since, 300),
-  ])
+  // Sprints come from the layout's (cached) fetch, so every other query can start at once.
+  const [sprints, sprintAreas] = await Promise.all([loadSprints(), loadSprintAreas()])
   const sprint = currentSprint(sprints)
   const areaIds = sprint ? sprintAreas.filter((x) => x.sprint_id === sprint.id).map((x) => x.area_id) : []
-  const [cases, runs] = sprint ? await Promise.all([loadCases(areaIds), loadSprintRuns(sprint.id)]) : [[], undefined]
+  const [tickets, tasks, activity, cases, runs] = await Promise.all([
+    loadTickets(), loadTasks(), loadActivity(since, 300),
+    sprint ? loadCases(areaIds) : Promise.resolve([]),
+    sprint ? loadSprintRuns(sprint.id) : Promise.resolve(undefined),
+  ])
   const caseIds = new Set(cases.map((c) => c.id))
   const gate = sprint ? sprintGate(cases.map((c) => toStageInput(c, runs)), tickets.filter((t) => (t.case_id && caseIds.has(t.case_id)) || t.current_sprint_id === sprint.id)) : null
   const stages = cases.map((c) => caseStage(toStageInput(c, runs)))

@@ -1,4 +1,5 @@
 import 'server-only'
+import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import type { Automation, CaseForStage, Priority, RunResult } from '@/lib/workflow/case-stage'
 import type { TicketState } from '@/lib/workflow/ticket-machine'
@@ -72,33 +73,33 @@ export async function fetchAll<T>(page: Page<T>): Promise<T[]> {
   }
 }
 
-export async function loadAreas(): Promise<Area[]> {
+export const loadAreas = cache(async function loadAreas(): Promise<Area[]> {
   const supabase = await createClient()
   const { data, error } = await supabase.from('areas').select('*').order('sort')
   if (error) throw new Error(error.message)
   return data as Area[]
-}
+})
 
-export async function loadSprints(): Promise<Sprint[]> {
+export const loadSprints = cache(async function loadSprints(): Promise<Sprint[]> {
   const supabase = await createClient()
   const { data, error } = await supabase.from('sprints').select('*').order('starts_on')
   if (error) throw new Error(error.message)
   return data as Sprint[]
-}
+})
 
-export async function loadSprintAreas(): Promise<{ sprint_id: string; area_id: string }[]> {
+export const loadSprintAreas = cache(async function loadSprintAreas(): Promise<{ sprint_id: string; area_id: string }[]> {
   const supabase = await createClient()
   const { data, error } = await supabase.from('sprint_areas').select('sprint_id, area_id')
   if (error) throw new Error(error.message)
   return data ?? []
-}
+})
 
-export async function loadPeople(): Promise<Person[]> {
+export const loadPeople = cache(async function loadPeople(): Promise<Person[]> {
   const supabase = await createClient()
   const { data, error } = await supabase.from('people').select('id, name, email, role, active').order('name')
   if (error) throw new Error(error.message)
   return data as Person[]
-}
+})
 
 export async function loadCases(areaIds?: string[]): Promise<CaseRow[]> {
   const supabase = await createClient()
@@ -109,12 +110,12 @@ export async function loadCases(areaIds?: string[]): Promise<CaseRow[]> {
   })
 }
 
-export async function loadTickets(): Promise<TicketRow[]> {
+export const loadTickets = cache(async function loadTickets(): Promise<TicketRow[]> {
   const supabase = await createClient()
   return fetchAll<TicketRow>((from, to) =>
     supabase.from('ticket_list').select('*').order('logged_on', { ascending: false }).order('key').range(from, to),
   )
-}
+})
 
 /** Which cases got an automated / manual result during a sprint. */
 export async function loadSprintRuns(sprintId: string): Promise<{ auto: Set<string>; manual: Set<string> }> {
@@ -181,12 +182,12 @@ export async function loadActivity(since: Date, limit = 1000): Promise<Activity[
 
 export type PlanTask = { id: string; num: number; phase: string; title: string; owner_label: string; owner_id: string | null; due_on: string; status: string }
 
-export async function loadTasks(): Promise<PlanTask[]> {
+export const loadTasks = cache(async function loadTasks(): Promise<PlanTask[]> {
   const supabase = await createClient()
   const { data, error } = await supabase.from('plan_tasks').select('id, num, phase, title, owner_label, owner_id, due_on, status').order('num')
   if (error) throw new Error(error.message)
   return (data ?? []) as PlanTask[]
-}
+})
 
 export function timeAgo(iso: string, now = new Date()): string {
   const mins = Math.round((now.getTime() - Date.parse(iso)) / 60000)

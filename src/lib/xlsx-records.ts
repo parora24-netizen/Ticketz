@@ -1,5 +1,5 @@
 import 'server-only'
-import ExcelJS from 'exceljs'
+import type ExcelJS from 'exceljs'
 
 type Cell = ExcelJS.CellValue
 export function cellText(v: Cell): string {
@@ -19,7 +19,9 @@ export function cellText(v: Cell): string {
  * `titleHeaders`. The widest such row is the header (side tables repeat headers in narrower rows).
  */
 export async function xlsxRecords(buf: ArrayBuffer, titleHeaders: string[]): Promise<{ sheet: string; rows: Record<string, string>[]; rowNumbers: number[] } | null> {
-  const wb = new ExcelJS.Workbook()
+  // Loaded on demand: exceljs is large and only the import page needs it.
+  const { default: Excel } = await import('exceljs')
+  const wb = new Excel.Workbook()
   await wb.xlsx.load(buf)
   const wanted = titleHeaders.map((h) => h.toLowerCase())
   for (const ws of wb.worksheets) {

@@ -35,7 +35,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
 
   return (
     <>
-      <PageHeader title="Test cases" sub={scopeText ? <>{scopeText} · <Link href="/cases" className="text-[var(--accent)] hover:underline">show all</Link></> : `${all.length} cases across ${areas.length} areas`}>
+      <PageHeader sub={scopeText ? <>{scopeText} · <Link href="/cases" className="text-[var(--accent)] hover:underline">show all</Link></> : `${all.length} cases across ${areas.length} areas`}>
         <Link href="/cases?mismatch=1" className="btn">Mismatches</Link>
         {canEdit && <Link href="/cases/import" className="btn">Import</Link>}
         {canEdit && <Link href="/cases/new" className="btn btn-primary">New test case</Link>}

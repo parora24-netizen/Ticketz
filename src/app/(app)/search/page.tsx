@@ -25,7 +25,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   ])
   return (
     <>
-      <PageHeader title={`Results for "${q}"`} sub={`${tickets?.length ?? 0} tickets · ${cases?.length ?? 0} test cases`} />
+      <PageHeader sub={`Results for "${q}": ${tickets?.length ?? 0} tickets · ${cases?.length ?? 0} test cases`} />
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="card">
           <h2 className="border-b border-[var(--line)] px-4 py-2.5 text-[14px] font-semibold">Tickets</h2>

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 
 /** The top bar's "Create" button: the few things people add, one click away from any page. */
-export function CreateMenu({ canAddCases }: { canAddCases: boolean }) {
+export function CreateMenu({ canAddCases, block }: { canAddCases: boolean; block?: boolean }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -31,11 +31,11 @@ export function CreateMenu({ canAddCases }: { canAddCases: boolean }) {
   return (
     <div ref={ref} className="relative">
       <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-haspopup="menu"
-        className="flex h-[30px] items-center gap-1.5 rounded-[2px] bg-white px-3 text-[13px] font-semibold text-[var(--navy)] hover:bg-[#e8effb]">
+        className={`flex h-[34px] items-center gap-1.5 rounded-[2px] bg-white px-3 text-[13px] font-semibold text-[var(--navy)] hover:bg-[#e8effb] ${block ? 'w-full justify-center' : ''}`}>
         <span aria-hidden className="text-[15px] leading-none">+</span> Create
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 z-30 mt-1 w-64 border border-[var(--line)] bg-white py-1 shadow-[0_18px_44px_rgba(9,17,38,.24)]">
+        <div role="menu" className={`absolute z-40 mt-1 w-64 ${block ? 'left-0' : 'right-0'} border border-[var(--line)] bg-white py-1 shadow-[0_18px_44px_rgba(9,17,38,.24)]`}>
           {items.map((i) => (
             <Link key={i.href} href={i.href} role="menuitem" onClick={() => setOpen(false)} className="block px-3 py-2 hover:bg-[var(--accent-soft)]">
               <div className="text-[13px] font-semibold text-[var(--navy-ink)]">{i.label}</div>

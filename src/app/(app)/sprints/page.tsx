@@ -1,10 +1,10 @@
-import { RELEASE_TABS, Tabs, sprintTabs } from '@/components/tabs'
 import Link from 'next/link'
-import { Chip, PageHeader } from '@/components/ui'
 import { Flash } from '@/components/flash'
+import { SprintsGrid } from '@/components/grid/list-grids'
+import { Tabs, sprintTabs } from '@/components/tabs'
+import { PageHeader } from '@/components/ui'
 import { getMe } from '@/lib/auth'
 import { currentSprint, fmtDate, loadAreas, loadCases, loadSprintAreas, loadSprints } from '@/lib/data'
-import { SprintForm } from './sprint-form'
 
 function workingDays(from: string, to: string): number {
   let n = 0
@@ -22,42 +22,30 @@ export default async function SprintsPage({ searchParams }: { searchParams: Prom
   const areaName = new Map(areas.map((a) => [a.id, a.page]))
   const casesByArea = new Map<string, number>()
   for (const c of cases) casesByArea.set(c.area_id, (casesByArea.get(c.area_id) ?? 0) + 1)
+  const rows = sprints.map((s) => {
+    const ids = sprintAreas.filter((x) => x.sprint_id === s.id).map((x) => x.area_id)
+    return {
+      id: s.id,
+      name: s.name,
+      starts_on: s.starts_on,
+      dates: `${fmtDate(s.starts_on)} to ${fmtDate(s.ends_on)}`,
+      days: workingDays(s.starts_on, s.ends_on),
+      goal: s.goal ?? '',
+      areas: ids.length === areas.length ? 'All areas' : ids.map((id) => areaName.get(id)).join(', '),
+      cases: ids.reduce((sum, id) => sum + (casesByArea.get(id) ?? 0), 0),
+      status: s.status === 'active' ? 'Running' : s.status === 'closed' ? 'Closed' : 'Planned',
+      current: s.id === current?.id,
+    }
+  })
 
   return (
     <>
-      <PageHeader title="Sprints" sub="Each sprint runs 2 to 4 working days over a set of Framework areas." />
       <Tabs items={sprintTabs(current?.id ?? null)} active="all" />
+      <PageHeader sub="Each sprint runs 2 to 4 working days over a set of Framework areas.">
+        {me.role === 'lead' && <Link href="/sprints/new" className="btn btn-primary">New sprint</Link>}
+      </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
-      <div className="card overflow-x-auto">
-        <table className="table">
-          <thead>
-            <tr><th>Sprint</th><th>Dates</th><th className="text-right">Days</th><th>Areas</th><th className="text-right">Cases</th><th>Status</th></tr>
-          </thead>
-          <tbody>
-            {sprints.map((s) => {
-              const ids = sprintAreas.filter((x) => x.sprint_id === s.id).map((x) => x.area_id)
-              const n = ids.reduce((sum, id) => sum + (casesByArea.get(id) ?? 0), 0)
-              return (
-                <tr key={s.id} className={s.id === current?.id ? 'bg-[var(--accent-soft)]' : ''}>
-                  <td><Link href={`/sprints/${s.id}`} className="font-medium text-[var(--accent)] hover:underline">{s.name}</Link>
-                    {s.goal && <div className="text-xs text-[var(--muted)]">{s.goal}</div>}</td>
-                  <td className="whitespace-nowrap">{fmtDate(s.starts_on)} to {fmtDate(s.ends_on)}</td>
-                  <td className="text-right tabular-nums">{workingDays(s.starts_on, s.ends_on)}</td>
-                  <td className="max-w-md text-xs">{ids.length === areas.length ? 'All areas' : ids.map((id) => areaName.get(id)).join(', ')}</td>
-                  <td className="text-right tabular-nums">{n}</td>
-                  <td><Chip tone={s.status === 'active' ? 'accent' : s.status === 'closed' ? 'good' : 'muted'}>{s.status === 'active' ? 'Running' : s.status === 'closed' ? 'Closed' : 'Planned'}</Chip></td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-      {me.role === 'lead' && (
-        <details className="card mt-6 p-4">
-          <summary className="cursor-pointer font-semibold">New sprint</summary>
-          <div className="mt-4"><SprintForm areas={areas} /></div>
-        </details>
-      )}
+      <SprintsGrid rows={rows} />
     </>
   )
 }

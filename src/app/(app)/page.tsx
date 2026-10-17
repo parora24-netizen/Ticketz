@@ -76,13 +76,10 @@ export default async function Home() {
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="label">{new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Kolkata' }).format(now)}</p>
-          <h1 className="mt-1 text-[24px] font-semibold text-[var(--navy-ink)]">{greeting}, {me.name.split(' ')[0]}</h1>
+          <h2 className="mt-1 text-[22px] font-semibold text-[var(--navy-ink)]">{greeting}, {me.name.split(' ')[0]}</h2>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/standup" className="btn">Run standup</Link>
-          <Link href="/tickets/new" className="btn">New ticket</Link>
-          {me.role !== 'dev' && <Link href="/cases/new" className="btn">New test case</Link>}
-          {me.role !== 'dev' && <Link href="/cases/import" className="btn">Import cases</Link>}
           {sprint && me.role !== 'dev' && <Link href={`/sprints/${sprint.id}`} className="btn btn-primary">Record results</Link>}
         </div>
       </div>

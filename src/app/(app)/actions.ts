@@ -379,7 +379,7 @@ export async function savePerson(formData: FormData) {
 
 export async function createCiToken(formData: FormData) {
   const me = await getMe()
-  if (me.role !== 'lead') fail('/admin', 'Only the lead creates CI tokens')
+  if (me.role !== 'lead') fail('/admin?tab=ci', 'Only the lead creates CI tokens')
   const label = String(formData.get('label') ?? '').trim() || 'CI'
   const token = `vqt_${randomBytes(24).toString('base64url')}`
   const supabase = await createClient()
@@ -399,7 +399,7 @@ export async function createCiToken(formData: FormData) {
     path: '/admin',
   })
   revalidatePath('/admin')
-  redirect('/admin')
+  redirect('/admin?tab=ci')
 }
 
 export async function revokeCiToken(formData: FormData) {
@@ -412,7 +412,7 @@ export async function revokeCiToken(formData: FormData) {
     .eq('id', String(formData.get('token_id')))
   if (error) fail('/admin', error.message)
   revalidatePath('/admin')
-  redirect(withMessage('/admin', 'ok', 'Token revoked'))
+  redirect(withMessage('/admin?tab=ci', 'ok', 'Token revoked'))
 }
 
 // ---- Workflow: comments, assignment, bulk edits from the grids ------------------------------
@@ -540,4 +540,41 @@ export async function createTestCase(formData: FormData) {
   revalidatePath('/', 'layout')
   if (v.data.another) redirect(withMessage(`/cases/new?area=${v.data.area_id}`, 'ok', `${tcId} added`))
   redirect(withMessage(`/cases/${tcId}`, 'ok', `${tcId} added`))
+}
+
+/** Status changes from the plan grid. Anyone on the team can move a task along. */
+export async function updateTasks(ids: string[], patch: { status?: string }): Promise<{ error?: string }> {
+  await getMe()
+  const p = z.object({ status: z.enum(['not_started', 'in_progress', 'blocked', 'done']) }).safeParse(patch)
+  const idList = z.array(z.uuid()).min(1).max(200).safeParse(ids)
+  if (!p.success || !idList.success) return { error: 'Pick a status' }
+  const supabase = await createClient()
+  const { error } = await supabase.from('plan_tasks').update({ ...p.data, updated_at: new Date().toISOString() }).in('id', idList.data)
+  if (error) return { error: error.message }
+  revalidatePath('/', 'layout')
+  return {}
+}
+
+/** Edits from the team grid on Admin. Lead only (the database enforces it too). */
+export async function updatePeople(ids: string[], patch: Record<string, string | null>): Promise<{ error?: string }> {
+  const me = await getMe()
+  if (me.role !== 'lead') return { error: 'Only the lead manages the team' }
+  const p = z
+    .object({
+      name: z.string().trim().min(1).max(100).optional(),
+      email: z.email().transform((e) => e.toLowerCase()).nullable().optional(),
+      role: z.enum(['lead', 'dev', 'qa']).optional(),
+      active: z.enum(['yes', 'no']).transform((v) => v === 'yes').optional(),
+    })
+    .safeParse(patch)
+  const idList = z.array(z.uuid()).min(1).max(200).safeParse(ids)
+  if (!p.success || !idList.success) return { error: p.success ? 'Nothing to save' : (p.error.issues[0]?.message ?? 'Check the value') }
+  if (idList.data.includes(me.id) && (p.data.role && p.data.role !== 'lead' || p.data.active === false)) {
+    return { error: 'You cannot remove your own lead access' }
+  }
+  const supabase = await createClient()
+  const { error } = await supabase.from('people').update(p.data).in('id', idList.data)
+  if (error) return { error: error.code === '23505' ? 'That email is already on the team' : error.message }
+  revalidatePath('/', 'layout')
+  return {}
 }

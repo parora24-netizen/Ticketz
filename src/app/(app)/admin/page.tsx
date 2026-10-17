@@ -1,90 +1,88 @@
-import { SubmitButton } from '@/components/submit-button'
+import Link from 'next/link'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { PageHeader } from '@/components/ui'
 import { Flash } from '@/components/flash'
+import { TeamGrid } from '@/components/grid/list-grids'
+import { SubmitButton } from '@/components/submit-button'
+import { Tabs } from '@/components/tabs'
+import { PageHeader } from '@/components/ui'
 import { getMe } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { fmtDate, loadPeople } from '@/lib/data'
 import { createCiToken, revokeCiToken, savePerson } from '../actions'
 
+const TABS = [
+  { key: 'team', href: '/admin', label: 'Team' },
+  { key: 'ci', href: '/admin?tab=ci', label: 'CI tokens' },
+]
+
 export default async function AdminPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const me = await getMe()
   if (me.role !== 'lead') redirect('/')
   const sp = await searchParams
+  const tab = sp.tab === 'ci' ? 'ci' : 'team'
   const supabase = await createClient()
   const [people, { data: tokens }] = await Promise.all([
     loadPeople(),
     supabase.from('ci_tokens').select('id, label, created_at, last_used_at, revoked_at').order('created_at', { ascending: false }),
   ])
   const newToken = (await cookies()).get('new_ci_token')?.value
+  const noEmail = people.filter((p) => p.active && !p.email).length
 
   return (
     <>
-      <PageHeader title="Admin" sub="Who can sign in, their role, and tokens for the CI pipeline." />
+      <Tabs items={TABS} active={tab} />
       <Flash error={sp.error} ok={sp.ok} />
-
-      <section className="card overflow-x-auto">
-        <h2 className="px-4 pt-4 font-semibold">Team</h2>
-        <p className="px-4 text-sm text-[var(--muted)]">Only people listed here, signing in with this email, can use the tracker.</p>
-        <table className="table mt-2">
-          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Active</th><th></th></tr></thead>
-          <tbody>
-            {people.map((p) => (
-              <tr key={p.id}>
-                <td colSpan={5} className="p-0">
-                  <form action={savePerson} className="grid grid-cols-[1fr_1.4fr_auto_auto_auto] items-center gap-2 px-3 py-2">
-                    <input type="hidden" name="id" value={p.id} />
-                    <input name="name" defaultValue={p.name} required className="input" />
-                    <input name="email" type="email" defaultValue={p.email ?? ''} placeholder="Add an email to let them sign in" className="input" />
-                    <select name="role" defaultValue={p.role} className="select"><option value="lead">Lead</option><option value="dev">Dev</option><option value="qa">QA</option></select>
-                    <label className="flex items-center gap-1 text-sm"><input type="checkbox" name="active" value="1" defaultChecked={p.active} />Active</label>
-                    <SubmitButton primary>Save</SubmitButton>
-                  </form>
-                </td>
-              </tr>
-            ))}
-            <tr>
-              <td colSpan={5} className="p-0">
-                <form action={savePerson} className="grid grid-cols-[1fr_1.4fr_auto_auto] items-center gap-2 px-3 py-2">
-                  <input name="name" required placeholder="New person" className="input" />
-                  <input name="email" type="email" placeholder="name@vulqan.ai" className="input" />
-                  <select name="role" defaultValue="dev" className="select"><option value="lead">Lead</option><option value="dev">Dev</option><option value="qa">QA</option></select>
-                  <SubmitButton primary pendingText="Adding…">Add</SubmitButton>
-                </form>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-
-      <section className="card mt-6 p-4">
-        <h2 className="font-semibold">CI tokens</h2>
-        <p className="text-sm text-[var(--muted)]">The automated suite posts results to <code className="font-mono">/api/results</code> with one of these. See the README for the payload.</p>
-        {newToken && (
-          <div className="mt-3 rounded-[2px] bg-[var(--warn-soft)] p-3 text-sm">
-            Copy this token now; it is not shown again:
-            <code className="mt-1 block break-all font-mono">{newToken}</code>
+      {tab === 'team' ? (
+        <>
+          <PageHeader sub={`Only people listed here can sign in, with the email shown.${noEmail ? ` ${noEmail} still need an email.` : ''} Double-click a cell to edit.`}>
+            <Link href={sp.add ? '/admin' : '/admin?add=1'} className={`btn ${sp.add ? '' : 'btn-primary'}`}>{sp.add ? 'Cancel' : 'Add person'}</Link>
+          </PageHeader>
+          {sp.add && (
+            <form action={savePerson} className="card mb-4 flex flex-wrap items-end gap-3 p-4">
+              <label><span className="label">Name</span><input name="name" required autoFocus className="input mt-1 block w-56" /></label>
+              <label><span className="label">Work email</span><input name="email" type="email" placeholder="name@vulqan.ai" className="input mono mt-1 block w-72" /></label>
+              <label><span className="label">Role</span>
+                <select name="role" defaultValue="dev" className="select mt-1 block w-40"><option value="lead">Lead</option><option value="dev">Developer</option><option value="qa">QA</option></select>
+              </label>
+              <SubmitButton primary pendingText="Adding…">Add person</SubmitButton>
+            </form>
+          )}
+          <TeamGrid rows={people.map((p) => ({ id: p.id, name: p.name, email: p.email, role: p.role, active: p.active }))} />
+        </>
+      ) : (
+        <>
+          <PageHeader sub={<>The automated suite posts results to <code className="mono">/api/results</code> with one of these tokens. The README has the payload.</>} />
+          {newToken && (
+            <div className="mb-4 border border-[var(--warn-line)] bg-[var(--warn-soft)] p-3 text-[13px]">
+              Copy this token now; it is not shown again:
+              <code className="mono mt-1 block break-all">{newToken}</code>
+            </div>
+          )}
+          <form action={createCiToken} className="mb-4 flex flex-wrap items-end gap-3">
+            <label><span className="label">Label</span><input name="label" placeholder="e.g. CodeBuild e2e" className="input mt-1 block w-72" /></label>
+            <SubmitButton primary pendingText="Creating…">Create token</SubmitButton>
+          </form>
+          <div className="border border-[var(--line)] bg-white">
+            <table className="table grid-table">
+              <thead><tr><th>Label</th><th>Created</th><th>Last used</th><th>Status</th></tr></thead>
+              <tbody>
+                {(tokens ?? []).map((t) => (
+                  <tr key={t.id}>
+                    <td>{t.label}</td>
+                    <td className="mono text-[12px]">{fmtDate(t.created_at)}</td>
+                    <td className="mono text-[12px]">{t.last_used_at ? fmtDate(t.last_used_at) : 'Never'}</td>
+                    <td>{t.revoked_at ? <span className="text-[var(--muted)]">Revoked</span> : (
+                      <form action={revokeCiToken}><input type="hidden" name="token_id" value={t.id} /><SubmitButton small pendingText="Revoking…">Revoke</SubmitButton></form>
+                    )}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!tokens?.length && <p className="p-6 text-center text-[13px] text-[var(--muted)]">No tokens yet.</p>}
           </div>
-        )}
-        <form action={createCiToken} className="mt-3 flex gap-2">
-          <input name="label" placeholder="Label, e.g. CodeBuild e2e" className="input flex-1" />
-          <SubmitButton primary pendingText="Creating…">Create token</SubmitButton>
-        </form>
-        <table className="table mt-3">
-          <thead><tr><th>Label</th><th>Created</th><th>Last used</th><th></th></tr></thead>
-          <tbody>
-            {(tokens ?? []).map((t) => (
-              <tr key={t.id}>
-                <td>{t.label}</td><td>{fmtDate(t.created_at)}</td><td>{t.last_used_at ? fmtDate(t.last_used_at) : 'Never'}</td>
-                <td>{t.revoked_at ? <span className="text-[var(--muted)]">Revoked</span> : (
-                  <form action={revokeCiToken}><input type="hidden" name="token_id" value={t.id} /><SubmitButton pendingText="Revoking…">Revoke</SubmitButton></form>
-                )}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+        </>
+      )}
     </>
   )
 }

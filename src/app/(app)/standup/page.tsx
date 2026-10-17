@@ -38,7 +38,7 @@ export default async function StandupPage() {
 
   return (
     <>
-      <PageHeader title="Standup" sub={`What moved since ${fmtDate(since.toISOString())}, what is next, and what is stuck.`}>
+      <PageHeader sub={`What moved since ${fmtDate(since.toISOString())}, what is next, and what is stuck.`}>
         {sprint && <Link href={`/sprints/${sprint.id}`} className="btn">Sprint board</Link>}
         <Link href="/tickets" className="btn">Ticket board</Link>
       </PageHeader>

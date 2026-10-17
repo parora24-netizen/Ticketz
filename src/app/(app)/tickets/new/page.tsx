@@ -8,7 +8,7 @@ export default async function NewTicketPage({ searchParams }: { searchParams: Pr
   const sp = await searchParams
   return (
     <>
-      <PageHeader title="New ticket" sub="For a failure found on a test case, raise it from that case so the two stay linked." />
+      <PageHeader sub="For a failure found on a test case, raise it from that case so the two stay linked." />
       <Flash error={sp.error} ok={sp.ok} />
       <form action={raiseTicket} className="card grid max-w-3xl gap-4 p-5 sm:grid-cols-4">
         <input type="hidden" name="back" value="/tickets/new" />

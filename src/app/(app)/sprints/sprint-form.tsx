@@ -8,7 +8,7 @@ export function SprintForm({ areas, sprint, selected }: { areas: Area[]; sprint?
   return (
     <form action={saveSprint} className="space-y-4">
       <input type="hidden" name="id" value={sprint?.id ?? ''} />
-      <input type="hidden" name="back" value={sprint ? `/sprints/${sprint.id}` : '/sprints'} />
+      <input type="hidden" name="back" value={sprint ? `/sprints/${sprint.id}` : '/sprints/new'} />
       <div className="grid gap-3 sm:grid-cols-4">
         <label className="block text-sm">Name<input name="name" required defaultValue={sprint?.name} className="input mt-1 w-full" placeholder="S12" /></label>
         <label className="block text-sm">Starts<input name="starts_on" type="date" required defaultValue={sprint?.starts_on} className="input mt-1 w-full" /></label>

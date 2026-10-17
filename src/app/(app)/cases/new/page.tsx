@@ -17,7 +17,7 @@ export default async function NewCasePage({ searchParams }: { searchParams: Prom
   const zones = [...new Set(areas.map((a) => a.zone))]
   return (
     <>
-      <PageHeader title="New test case" sub="It joins its area's sprint straight away.">
+      <PageHeader sub="It joins its area's sprint straight away.">
         <Link href="/cases/import" className="btn">Import many instead</Link>
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />

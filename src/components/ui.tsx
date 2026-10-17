@@ -65,12 +65,17 @@ export function Stat({ label, value, sub, tone }: { label: string; value: React.
   )
 }
 
-export function PageHeader({ title, sub, children }: { title: string; sub?: React.ReactNode; children?: React.ReactNode }) {
+/**
+ * The row under the top bar on every screen: what this page is for on the left, its buttons on the
+ * right (primary action last). List pages leave out the title, since the top bar names the page;
+ * detail pages (a sprint, a ticket, a test case) pass the item's title.
+ */
+export function PageHeader({ title, sub, children }: { title?: string; sub?: React.ReactNode; children?: React.ReactNode }) {
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-[22px] leading-tight font-semibold text-[var(--navy-ink)]">{title}</h1>
-        {sub && <p className="mt-1 text-[13px] text-[var(--muted)]">{sub}</p>}
+    <div className="mb-4 flex min-h-8 flex-wrap items-center justify-between gap-3">
+      <div className="min-w-0">
+        {title && <h2 className="text-[20px] leading-tight font-semibold text-[var(--navy-ink)]">{title}</h2>}
+        {sub && <p className={`${title ? 'mt-1' : ''} text-[13px] text-[var(--muted)]`}>{sub}</p>}
       </div>
       {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
     </div>

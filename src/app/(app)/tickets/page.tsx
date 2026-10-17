@@ -21,7 +21,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <PageHeader title="Tickets" sub={`${open} open · ${unowned} without an owner · ${tickets.length} in all`}>
+      <PageHeader sub={`${open} open · ${unowned} without an owner · ${tickets.length} in all`}>
         <div className="flex border border-[var(--line)] bg-white p-0.5" role="tablist" aria-label="View">
           <Link href="/tickets" role="tab" aria-selected={view === 'board'}
             className={`px-3 py-1 text-[12.5px] font-semibold ${view === 'board' ? 'bg-[var(--navy)] text-white' : 'text-[var(--ink-2)]'}`}>Board</Link>

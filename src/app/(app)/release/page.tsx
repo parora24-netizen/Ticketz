@@ -67,11 +67,10 @@ export default async function ReleasePage() {
 
   return (
     <>
-      <PageHeader
-        title={`Release in ${daysUntil(RELEASE_DATE)} days`}
-        sub={`26.111 ships ${fmtDate(RELEASE_DATE)}; go/no-go ${fmtDate(GO_NO_GO_DATE)}. Ask MAIA ships behind a flag if it slips.`}
-      />
       <Tabs items={RELEASE_TABS} active="overview" />
+      <PageHeader
+        sub={`${daysUntil(RELEASE_DATE)} days to release. 26.111 ships ${fmtDate(RELEASE_DATE)}; go/no-go ${fmtDate(GO_NO_GO_DATE)}. Ask MAIA ships behind a flag if it slips.`}
+      />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         <Stat label="Cases written" value={cases.length} sub={`${covered} of ${areas.length} areas have cases`} />

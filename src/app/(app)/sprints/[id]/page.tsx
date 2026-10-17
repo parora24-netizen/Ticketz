@@ -48,6 +48,7 @@ export default async function SprintPage({
 
   return (
     <>
+      <Tabs items={[...sprintTabs(nowId), ...(id !== nowId ? [{ key: 'this', href: `/sprints/${id}`, label: `Sprint ${sprint.name}` }] : [])]} active={id === nowId ? 'board' : 'this'} />
       <PageHeader
         title={`Sprint ${sprint.name}`}
         sub={<>{fmtDate(sprint.starts_on)} to {fmtDate(sprint.ends_on)} · {areaIds.length} areas · {cases.length} cases{sprint.goal ? ` · ${sprint.goal}` : ''}</>}>
@@ -63,7 +64,6 @@ export default async function SprintPage({
           </form>
         )}
       </PageHeader>
-      <Tabs items={[...sprintTabs(nowId), ...(id !== nowId ? [{ key: 'this', href: `/sprints/${id}`, label: `Sprint ${sprint.name}` }] : [])]} active={id === nowId ? 'board' : 'this'} />
       <Flash error={sp.error} ok={sp.ok} />
 
       <section className="card mb-5 p-4">

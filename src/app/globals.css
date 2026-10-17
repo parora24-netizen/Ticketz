@@ -80,3 +80,12 @@ h1, h2, h3, .heading { font-family: var(--font-display), 'Space Grotesk', sans-s
 
 @keyframes toast-in { from { transform: translateY(8px); opacity: 0 } to { transform: none; opacity: 1 } }
 .toast-in { animation: toast-in 160ms ease-out; }
+
+/* Row density, chosen in the profile menu (stored on this device). Balanced is the default. */
+.grid-table td { padding-top: 7px; padding-bottom: 7px; }
+html[data-density='compact'] .grid-table td { padding-top: 4px; padding-bottom: 4px; }
+html[data-density='compact'] .grid-table th { height: 30px; }
+html[data-density='airy'] .grid-table td { padding-top: 11px; padding-bottom: 11px; }
+html[data-density='airy'] .grid-table th { height: 38px; }
+.grid-table tr.is-selected td { background: var(--accent-soft); }
+.grid-scroll { max-height: calc(100vh - 230px); min-height: 200px; }

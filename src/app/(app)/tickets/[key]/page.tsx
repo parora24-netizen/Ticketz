@@ -1,12 +1,13 @@
 import { SubmitButton } from '@/components/submit-button'
 import { notFound } from 'next/navigation'
-import { CaseLink, Chip, PageHeader, PriorityChip, StateChip } from '@/components/ui'
+import { CaseLink, Chip, PageHeader, StateChip } from '@/components/ui'
 import { Flash } from '@/components/flash'
 import { getMe } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { fmtDate, loadPeople, loadSprints } from '@/lib/data'
-import { ACTION_LABEL, STATE_LABEL, allowedMoves, requiredFor, type TicketState } from '@/lib/workflow/ticket-machine'
-import { addComment, assignToMe, moveTicket, updateTicket } from '../../actions'
+import { STATE_LABEL, allowedMoves, type TicketState } from '@/lib/workflow/ticket-machine'
+import { addComment, assignToMe } from '../../actions'
+import { TicketActions, TicketField } from '@/components/ticket-controls'
 
 export default async function TicketPage({
   params, searchParams,
@@ -28,35 +29,31 @@ export default async function TicketPage({
   const back = `/tickets/${encodeURIComponent(t.key)}`
   const canEdit = me.role !== 'dev'
 
+  const severityOptions = ['Critical', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: p }))
+  const ownerOptions = [{ value: '', label: 'Unassigned' }, ...people.filter((p) => p.active).map((p) => ({ value: p.id, label: p.name }))]
+  const resolved = ['closed', 'deferred', 'duplicate'].includes(t.state)
+
   return (
     <>
-      <PageHeader title={t.title} sub={<><span className="font-mono">{t.key}</span>{t.tc_id && <> · <CaseLink tcId={t.tc_id} /></>}{t.zone && ` · ${t.zone} · ${t.page}`}</>}>
-        <PriorityChip p={t.severity} /><StateChip s={t.state} />
-        {t.kind === 'test_mismatch' && <Chip>Test issue</Chip>}
-        {t.owner_id !== me.id && !['closed', 'deferred', 'duplicate'].includes(t.state) && (
+      <PageHeader title={t.title} sub={<><span className="mono">{t.key}</span>{t.tc_id && <> · <CaseLink tcId={t.tc_id} /></>}{t.zone && ` · ${t.zone} · ${t.page}`}</>}>
+        {t.owner_id !== me.id && !resolved && (
           <form action={assignToMe}>
             <input type="hidden" name="ticket_id" value={t.id} />
             <input type="hidden" name="back" value={back} />
             <SubmitButton pendingText="Assigning…">Assign to me</SubmitButton>
           </form>
         )}
+        <TicketActions ticketId={t.id} moves={moves} />
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <section className="card p-4 lg:col-span-2">
-          <h2 className="label">Details</h2>
-          <p className="mt-1 whitespace-pre-wrap text-sm">{t.description || 'No description.'}</p>
-          <dl className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-            <div><dt className="label">Owner</dt><dd>{t.owner_name ?? 'Unowned'}</dd></div>
-            <div><dt className="label">Logged</dt><dd>{fmtDate(t.logged_on)}</dd></div>
-            <div><dt className="label">Found in</dt><dd>{t.found_in_sprint_id ? sprintName.get(t.found_in_sprint_id) : 'Before sprints'}</dd></div>
-            <div><dt className="label">Sprint now</dt><dd>{t.current_sprint_id ? sprintName.get(t.current_sprint_id) : '—'}</dd></div>
-            {t.fixed_in_build && <div><dt className="label">Fixed in</dt><dd className="font-mono">{t.fixed_in_build}</dd></div>}
-            {t.defer_reason && <div className="col-span-2"><dt className="label">Deferred because</dt><dd>{t.defer_reason}</dd></div>}
-          </dl>
+      <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+        <section className="card p-5">
+          <h3 className="label">Description</h3>
+          <p className="mt-1.5 whitespace-pre-wrap text-[13px] text-[var(--ink-2)]">{t.description || 'No description.'}</p>
+          {t.defer_reason && <p className="mt-3 border border-[var(--line-soft)] bg-[var(--surface-3)] p-2.5 text-[13px]"><b>Deferred:</b> {t.defer_reason}</p>}
 
-          <h2 className="label mt-6">Activity</h2>
+          <h3 className="label mt-6">Activity</h3>
           <form action={addComment} className="mt-2 space-y-2">
             <input type="hidden" name="ticket_id" value={t.id} />
             <input type="hidden" name="back" value={back} />
@@ -83,43 +80,25 @@ export default async function TicketPage({
           </ol>
         </section>
 
-        <aside className="space-y-4">
-          <section className="card p-4">
-            <h2 className="font-semibold">Next step</h2>
-            {moves.length === 0 && <p className="mt-2 text-sm text-[var(--muted)]">Nothing for a {me.role === 'qa' ? 'QA' : me.role} to do here.</p>}
-            <div className="mt-2 space-y-3">
-              {moves.map((to) => {
-                const need = requiredFor(to)
-                return (
-                  <form key={to} action={moveTicket} className="space-y-1.5">
-                    <input type="hidden" name="ticket_id" value={t.id} />
-                    <input type="hidden" name="to" value={to} />
-                    <input type="hidden" name="back" value={back} />
-                    {need === 'fixed_in_build' && <input name="fixed_in_build" required placeholder="Build with the fix" className="input w-full" />}
-                    {need === 'defer_reason' && <input name="defer_reason" required placeholder="Why it can wait past 26.111" className="input w-full" />}
-                    {need === 'duplicate_of' && <input name="duplicate_key" required placeholder="Key of the original ticket" className="input w-full" />}
-                    {(to === 'closed' || to === 'reopened') && <input name="note" placeholder="Retest note (optional)" className="input w-full" />}
-                    <SubmitButton primary={to !== 'deferred' && to !== 'duplicate'} className="w-full">{ACTION_LABEL[to] ?? STATE_LABEL[to]}</SubmitButton>
-                  </form>
-                )
-              })}
-            </div>
-          </section>
-          <section className="card p-4">
-            <h2 className="font-semibold">Owner and severity</h2>
-            <form action={updateTicket} className="mt-2 space-y-2">
-              <input type="hidden" name="ticket_id" value={t.id} />
-              <input type="hidden" name="back" value={back} />
-              <select name="owner_id" defaultValue={t.owner_id ?? ''} className="select w-full" disabled={!canEdit}>
-                <option value="">Unowned</option>
-                {people.filter((p) => p.active).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-              <select name="severity" defaultValue={t.severity} className="select w-full" disabled={!canEdit}>
-                {['Critical', 'High', 'Medium', 'Low'].map((p) => <option key={p}>{p}</option>)}
-              </select>
-              {canEdit ? <SubmitButton primary className="w-full">Save</SubmitButton> : <p className="text-xs text-[var(--muted)]">Lead or QA assigns owners and severity. Start the fix to take it.</p>}
-            </form>
-          </section>
+        <aside className="card h-fit">
+          <h3 className="border-b border-[var(--line)] px-4 py-2.5 text-[14px] font-semibold">Details</h3>
+          <dl className="divide-y divide-[var(--row)] text-[13px]">
+            <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Status</dt><dd><StateChip s={t.state} /></dd></div>
+            <div className="px-4 py-2.5"><dt className="label mb-1">Owner</dt><dd>
+              <TicketField ticketId={t.id} field="owner_id" value={t.owner_id ?? ''} options={ownerOptions} disabled={!canEdit} />
+              {!canEdit && <p className="mt-1 text-[11.5px] text-[var(--faint)]">Lead or QA assigns. Start the fix to take it.</p>}
+            </dd></div>
+            <div className="px-4 py-2.5"><dt className="label mb-1">Severity</dt><dd>
+              <TicketField ticketId={t.id} field="severity" value={t.severity} options={severityOptions} disabled={!canEdit} />
+            </dd></div>
+            <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Kind</dt><dd>{t.kind === 'test_mismatch' ? <Chip>Test issue</Chip> : 'Product defect'}</dd></div>
+            {t.fixed_in_build && <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Fixed in</dt><dd className="mono">{t.fixed_in_build}</dd></div>}
+            <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Logged</dt><dd className="mono text-[12px]">{fmtDate(t.logged_on)}</dd></div>
+            <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Found in</dt><dd>{t.found_in_sprint_id ? sprintName.get(t.found_in_sprint_id) : 'Before sprints'}</dd></div>
+            <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Sprint now</dt><dd>{t.current_sprint_id ? sprintName.get(t.current_sprint_id) : '—'}</dd></div>
+            {t.tc_id && <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Test case</dt><dd><CaseLink tcId={t.tc_id} /></dd></div>}
+          </dl>
+          {moves.length === 0 && <p className="border-t border-[var(--line)] px-4 py-2.5 text-[12px] text-[var(--muted)]">No moves for a {me.role === 'qa' ? 'QA' : me.role} at this stage.</p>}
         </aside>
       </div>
     </>

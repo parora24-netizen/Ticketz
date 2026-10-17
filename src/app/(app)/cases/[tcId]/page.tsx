@@ -6,7 +6,8 @@ import { getMe } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { fmtDate, loadSprints } from '@/lib/data'
 import { mismatch } from '@/lib/workflow/case-stage'
-import { raiseTicket, recordManualResult, setAutomation } from '../../actions'
+import { raiseTicket, setAutomation } from '../../actions'
+import { CaseResultActions } from '@/components/case-controls'
 
 export default async function CasePage({
   params, searchParams,
@@ -31,14 +32,14 @@ export default async function CasePage({
 
   return (
     <>
-      <PageHeader title={c.title} sub={<><span className="font-mono">{c.tc_id}</span> · {c.areas?.zone} · {c.areas?.page}{c.source_page && c.source_page !== c.areas?.page ? ` (${c.source_page})` : ''}</>}>
-        <PriorityChip p={c.priority} />
+      <PageHeader title={c.title} sub={<><span className="mono">{c.tc_id}</span> · {c.areas?.zone} · {c.areas?.page}{c.source_page && c.source_page !== c.areas?.page ? ` (${c.source_page})` : ''}</>}>
         {mm && <Chip tone="warn">{mm === 'type_ii' ? 'Automation passed, manual failed' : 'Automation failed, manual passed'}</Chip>}
+        {canTest && <CaseResultActions caseId={c.id} />}
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <section className="card space-y-3 p-4 lg:col-span-2">
+      <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+        <section className="card space-y-4 p-5">
           {[
             ['Pre-conditions', c.preconditions],
             ['Steps', c.steps],
@@ -50,24 +51,15 @@ export default async function CasePage({
         </section>
 
         <aside className="space-y-4">
-          {canTest && (
-            <section className="card p-4">
-              <h2 className="font-semibold">Record a manual result</h2>
-              <form action={recordManualResult} className="mt-3 space-y-2">
-                <input type="hidden" name="case_id" value={c.id} />
-                <input type="hidden" name="back" value={back} />
-                <div className="flex gap-3 text-sm">
-                  {(['passed', 'failed', 'blocked'] as const).map((r) => (
-                    <label key={r} className="flex items-center gap-1"><input type="radio" name="result" value={r} required />{r === 'passed' ? 'Pass' : r === 'failed' ? 'Fail' : 'Blocked'}</label>
-                  ))}
-                </div>
-                <input name="build" placeholder="Build tested (optional)" className="input w-full" />
-                <textarea name="note" placeholder="What you saw" rows={3} className="input w-full" />
-                <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="raise_ticket" value="1" defaultChecked />On fail, raise a ticket</label>
-                <SubmitButton primary className="w-full">Save result</SubmitButton>
-              </form>
-            </section>
-          )}
+          <section className="card">
+            <h3 className="border-b border-[var(--line)] px-4 py-2.5 text-[14px] font-semibold">Details</h3>
+            <dl className="divide-y divide-[var(--row)] text-[13px]">
+              <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Priority</dt><dd><PriorityChip p={c.priority} /></dd></div>
+              <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Last automated</dt><dd><ResultChip r={lastAuto} /></dd></div>
+              <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Last manual</dt><dd><ResultChip r={lastManual} /></dd></div>
+              {c.test_type && <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Type</dt><dd>{c.test_type}</dd></div>}
+            </dl>
+          </section>
           {canTest && (
             <section className="card p-4">
               <h2 className="font-semibold">Automation</h2>

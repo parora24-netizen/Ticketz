@@ -578,3 +578,51 @@ export async function updatePeople(ids: string[], patch: Record<string, string |
   revalidatePath('/', 'layout')
   return {}
 }
+
+/** One manual result from a case page's header buttons. A failure can raise its ticket in the same step. */
+export async function recordCaseResult(input: {
+  case_id: string
+  result: 'passed' | 'failed' | 'blocked'
+  note?: string
+  build?: string
+  raise_ticket?: boolean
+}): Promise<{ error?: string; ticketKey?: string }> {
+  const me = await getMe()
+  if (me.role === 'dev') return { error: 'Only QA or the lead record results' }
+  const v = z
+    .object({
+      case_id: z.uuid(),
+      result: z.enum(['passed', 'failed', 'blocked']),
+      note: z.string().trim().max(2000).optional(),
+      build: z.string().trim().max(100).optional(),
+      raise_ticket: z.boolean().optional(),
+    })
+    .safeParse(input)
+  if (!v.success) return { error: 'That result is not valid' }
+  const supabase = await createClient()
+  const sprintId = await activeSprintId()
+  const { error } = await supabase.from('test_runs').insert({
+    case_id: v.data.case_id, kind: 'manual', result: v.data.result, note: v.data.note || null, build: v.data.build || null,
+    sprint_id: sprintId, recorded_by: me.id,
+  })
+  if (error) return { error: error.message }
+  let ticketKey: string | undefined
+  if (v.data.result === 'failed' && v.data.raise_ticket) {
+    const { data: c } = await supabase.from('test_cases').select('tc_id, title, priority').eq('id', v.data.case_id).single()
+    if (c) {
+      const { data: open } = await supabase.from('tickets').select('key').eq('case_id', v.data.case_id)
+        .in('state', ['new', 'triaged', 'in_fix', 'reopened', 'ready_for_retest']).limit(1)
+      if (open?.length) ticketKey = open[0].key // already tracked; don't open a second ticket
+      else {
+        ticketKey = await nextTicketKey(supabase, c.tc_id)
+        const { error: tErr } = await supabase.from('tickets').insert({
+          key: ticketKey, case_id: v.data.case_id, title: c.title, description: v.data.note || null, severity: c.priority,
+          found_in_sprint_id: sprintId, current_sprint_id: sprintId, created_by: me.id,
+        })
+        if (tErr) return { error: `Result saved, but the ticket was not: ${tErr.message}` }
+      }
+    }
+  }
+  revalidatePath('/', 'layout')
+  return { ticketKey }
+}

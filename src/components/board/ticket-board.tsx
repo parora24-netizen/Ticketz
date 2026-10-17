@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import { Dialog } from '@/components/dialog'
+import { toast } from '@/components/toast'
 import { PriorityChip } from '@/components/ui'
 import { STATE_LABEL, canMove, requiredFor, type Role, type TicketState } from '@/lib/workflow/ticket-machine'
 import { moveTicketFromBoard } from '@/app/(app)/actions'
@@ -39,18 +40,13 @@ export function TicketBoard({ tickets, role, meId, zones }: { tickets: BoardTick
   const [dragging, setDragging] = useState<BoardTicket | null>(null)
   const [pending, setPending] = useState<{ t: BoardTicket; to: TicketState } | null>(null)
   const [input, setInput] = useState('')
-  const [msg, setMsg] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
+  const setMsg = (m: { tone: 'ok' | 'error'; text: string }) => toast(m.text, m.tone)
   const [mine, setMine] = useState(false)
   const [high, setHigh] = useState(false)
   const [zone, setZone] = useState('')
   const [lane, setLane] = useState<Lane>('none')
 
   useEffect(() => setLocal({}), [tickets])
-  useEffect(() => {
-    if (msg?.tone !== 'ok') return
-    const t = setTimeout(() => setMsg(null), 3000)
-    return () => clearTimeout(t)
-  }, [msg])
 
   const stateOf = (t: BoardTicket) => local[t.id] ?? t.state
   const visible = useMemo(
@@ -114,12 +110,6 @@ export function TicketBoard({ tickets, role, meId, zones }: { tickets: BoardTick
         </label>
         {parked > 0 && <Link href="/tickets?view=grid" className="ml-auto text-[12.5px] text-[var(--accent)] hover:underline">{parked} deferred or duplicate</Link>}
       </div>
-      {msg && (
-        <div role={msg.tone === 'error' ? 'alert' : 'status'}
-          className={`mb-3 border px-3 py-2 text-[12.5px] ${msg.tone === 'error' ? 'border-[var(--crit-line)] bg-[var(--crit-soft)] text-[var(--crit)]' : 'border-[var(--good-line)] bg-[var(--good-soft)] text-[var(--good)]'}`}>
-          {msg.text}
-        </div>
-      )}
 
       <div className="overflow-x-auto pb-2">
         <div className="min-w-[1100px] space-y-4">

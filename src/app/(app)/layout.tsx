@@ -1,7 +1,8 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { SearchIcon } from '@/components/icons'
-import { DensityInit, PageTitle, ProfileMenu } from '@/components/shell'
+import { DensityInit, PageTitle, ProfileMenu, Shortcuts } from '@/components/shell'
+import { Toaster } from '@/components/toast'
 import { getMe } from '@/lib/auth'
 import { currentSprint, daysUntil, fmtDate, loadSprints } from '@/lib/data'
 import { BottomBar, Sidebar } from './nav-links'
@@ -19,6 +20,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen">
       <DensityInit />
+      <Shortcuts />
+      <Toaster />
       <Sidebar isLead={me.role === 'lead'} canAddCases={canAddCases} sprintLabel={sprintLabel} />
       <div className="md:pl-[216px]">
         <header className="sticky top-0 z-20 flex h-14 items-center gap-4 border-b border-[var(--line)] bg-white px-4 sm:px-6">
@@ -29,7 +32,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <div className="ml-auto flex items-center gap-3">
             <form action="/search" role="search" className="relative hidden md:block">
               <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-[var(--faint)]" />
-              <input name="q" placeholder="Jump to TC_FN_070, DEV-…" aria-label="Search tickets and test cases" className="input h-8 w-64 pl-8" />
+              <input id="global-search" name="q" placeholder="Jump to TC_FN_070, DEV-…   ( / )" aria-label="Search tickets and test cases" className="input h-8 w-72 pl-8" />
             </form>
             <ProfileMenu name={me.name} email={me.email} role={ROLE[me.role]} initials={initials} />
           </div>

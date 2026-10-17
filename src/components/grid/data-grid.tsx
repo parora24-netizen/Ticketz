@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from '@/components/toast'
 
 export type Option = { value: string; label: string }
 export type Column<T> = {
@@ -63,17 +64,12 @@ export function DataGrid<T extends { id: string }>({
   const [active, setActive] = useState<{ r: number; c: number } | null>(null)
   const [editing, setEditing] = useState<{ r: number; c: number; value: string } | null>(null)
   const [openFilter, setOpenFilter] = useState<string | null>(null)
-  const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null)
+  const setMessage = (m: { tone: 'ok' | 'error'; text: string }) => toast(m.text, m.tone)
   const [busy, setBusy] = useState(false)
   const [limit, setLimit] = useState(300)
   const gridRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => setOverrides({}), [rows])
-  useEffect(() => {
-    if (message?.tone !== 'ok') return
-    const t = setTimeout(() => setMessage(null), 3000)
-    return () => clearTimeout(t)
-  }, [message])
 
   const cellValue = useCallback(
     (row: T, col: Column<T>): string | number | null => {
@@ -305,12 +301,6 @@ export function DataGrid<T extends { id: string }>({
         </div>
       )}
 
-      {message && (
-        <div role={message.tone === 'error' ? 'alert' : 'status'}
-          className={`border border-b-0 px-3 py-1.5 text-[12.5px] ${message.tone === 'error' ? 'border-[var(--crit-line)] bg-[var(--crit-soft)] text-[var(--crit)]' : 'border-[var(--good-line)] bg-[var(--good-soft)] text-[var(--good)]'}`}>
-          {message.tone === 'ok' ? '✓ ' : ''}{message.text}
-        </div>
-      )}
 
       <div ref={gridRef} tabIndex={0} onKeyDown={onKeyDown} role="grid" aria-rowcount={view.length}
         className="grid-scroll overflow-auto border border-[var(--line)] bg-white outline-none">

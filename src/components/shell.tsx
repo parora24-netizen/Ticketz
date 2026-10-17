@@ -19,16 +19,57 @@ const TITLES: [string, string][] = [
   ['/search', 'Search'],
 ]
 
-/** Page name and its path, top left, on every screen. */
+const SEGMENT: Record<string, string> = { new: 'New', import: 'Import' }
+const isId = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-/.test(s)
+
+/** Page name and a clickable trail back up, top left, on every screen. */
 export function PageTitle() {
   const path = usePathname()
-  const title = path === '/' ? 'For you' : TITLES.find(([p]) => path === p || path.startsWith(`${p}/`))?.[1] ?? ''
+  const match = TITLES.find(([p]) => path === p || path.startsWith(`${p}/`))
+  const title = path === '/' ? 'For you' : match?.[1] ?? ''
+  const base = match ? `/${match[0].split('/')[1]}` : '/'
+  const rest = path.slice(base.length).split('/').filter(Boolean).filter((s) => !isId(s))
+  const crumbs = rest.length && !SEGMENT[rest[0]] ? rest.map((s) => SEGMENT[s] ?? decodeURIComponent(s)) : []
   return (
-    <div className="flex min-w-0 items-baseline gap-2">
-      <h1 className="truncate text-[17px] font-semibold text-[var(--navy-ink)]">{title}</h1>
-      <span className="mono hidden truncate text-[12px] text-[var(--faint)] sm:inline">{decodeURIComponent(path)}</span>
-    </div>
+    <nav aria-label="Breadcrumb" className="flex min-w-0 items-baseline gap-1.5">
+      {crumbs.length ? (
+        <>
+          <a href={base === '/sprint' ? '/sprints' : base} className="truncate text-[15px] font-semibold text-[var(--muted)] hover:text-[var(--navy)]">{title}</a>
+          {crumbs.map((c, i) => (
+            <span key={i} className="flex min-w-0 items-baseline gap-1.5">
+              <span className="text-[var(--faint)]">/</span>
+              <span className="mono truncate text-[14px] font-semibold text-[var(--navy-ink)]">{c}</span>
+            </span>
+          ))}
+        </>
+      ) : (
+        <>
+          <h1 className="truncate text-[17px] font-semibold text-[var(--navy-ink)]">{title}</h1>
+          <span className="mono hidden truncate text-[12px] text-[var(--faint)] sm:inline">{path}</span>
+        </>
+      )}
+    </nav>
   )
+}
+
+/** "/" jumps to search, "c" opens Create, from anywhere that isn't a text field. */
+export function Shortcuts() {
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement
+      if (e.ctrlKey || e.metaKey || e.altKey || t.closest('input,textarea,select,[contenteditable="true"],dialog')) return
+      if (e.key === '/') {
+        e.preventDefault()
+        document.querySelector<HTMLInputElement>('#global-search')?.focus()
+      } else if (e.key === 'c') {
+        e.preventDefault()
+        window.dispatchEvent(new Event('open-create'))
+      }
+    }
+    window.addEventListener('keydown', on)
+    return () => window.removeEventListener('keydown', on)
+  }, [])
+  return null
 }
 
 const DENSITIES = [

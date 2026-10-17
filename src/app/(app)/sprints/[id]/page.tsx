@@ -8,7 +8,8 @@ import { getMe } from '@/lib/auth'
 import { currentSprint, fmtDate, loadAreas, loadCases, loadSprintAreas, loadSprintRuns, loadSprints, loadTickets, toStageInput, type CaseRow, type TicketRow } from '@/lib/data'
 import { STAGES, STAGE_LABEL, caseStage, needsTicket, type Stage } from '@/lib/workflow/case-stage'
 import { sprintGate } from '@/lib/workflow/sprint-gate'
-import { closeSprint, recordManualResult, startSprint } from '../../actions'
+import { closeSprint, startSprint } from '../../actions'
+import { CaseResultActions } from '@/components/case-controls'
 import { SprintForm } from '../sprint-form'
 
 const PER_COLUMN = 40
@@ -66,72 +67,69 @@ export default async function SprintPage({
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
 
-      <section className="card mb-5 p-4">
-        <h2 className="font-semibold">Close gate {gate.ok ? <span className="text-[var(--good)]">· met</span> : <span className="text-[var(--muted)]">· not met</span>}</h2>
-        <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          {gate.checks.map((c) => (
-            <li key={c.label} className={`rounded-[2px] border p-2 text-sm ${c.ok ? 'border-[var(--good)]' : 'border-[var(--line)]'}`}>
-              <span className={c.ok ? 'text-[var(--good)]' : 'text-[var(--warn)]'}>{c.ok ? '✓ ' : '• '}</span>{c.label}
-              <span className="block text-xs text-[var(--muted)]">{c.detail}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {/* The close gate, as one strip of checks */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="label mr-1">Close gate</span>
+        {gate.checks.map((c) => (
+          <span key={c.label} title={c.detail}
+            className={`chip ${c.ok ? 'border-[var(--good-line)] bg-[var(--good-soft)] text-[var(--good)]' : 'border-[var(--line)] bg-white text-[var(--ink-2)]'}`}>
+            {c.ok ? '✓' : '•'} {c.label}<span className="ml-1.5 font-normal text-[var(--muted)]">{c.ok ? '' : c.detail}</span>
+          </span>
+        ))}
+      </div>
 
-      <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-        {STAGES.map((stage) => {
-          const list = columns.get(stage)!
-          return (
-            <section key={stage} className="flex min-w-0 flex-col rounded-[2px] bg-[var(--surface-2)] p-2">
-              <header className="px-1 pb-2">
-                <div className="flex items-baseline justify-between">
-                  <h3 className="font-semibold">{STAGE_LABEL[stage]}</h3>
-                  <span className="tabular-nums text-sm text-[var(--muted)]">{list.length}</span>
+      {/* The process, left to right: each column is one step every case passes through */}
+      <div className="overflow-x-auto pb-2">
+        <div className="grid min-w-[1180px] grid-cols-6 gap-2">
+          {STAGES.map((stage, n) => {
+            const list = columns.get(stage)!
+            return (
+              <section key={stage} className="flex min-w-0 flex-col bg-[var(--surface-2)]">
+                <header className={`border-t-2 px-2.5 pt-2 pb-2 ${list.length && stage !== 'done' ? 'border-[var(--navy)]' : 'border-[var(--line)]'}`}>
+                  <div className="flex items-baseline justify-between">
+                    <h3 className="text-[12.5px] font-semibold text-[var(--navy-ink)]"><span className="mono mr-1.5 text-[11px] text-[var(--faint)]">{n + 1}</span>{STAGE_LABEL[stage]}</h3>
+                    <span className="mono text-[11.5px] text-[var(--muted)]">{list.length}</span>
+                  </div>
+                  <p className="text-[11px] leading-snug text-[var(--muted)]">{STAGE_HELP[stage]}</p>
+                </header>
+                <div className="max-h-[calc(100vh-330px)] min-h-24 space-y-1.5 overflow-y-auto px-1.5 pb-1.5">
+                  {list.slice(0, PER_COLUMN).map((c) => {
+                    const t = openTicket(c)
+                    return (
+                      <article key={c.id} className={`border border-[var(--line)] bg-white p-2 ${
+                        c.priority === 'Critical' ? 'shadow-[inset_3px_0_0_var(--crit)]' : c.priority === 'High' ? 'shadow-[inset_3px_0_0_var(--warn)]' : ''}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <CaseLink tcId={c.tc_id} /><PriorityChip p={c.priority} />
+                        </div>
+                        <p className="mt-1 line-clamp-2 text-[12.5px] leading-snug">{c.title}</p>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1 text-[11px] text-[var(--faint)]">
+                          <span>Auto</span><ResultChip r={c.auto_result} /><span className="ml-1">Manual</span><ResultChip r={c.manual_result} />
+                        </div>
+                        {t && <div className="mt-1.5 flex items-center gap-1.5"><TicketLink k={t.key} /><StateChip s={t.state} /></div>}
+                        {stage === 'fix' && needsTicket(toStageInput(c, runs)) && (
+                          <Link href={`/cases/${c.tc_id}#ticket`} className="mt-1.5 block text-[11.5px] font-semibold text-[var(--crit)] hover:underline">Raise a ticket</Link>
+                        )}
+                        {stage === 'manual' && canRecord && sprint.status === 'active' && (
+                          <div className="mt-2 flex gap-1"><CaseResultActions caseId={c.id} size="sm" /></div>
+                        )}
+                      </article>
+                    )
+                  })}
+                  {list.length === 0 && <p className="px-1 py-3 text-center text-[11.5px] text-[var(--faint)]">Empty</p>}
+                  {list.length > PER_COLUMN && (
+                    <Link href={`/cases?sprint=${id}&stage=${stage}`} className="block px-1 py-1 text-[12px] text-[var(--accent)] hover:underline">
+                      All {list.length} in the grid
+                    </Link>
+                  )}
                 </div>
-                <p className="text-xs text-[var(--muted)]">{STAGE_HELP[stage]}</p>
-              </header>
-              <div className="space-y-2">
-                {list.slice(0, PER_COLUMN).map((c) => {
-                  const t = openTicket(c)
-                  return (
-                    <article key={c.id} className="card p-2.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <CaseLink tcId={c.tc_id} /><PriorityChip p={c.priority} />
-                      </div>
-                      <p className="mt-1 line-clamp-2 text-sm">{c.title}</p>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1 text-xs text-[var(--muted)]">
-                        Auto <ResultChip r={c.auto_result} /> Manual <ResultChip r={c.manual_result} />
-                      </div>
-                      {t && <div className="mt-1.5 flex items-center gap-1.5"><TicketLink k={t.key} /><StateChip s={t.state} /></div>}
-                      {stage === 'fix' && needsTicket(toStageInput(c, runs)) && (
-                        <Link href={`/cases/${c.tc_id}#ticket`} className="mt-1.5 block text-xs font-medium text-[var(--crit)] hover:underline">Raise a ticket</Link>
-                      )}
-                      {stage === 'manual' && canRecord && sprint.status === 'active' && (
-                        <form action={recordManualResult} className="mt-2 flex gap-1">
-                          <input type="hidden" name="case_id" value={c.id} />
-                          <input type="hidden" name="back" value={back} />
-                          <input type="hidden" name="raise_ticket" value="1" />
-                          <SubmitButton small name="result" value="passed" pendingText="…" className="flex-1">Pass</SubmitButton>
-                          <SubmitButton small name="result" value="failed" pendingText="…" className="flex-1">Fail</SubmitButton>
-                          <SubmitButton small name="result" value="blocked" pendingText="…" className="flex-1">Blocked</SubmitButton>
-                        </form>
-                      )}
-                    </article>
-                  )
-                })}
-                {list.length > PER_COLUMN && (
-                  <Link href={`/cases?sprint=${id}&stage=${stage}`} className="block px-1 py-1 text-sm text-[var(--accent)] hover:underline">
-                    All {list.length} in {STAGE_LABEL[stage]}
-                  </Link>
-                )}
-              </div>
-            </section>
-          )
-        })}
+              </section>
+            )
+          })}
+        </div>
       </div>
 
       {me.role === 'lead' && sprint.status !== 'closed' && (
-        <details className="card mt-6 p-4">
+        <details className="card mt-4 p-4">
           <summary className="cursor-pointer font-semibold">Edit dates and areas</summary>
           <div className="mt-4"><SprintForm areas={areas} sprint={sprint} selected={new Set(areaIds)} /></div>
         </details>

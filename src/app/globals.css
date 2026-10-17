@@ -1,0 +1,61 @@
+@import 'tailwindcss';
+
+:root {
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-2: #eef0f4;
+  --line: #dde1e8;
+  --ink: #141821;
+  --muted: #5d6576;
+  --accent: #1d4fd8;
+  --accent-soft: #e5ecfd;
+  --good: #17784a;
+  --good-soft: #e1f3e9;
+  --warn: #9a5b00;
+  --warn-soft: #fbefd9;
+  --crit: #b42318;
+  --crit-soft: #fbe4e1;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111419;
+    --surface: #181c23;
+    --surface-2: #20252e;
+    --line: #2c323d;
+    --ink: #e9edf3;
+    --muted: #9aa2b2;
+    --accent: #7ea2ff;
+    --accent-soft: #1d2a4a;
+    --good: #5cc995;
+    --good-soft: #14301f;
+    --warn: #f0b454;
+    --warn-soft: #352812;
+    --crit: #f28b82;
+    --crit-soft: #3e1b18;
+    color-scheme: dark;
+  }
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 14px;
+}
+
+@layer components {
+  .card { @apply rounded-xl border border-[var(--line)] bg-[var(--surface)]; }
+  .btn {
+    @apply inline-flex items-center justify-center gap-1 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm font-medium hover:bg-[var(--surface-2)] disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-primary { @apply border-transparent bg-[var(--accent)] text-white hover:opacity-90 hover:bg-[var(--accent)]; }
+  .input, .select {
+    @apply rounded-md border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5 text-sm text-[var(--ink)];
+  }
+  .chip { @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap; }
+  .table { @apply w-full text-sm; }
+  .table th { @apply border-b border-[var(--line)] px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[var(--muted)]; }
+  .table td { @apply border-b border-[var(--line)] px-3 py-2 align-top; }
+  .label { @apply text-xs font-semibold uppercase tracking-wide text-[var(--muted)]; }
+}

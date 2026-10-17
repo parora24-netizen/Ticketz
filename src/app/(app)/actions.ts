@@ -1,0 +1,396 @@
+'use server'
+
+import { createHash, randomBytes } from 'node:crypto'
+import { revalidatePath } from 'next/cache'
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { z } from 'zod'
+import { getMe, safeNext } from '@/lib/auth'
+import { createClient } from '@/lib/supabase/server'
+import { currentSprint, loadCases, loadSprintRuns, loadSprints, loadTickets, toStageInput } from '@/lib/data'
+import { sprintGate } from '@/lib/workflow/sprint-gate'
+import { canMove, requiredFor, retestResult, type TicketState } from '@/lib/workflow/ticket-machine'
+
+function back(formData: FormData, fallback: string): string {
+  return safeNext(formData.get('back') ?? fallback)
+}
+
+function withMessage(path: string, key: 'error' | 'ok', msg: string): string {
+  const [base, query = ''] = path.split('?')
+  const params = new URLSearchParams(query)
+  params.delete('error')
+  params.delete('ok')
+  params.set(key, msg)
+  return `${base}?${params.toString()}`
+}
+
+function fail(path: string, msg: string): never {
+  redirect(withMessage(path, 'error', msg))
+}
+
+async function activeSprintId(): Promise<string | null> {
+  return currentSprint(await loadSprints())?.id ?? null
+}
+
+async function nextTicketKey(supabase: Awaited<ReturnType<typeof createClient>>, tcId: string | null): Promise<string> {
+  const base = tcId ? `DEV-${tcId}` : 'DEV'
+  const { data } = await supabase.from('tickets').select('key').like('key', `${base}%`)
+  const taken = new Set((data ?? []).map((r) => r.key as string))
+  if (tcId && !taken.has(base)) return base
+  for (let n = tcId ? 2 : taken.size + 1; ; n++) {
+    const k = `${base}-${n}`
+    if (!taken.has(k)) return k
+  }
+}
+
+// ---- Test cases -------------------------------------------------------------------------
+
+const ManualResult = z.object({
+  case_id: z.uuid(),
+  result: z.enum(['passed', 'failed', 'blocked']),
+  note: z.string().trim().max(2000).optional(),
+  build: z.string().trim().max(100).optional(),
+  raise_ticket: z.string().optional(),
+  severity: z.enum(['Critical', 'High', 'Medium', 'Low']).optional(),
+})
+
+export async function recordManualResult(formData: FormData) {
+  const path = back(formData, '/cases')
+  const me = await getMe()
+  if (me.role === 'dev') fail(path, 'Only QA or the lead record manual results')
+  const parsed = ManualResult.safeParse(Object.fromEntries(formData))
+  if (!parsed.success) fail(path, 'Pick a result')
+  const v = parsed.data
+  const supabase = await createClient()
+  const sprintId = await activeSprintId()
+  const { error } = await supabase.from('test_runs').insert({
+    case_id: v.case_id,
+    kind: 'manual',
+    result: v.result,
+    note: v.note || null,
+    build: v.build || null,
+    sprint_id: sprintId,
+    recorded_by: me.id,
+  })
+  if (error) fail(path, error.message)
+
+  if (v.result === 'failed' && v.raise_ticket) {
+    const { data: c } = await supabase.from('test_cases').select('tc_id, title, priority').eq('id', v.case_id).single()
+    if (c) {
+      const key = await nextTicketKey(supabase, c.tc_id)
+      const { error: tErr } = await supabase.from('tickets').insert({
+        key,
+        case_id: v.case_id,
+        title: c.title,
+        description: v.note || null,
+        severity: v.severity ?? c.priority,
+        found_in_sprint_id: sprintId,
+        current_sprint_id: sprintId,
+        created_by: me.id,
+      })
+      if (tErr) fail(path, tErr.message)
+    }
+  }
+  revalidatePath('/', 'layout')
+  redirect(withMessage(path, 'ok', 'Result recorded'))
+}
+
+export async function setAutomation(formData: FormData) {
+  const path = back(formData, '/cases')
+  const me = await getMe()
+  if (me.role === 'dev') fail(path, 'Only QA or the lead change automation status')
+  const v = z
+    .object({ case_id: z.uuid(), automation: z.enum(['not_automated', 'automated', 'manual_only']) })
+    .safeParse(Object.fromEntries(formData))
+  if (!v.success) fail(path, 'Pick an automation status')
+  const supabase = await createClient()
+  const { error } = await supabase.from('test_cases').update({ automation: v.data.automation }).eq('id', v.data.case_id)
+  if (error) fail(path, error.message)
+  revalidatePath('/', 'layout')
+  redirect(withMessage(path, 'ok', 'Automation status saved'))
+}
+
+// ---- Tickets ----------------------------------------------------------------------------
+
+const NewTicket = z.object({
+  case_id: z.uuid().optional().or(z.literal('')),
+  title: z.string().trim().min(3).max(300),
+  description: z.string().trim().max(5000).optional(),
+  severity: z.enum(['Critical', 'High', 'Medium', 'Low']),
+  kind: z.enum(['defect', 'test_mismatch']).default('defect'),
+})
+
+export async function raiseTicket(formData: FormData) {
+  const path = back(formData, '/tickets')
+  const me = await getMe()
+  const parsed = NewTicket.safeParse(Object.fromEntries(formData))
+  if (!parsed.success) fail(path, 'A ticket needs a title and a severity')
+  const v = parsed.data
+  const supabase = await createClient()
+  let tcId: string | null = null
+  if (v.case_id) {
+    const { data } = await supabase.from('test_cases').select('tc_id').eq('id', v.case_id).single()
+    tcId = data?.tc_id ?? null
+  }
+  const sprintId = await activeSprintId()
+  const key = await nextTicketKey(supabase, tcId)
+  const { error } = await supabase.from('tickets').insert({
+    key: v.kind === 'test_mismatch' ? key.replace(/^DEV/, 'MM') : key,
+    kind: v.kind,
+    case_id: v.case_id || null,
+    title: v.title,
+    description: v.description || null,
+    severity: v.severity,
+    found_in_sprint_id: sprintId,
+    current_sprint_id: sprintId,
+    created_by: me.id,
+  })
+  if (error) fail(path, error.message)
+  revalidatePath('/', 'layout')
+  redirect(`/tickets/${encodeURIComponent(key)}`)
+}
+
+const Move = z.object({
+  ticket_id: z.uuid(),
+  to: z.enum(['new', 'triaged', 'in_fix', 'ready_for_retest', 'reopened', 'closed', 'deferred', 'duplicate']),
+  fixed_in_build: z.string().trim().max(100).optional(),
+  defer_reason: z.string().trim().max(1000).optional(),
+  duplicate_key: z.string().trim().max(100).optional(),
+  note: z.string().trim().max(2000).optional(),
+})
+
+export async function moveTicket(formData: FormData) {
+  const path = back(formData, '/tickets')
+  const me = await getMe()
+  const parsed = Move.safeParse(Object.fromEntries(formData))
+  if (!parsed.success) fail(path, 'That move is not valid')
+  const v = parsed.data
+  const supabase = await createClient()
+  const { data: t } = await supabase.from('tickets').select('id, state, case_id, owner_id').eq('id', v.ticket_id).single()
+  if (!t) fail(path, 'Ticket not found')
+  const from = t.state as TicketState
+  if (!canMove(from, v.to, me.role)) fail(path, `A ${me.role} cannot move a ticket from ${from} to ${v.to}`)
+
+  const patch: Record<string, unknown> = { state: v.to }
+  const need = requiredFor(v.to)
+  if (need === 'fixed_in_build') {
+    if (!v.fixed_in_build) fail(path, 'Say which build has the fix')
+    patch.fixed_in_build = v.fixed_in_build
+  }
+  if (need === 'defer_reason') {
+    if (!v.defer_reason) fail(path, 'Give a reason for deferring')
+    patch.defer_reason = v.defer_reason
+  }
+  if (need === 'duplicate_of') {
+    const { data: dup } = await supabase.from('tickets').select('id').eq('key', v.duplicate_key ?? '').maybeSingle()
+    if (!dup) fail(path, 'Enter the key of the ticket this duplicates')
+    patch.duplicate_of = dup.id
+  }
+  // A dev who starts a fix on an unowned ticket takes it.
+  if (v.to === 'in_fix' && !t.owner_id && me.role === 'dev') patch.owner_id = me.id
+
+  const { error } = await supabase.from('tickets').update(patch).eq('id', t.id)
+  if (error) fail(path, error.message)
+
+  const retest = retestResult(from, v.to)
+  if (retest && t.case_id && me.role !== 'dev') {
+    await supabase.from('test_runs').insert({
+      case_id: t.case_id,
+      kind: 'manual',
+      result: retest,
+      note: v.note ? `Retest: ${v.note}` : 'Retest',
+      sprint_id: await activeSprintId(),
+      recorded_by: me.id,
+    })
+  }
+  revalidatePath('/', 'layout')
+  redirect(withMessage(path, 'ok', 'Ticket updated'))
+}
+
+export async function updateTicket(formData: FormData) {
+  const path = back(formData, '/tickets')
+  await getMe()
+  const v = z
+    .object({
+      ticket_id: z.uuid(),
+      owner_id: z.uuid().or(z.literal('')),
+      severity: z.enum(['Critical', 'High', 'Medium', 'Low']),
+    })
+    .safeParse(Object.fromEntries(formData))
+  if (!v.success) fail(path, 'Pick an owner and a severity')
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('tickets')
+    .update({ owner_id: v.data.owner_id || null, severity: v.data.severity })
+    .eq('id', v.data.ticket_id)
+  if (error) fail(path, error.message)
+  revalidatePath('/', 'layout')
+  redirect(withMessage(path, 'ok', 'Saved'))
+}
+
+// ---- Sprints ----------------------------------------------------------------------------
+
+const SprintForm = z.object({
+  id: z.uuid().optional().or(z.literal('')),
+  name: z.string().trim().min(1).max(40),
+  starts_on: z.iso.date(),
+  ends_on: z.iso.date(),
+  goal: z.string().trim().max(500).optional(),
+})
+
+export async function saveSprint(formData: FormData) {
+  const path = back(formData, '/sprints')
+  const me = await getMe()
+  if (me.role !== 'lead') fail(path, 'Only the lead plans sprints')
+  const parsed = SprintForm.safeParse(Object.fromEntries(formData))
+  if (!parsed.success) fail(path, 'A sprint needs a name and start and end dates')
+  const v = parsed.data
+  if (v.ends_on < v.starts_on) fail(path, 'The sprint ends before it starts')
+  const areaIds = formData.getAll('area_id').map(String)
+  const supabase = await createClient()
+  const row = { name: v.name, starts_on: v.starts_on, ends_on: v.ends_on, goal: v.goal || null }
+  const { data, error } = v.id
+    ? await supabase.from('sprints').update(row).eq('id', v.id).select('id').single()
+    : await supabase.from('sprints').insert(row).select('id').single()
+  if (error || !data) fail(path, error?.message ?? 'Could not save the sprint')
+  await supabase.from('sprint_areas').delete().eq('sprint_id', data.id)
+  if (areaIds.length) {
+    const { error: aErr } = await supabase
+      .from('sprint_areas')
+      .insert(areaIds.map((area_id) => ({ sprint_id: data.id, area_id })))
+    if (aErr) fail(path, aErr.message)
+  }
+  revalidatePath('/', 'layout')
+  redirect(withMessage(`/sprints/${data.id}`, 'ok', 'Sprint saved'))
+}
+
+export async function startSprint(formData: FormData) {
+  const id = String(formData.get('sprint_id'))
+  const path = `/sprints/${id}`
+  const me = await getMe()
+  if (me.role !== 'lead') fail(path, 'Only the lead starts a sprint')
+  const supabase = await createClient()
+  const { data: other } = await supabase.from('sprints').select('name').eq('status', 'active').neq('id', id)
+  if (other?.length) fail(path, `Close ${other[0].name} first; one sprint runs at a time`)
+  const { error } = await supabase.from('sprints').update({ status: 'active' }).eq('id', id)
+  if (error) fail(path, error.message)
+  revalidatePath('/', 'layout')
+  redirect(withMessage(path, 'ok', 'Sprint started'))
+}
+
+/** Close a sprint if its gate passes, and carry its still-open tickets into the next sprint. */
+export async function closeSprint(formData: FormData) {
+  const id = String(formData.get('sprint_id'))
+  const path = `/sprints/${id}`
+  const me = await getMe()
+  if (me.role !== 'lead') fail(path, 'Only the lead closes a sprint')
+  const supabase = await createClient()
+  const sprints = await loadSprints()
+  const sprint = sprints.find((s) => s.id === id)
+  if (!sprint) fail('/sprints', 'Sprint not found')
+  const { data: sa } = await supabase.from('sprint_areas').select('area_id').eq('sprint_id', id)
+  const areaIds = (sa ?? []).map((r) => r.area_id as string)
+  const [cases, runs, tickets] = await Promise.all([loadCases(areaIds), loadSprintRuns(id), loadTickets()])
+  const caseIds = new Set(cases.map((c) => c.id))
+  const scoped = tickets.filter((t) => (t.case_id && caseIds.has(t.case_id)) || t.current_sprint_id === id)
+  const gate = sprintGate(cases.map((c) => toStageInput(c, runs)), scoped)
+  if (!gate.ok) fail(path, 'The close gate is not met yet')
+
+  const next = sprints.find((s) => s.starts_on > sprint.ends_on && s.status !== 'closed')
+  const carry = scoped.filter((t) => !['closed', 'deferred', 'duplicate'].includes(t.state)).map((t) => t.id)
+  if (next && carry.length) {
+    const { error } = await supabase.from('tickets').update({ current_sprint_id: next.id }).in('id', carry)
+    if (error) fail(path, error.message)
+  }
+  const { error } = await supabase
+    .from('sprints')
+    .update({ status: 'closed', closed_at: new Date().toISOString() })
+    .eq('id', id)
+  if (error) fail(path, error.message)
+  revalidatePath('/', 'layout')
+  redirect(withMessage(path, 'ok', `Sprint closed${carry.length && next ? `; ${carry.length} tickets moved to ${next.name}` : ''}`))
+}
+
+// ---- Plan -------------------------------------------------------------------------------
+
+export async function setTaskStatus(formData: FormData) {
+  const path = back(formData, '/plan')
+  await getMe()
+  const v = z
+    .object({ task_id: z.uuid(), status: z.enum(['not_started', 'in_progress', 'blocked', 'done']) })
+    .safeParse(Object.fromEntries(formData))
+  if (!v.success) fail(path, 'Pick a status')
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('plan_tasks')
+    .update({ status: v.data.status, updated_at: new Date().toISOString() })
+    .eq('id', v.data.task_id)
+  if (error) fail(path, error.message)
+  revalidatePath('/plan')
+  redirect(path)
+}
+
+// ---- Admin ------------------------------------------------------------------------------
+
+const PersonForm = z.object({
+  id: z.uuid().optional().or(z.literal('')),
+  name: z.string().trim().min(1).max(100),
+  email: z.email().or(z.literal('')),
+  role: z.enum(['lead', 'dev', 'qa']),
+  active: z.string().optional(),
+})
+
+export async function savePerson(formData: FormData) {
+  const path = '/admin'
+  const me = await getMe()
+  if (me.role !== 'lead') fail(path, 'Only the lead manages the team')
+  const parsed = PersonForm.safeParse(Object.fromEntries(formData))
+  if (!parsed.success) fail(path, 'A person needs a name, a valid email and a role')
+  const v = parsed.data
+  const supabase = await createClient()
+  const row = { name: v.name, email: v.email ? v.email.toLowerCase() : null, role: v.role, active: v.id ? !!v.active : true }
+  const { error } = v.id
+    ? await supabase.from('people').update(row).eq('id', v.id)
+    : await supabase.from('people').insert(row)
+  if (error) fail(path, error.message)
+  revalidatePath('/', 'layout')
+  redirect(withMessage(path, 'ok', 'Saved'))
+}
+
+export async function createCiToken(formData: FormData) {
+  const me = await getMe()
+  if (me.role !== 'lead') fail('/admin', 'Only the lead creates CI tokens')
+  const label = String(formData.get('label') ?? '').trim() || 'CI'
+  const token = `vqt_${randomBytes(24).toString('base64url')}`
+  const supabase = await createClient()
+  const { error } = await supabase.from('ci_tokens').insert({
+    label,
+    token_hash: createHash('sha256').update(token).digest('hex'),
+    created_by: me.id,
+  })
+  if (error) fail('/admin', error.message)
+  // Handed to the admin page in a short-lived cookie rather than the URL, so it never lands in
+  // browser history or request logs. Only its hash is stored.
+  ;(await cookies()).set('new_ci_token', token, {
+    maxAge: 120,
+    httpOnly: true,
+    sameSite: 'strict',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/admin',
+  })
+  revalidatePath('/admin')
+  redirect('/admin')
+}
+
+export async function revokeCiToken(formData: FormData) {
+  const me = await getMe()
+  if (me.role !== 'lead') fail('/admin', 'Only the lead revokes CI tokens')
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('ci_tokens')
+    .update({ revoked_at: new Date().toISOString() })
+    .eq('id', String(formData.get('token_id')))
+  if (error) fail('/admin', error.message)
+  revalidatePath('/admin')
+  redirect(withMessage('/admin', 'ok', 'Token revoked'))
+}

@@ -1,3 +1,4 @@
+import { SubmitButton } from '@/components/submit-button'
 import { notFound } from 'next/navigation'
 import { Chip, PageHeader, PriorityChip, ResultChip, StateChip, TicketLink } from '@/components/ui'
 import { Flash } from '@/components/flash'
@@ -63,7 +64,7 @@ export default async function CasePage({
                 <input name="build" placeholder="Build tested (optional)" className="input w-full" />
                 <textarea name="note" placeholder="What you saw" rows={3} className="input w-full" />
                 <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="raise_ticket" value="1" defaultChecked />On fail, raise a ticket</label>
-                <button className="btn btn-primary w-full">Save result</button>
+                <SubmitButton primary className="w-full">Save result</SubmitButton>
               </form>
             </section>
           )}
@@ -78,7 +79,7 @@ export default async function CasePage({
                   <option value="automated">Automated</option>
                   <option value="manual_only">Manual only</option>
                 </select>
-                <button className="btn">Save</button>
+                <SubmitButton primary>Save</SubmitButton>
               </form>
             </section>
           )}
@@ -106,7 +107,7 @@ export default async function CasePage({
                     <option value="test_mismatch">Test is wrong</option>
                   </select>
                 </div>
-                <button className="btn btn-primary w-full">Raise ticket</button>
+                <SubmitButton primary className="w-full" pendingText="Raising…">Raise ticket</SubmitButton>
               </form>
             </details>
           </section>

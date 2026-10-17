@@ -1,3 +1,4 @@
+import { SubmitButton } from '@/components/submit-button'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { PageHeader } from '@/components/ui'
@@ -38,7 +39,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                     <input name="email" type="email" defaultValue={p.email ?? ''} placeholder="Add an email to let them sign in" className="input" />
                     <select name="role" defaultValue={p.role} className="select"><option value="lead">Lead</option><option value="dev">Dev</option><option value="qa">QA</option></select>
                     <label className="flex items-center gap-1 text-sm"><input type="checkbox" name="active" value="1" defaultChecked={p.active} />Active</label>
-                    <button className="btn">Save</button>
+                    <SubmitButton primary>Save</SubmitButton>
                   </form>
                 </td>
               </tr>
@@ -49,7 +50,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                   <input name="name" required placeholder="New person" className="input" />
                   <input name="email" type="email" placeholder="name@vulqan.ai" className="input" />
                   <select name="role" defaultValue="dev" className="select"><option value="lead">Lead</option><option value="dev">Dev</option><option value="qa">QA</option></select>
-                  <button className="btn btn-primary">Add</button>
+                  <SubmitButton primary pendingText="Adding…">Add</SubmitButton>
                 </form>
               </td>
             </tr>
@@ -61,14 +62,14 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         <h2 className="font-semibold">CI tokens</h2>
         <p className="text-sm text-[var(--muted)]">The automated suite posts results to <code className="font-mono">/api/results</code> with one of these. See the README for the payload.</p>
         {newToken && (
-          <div className="mt-3 rounded-md bg-[var(--warn-soft)] p-3 text-sm">
+          <div className="mt-3 rounded-[2px] bg-[var(--warn-soft)] p-3 text-sm">
             Copy this token now; it is not shown again:
             <code className="mt-1 block break-all font-mono">{newToken}</code>
           </div>
         )}
         <form action={createCiToken} className="mt-3 flex gap-2">
           <input name="label" placeholder="Label, e.g. CodeBuild e2e" className="input flex-1" />
-          <button className="btn btn-primary">Create token</button>
+          <SubmitButton primary pendingText="Creating…">Create token</SubmitButton>
         </form>
         <table className="table mt-3">
           <thead><tr><th>Label</th><th>Created</th><th>Last used</th><th></th></tr></thead>
@@ -77,7 +78,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
               <tr key={t.id}>
                 <td>{t.label}</td><td>{fmtDate(t.created_at)}</td><td>{t.last_used_at ? fmtDate(t.last_used_at) : 'Never'}</td>
                 <td>{t.revoked_at ? <span className="text-[var(--muted)]">Revoked</span> : (
-                  <form action={revokeCiToken}><input type="hidden" name="token_id" value={t.id} /><button className="btn">Revoke</button></form>
+                  <form action={revokeCiToken}><input type="hidden" name="token_id" value={t.id} /><SubmitButton pendingText="Revoking…">Revoke</SubmitButton></form>
                 )}</td>
               </tr>
             ))}

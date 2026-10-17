@@ -1,3 +1,4 @@
+import { SubmitButton } from '@/components/submit-button'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { CaseLink, Chip, PageHeader, PriorityChip, ResultChip, StateChip, TicketLink } from '@/components/ui'
@@ -52,11 +53,11 @@ export default async function SprintPage({
           {sprint.status === 'active' ? 'Running' : sprint.status === 'closed' ? 'Closed' : 'Planned'}
         </Chip>
         {me.role === 'lead' && sprint.status === 'planned' && (
-          <form action={startSprint}><input type="hidden" name="sprint_id" value={id} /><button className="btn btn-primary">Start sprint</button></form>
+          <form action={startSprint}><input type="hidden" name="sprint_id" value={id} /><SubmitButton primary pendingText="Starting…">Start sprint</SubmitButton></form>
         )}
         {me.role === 'lead' && sprint.status === 'active' && (
           <form action={closeSprint}><input type="hidden" name="sprint_id" value={id} />
-            <button className="btn btn-primary" disabled={!gate.ok} title={gate.ok ? '' : 'The close gate is not met yet'}>Close sprint</button>
+            <SubmitButton primary pendingText="Closing…" disabled={!gate.ok} title={gate.ok ? '' : 'The close gate is not met yet'}>Close sprint</SubmitButton>
           </form>
         )}
       </PageHeader>
@@ -66,7 +67,7 @@ export default async function SprintPage({
         <h2 className="font-semibold">Close gate {gate.ok ? <span className="text-[var(--good)]">· met</span> : <span className="text-[var(--muted)]">· not met</span>}</h2>
         <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {gate.checks.map((c) => (
-            <li key={c.label} className={`rounded-md border p-2 text-sm ${c.ok ? 'border-[var(--good)]' : 'border-[var(--line)]'}`}>
+            <li key={c.label} className={`rounded-[2px] border p-2 text-sm ${c.ok ? 'border-[var(--good)]' : 'border-[var(--line)]'}`}>
               <span className={c.ok ? 'text-[var(--good)]' : 'text-[var(--warn)]'}>{c.ok ? '✓ ' : '• '}</span>{c.label}
               <span className="block text-xs text-[var(--muted)]">{c.detail}</span>
             </li>
@@ -78,7 +79,7 @@ export default async function SprintPage({
         {STAGES.map((stage) => {
           const list = columns.get(stage)!
           return (
-            <section key={stage} className="flex min-w-0 flex-col rounded-xl bg-[var(--surface-2)] p-2">
+            <section key={stage} className="flex min-w-0 flex-col rounded-[2px] bg-[var(--surface-2)] p-2">
               <header className="px-1 pb-2">
                 <div className="flex items-baseline justify-between">
                   <h3 className="font-semibold">{STAGE_LABEL[stage]}</h3>
@@ -107,9 +108,9 @@ export default async function SprintPage({
                           <input type="hidden" name="case_id" value={c.id} />
                           <input type="hidden" name="back" value={back} />
                           <input type="hidden" name="raise_ticket" value="1" />
-                          <button name="result" value="passed" className="btn flex-1 px-1 py-0.5 text-xs">Pass</button>
-                          <button name="result" value="failed" className="btn flex-1 px-1 py-0.5 text-xs">Fail</button>
-                          <button name="result" value="blocked" className="btn flex-1 px-1 py-0.5 text-xs">Blocked</button>
+                          <SubmitButton small name="result" value="passed" pendingText="…" className="flex-1">Pass</SubmitButton>
+                          <SubmitButton small name="result" value="failed" pendingText="…" className="flex-1">Fail</SubmitButton>
+                          <SubmitButton small name="result" value="blocked" pendingText="…" className="flex-1">Blocked</SubmitButton>
                         </form>
                       )}
                     </article>

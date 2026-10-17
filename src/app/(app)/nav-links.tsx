@@ -17,12 +17,14 @@ const LINKS = [
 export function NavLinks() {
   const path = usePathname()
   return (
-    <nav className="flex flex-wrap gap-1 text-sm">
+    <nav className="-mx-1 flex gap-0.5 overflow-x-auto">
       {LINKS.map((l) => {
         const on = l.href === '/' ? path === '/' : path.startsWith(l.href)
         return (
-          <Link key={l.href} href={l.href}
-            className={`rounded-md px-2.5 py-1 ${on ? 'bg-[var(--accent-soft)] font-medium text-[var(--accent)]' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}>
+          <Link key={l.href} href={l.href} aria-current={on ? 'page' : undefined}
+            className={`flex h-[30px] items-center rounded-[2px] px-3.5 text-[13px] whitespace-nowrap ${
+              on ? 'bg-white font-semibold text-[var(--navy)]' : 'font-medium text-[#e3eaf8] hover:bg-white/10'
+            }`}>
             {l.label}
           </Link>
         )

@@ -1,3 +1,4 @@
+import { SubmitButton } from '@/components/submit-button'
 import { PageHeader } from '@/components/ui'
 import { createClient } from '@/lib/supabase/server'
 import { fmtDate } from '@/lib/data'
@@ -32,7 +33,7 @@ export default async function PlanPage() {
                       <select name="status" defaultValue={t.status} className="select">
                         {Object.entries(STATUS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                       </select>
-                      <button className="btn">Save</button>
+                      <SubmitButton primary small>Save</SubmitButton>
                     </form>
                   </td>
                 </tr>

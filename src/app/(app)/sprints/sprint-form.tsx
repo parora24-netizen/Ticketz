@@ -1,3 +1,4 @@
+import { SubmitButton } from '@/components/submit-button'
 import { saveSprint } from '../actions'
 import type { Area, Sprint } from '@/lib/data'
 
@@ -30,7 +31,7 @@ export function SprintForm({ areas, sprint, selected }: { areas: Area[]; sprint?
           ))}
         </div>
       </fieldset>
-      <button className="btn btn-primary">{sprint ? 'Save sprint' : 'Create sprint'}</button>
+      <SubmitButton primary>{sprint ? 'Save sprint' : 'Create sprint'}</SubmitButton>
     </form>
   )
 }

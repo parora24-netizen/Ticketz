@@ -111,7 +111,7 @@ export default async function Dashboard() {
           {gate && (
             <ul className="mt-3 grid gap-2 sm:grid-cols-2">
               {gate.checks.map((c) => (
-                <li key={c.label} className={`rounded-md border p-2 text-sm ${c.ok ? 'border-[var(--good)]' : 'border-[var(--line)]'}`}>
+                <li key={c.label} className={`rounded-[2px] border p-2 text-sm ${c.ok ? 'border-[var(--good)]' : 'border-[var(--line)]'}`}>
                   <span className={c.ok ? 'text-[var(--good)]' : 'text-[var(--warn)]'}>{c.ok ? '✓ ' : '• '}</span>
                   {c.label}
                   <span className="block text-xs text-[var(--muted)]">{c.detail}</span>
@@ -158,7 +158,7 @@ export default async function Dashboard() {
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                 {summaries.filter((x) => x.area.zone === z).map(({ area, s }) => (
                   <Link key={area.id} href={`/areas/${area.id}`}
-                    className={`rounded-lg border p-3 hover:opacity-90 ${HEALTH_CLASS[s.health]}`}>
+                    className={`rounded-[2px] border p-3 hover:opacity-90 ${HEALTH_CLASS[s.health]}`}>
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="font-medium text-[var(--ink)]">{area.page}</span>
                       <span className="text-xs text-[var(--muted)]">{sprintOfArea.get(area.id) ?? ''}</span>

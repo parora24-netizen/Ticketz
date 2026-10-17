@@ -1,3 +1,4 @@
+import { SubmitButton } from '@/components/submit-button'
 import { notFound } from 'next/navigation'
 import { CaseLink, Chip, PageHeader, PriorityChip, StateChip } from '@/components/ui'
 import { Flash } from '@/components/flash'
@@ -77,7 +78,7 @@ export default async function TicketPage({
                     {need === 'defer_reason' && <input name="defer_reason" required placeholder="Why it can wait past 26.111" className="input w-full" />}
                     {need === 'duplicate_of' && <input name="duplicate_key" required placeholder="Key of the original ticket" className="input w-full" />}
                     {(to === 'closed' || to === 'reopened') && <input name="note" placeholder="Retest note (optional)" className="input w-full" />}
-                    <button className={`btn w-full ${to === 'deferred' || to === 'duplicate' ? '' : 'btn-primary'}`}>{ACTION_LABEL[to] ?? STATE_LABEL[to]}</button>
+                    <SubmitButton primary={to !== 'deferred' && to !== 'duplicate'} className="w-full">{ACTION_LABEL[to] ?? STATE_LABEL[to]}</SubmitButton>
                   </form>
                 )
               })}
@@ -95,7 +96,7 @@ export default async function TicketPage({
               <select name="severity" defaultValue={t.severity} className="select w-full" disabled={!canEdit}>
                 {['Critical', 'High', 'Medium', 'Low'].map((p) => <option key={p}>{p}</option>)}
               </select>
-              {canEdit ? <button className="btn w-full">Save</button> : <p className="text-xs text-[var(--muted)]">Lead or QA assigns owners and severity. Start the fix to take it.</p>}
+              {canEdit ? <SubmitButton primary className="w-full">Save</SubmitButton> : <p className="text-xs text-[var(--muted)]">Lead or QA assigns owners and severity. Start the fix to take it.</p>}
             </form>
           </section>
         </aside>

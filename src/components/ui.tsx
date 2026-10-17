@@ -5,11 +5,11 @@ import { STATE_LABEL, type TicketState } from '@/lib/workflow/ticket-machine'
 type Tone = 'good' | 'warn' | 'crit' | 'accent' | 'muted'
 
 const TONE: Record<Tone, string> = {
-  good: 'bg-[var(--good-soft)] text-[var(--good)]',
-  warn: 'bg-[var(--warn-soft)] text-[var(--warn)]',
-  crit: 'bg-[var(--crit-soft)] text-[var(--crit)]',
-  accent: 'bg-[var(--accent-soft)] text-[var(--accent)]',
-  muted: 'bg-[var(--surface-2)] text-[var(--muted)]',
+  good: 'bg-[var(--good-soft)] text-[var(--good)] border-[var(--good-line)]',
+  warn: 'bg-[var(--warn-soft)] text-[var(--warn)] border-[var(--warn-line)]',
+  crit: 'bg-[var(--crit-soft)] text-[var(--crit)] border-[var(--crit-line)]',
+  accent: 'bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent-line)]',
+  muted: 'bg-[var(--surface-2)] text-[var(--muted)] border-[var(--line-soft)]',
 }
 
 export function Chip({ tone = 'muted', children }: { tone?: Tone; children: React.ReactNode }) {
@@ -57,10 +57,10 @@ export function StateChip({ s }: { s: TicketState }) {
 export function Stat({ label, value, sub, tone }: { label: string; value: React.ReactNode; sub?: string; tone?: Tone }) {
   const color = tone ? TEXT[tone] : ''
   return (
-    <div className="card p-4">
+    <div className="card px-4 py-3">
       <div className="label">{label}</div>
-      <div className={`mt-1 text-2xl font-semibold tabular-nums ${color}`}>{value}</div>
-      {sub && <div className="mt-0.5 text-xs text-[var(--muted)]">{sub}</div>}
+      <div className={`heading mt-1.5 text-[26px] leading-none font-semibold tabular-nums ${color || 'text-[var(--navy-ink)]'}`}>{value}</div>
+      {sub && <div className="mono mt-1.5 text-[10.5px] text-[var(--faint)]">{sub}</div>}
     </div>
   )
 }
@@ -69,8 +69,8 @@ export function PageHeader({ title, sub, children }: { title: string; sub?: Reac
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="text-xl font-semibold">{title}</h1>
-        {sub && <p className="mt-0.5 text-sm text-[var(--muted)]">{sub}</p>}
+        <h1 className="text-[22px] leading-tight font-semibold text-[var(--navy-ink)]">{title}</h1>
+        {sub && <p className="mt-1 text-[13px] text-[var(--muted)]">{sub}</p>}
       </div>
       {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
     </div>
@@ -95,7 +95,7 @@ const TEXT: Record<Tone, string> = {
 export function Bar({ parts }: { parts: { value: number; tone: Tone; label: string }[] }) {
   const total = parts.reduce((s, p) => s + p.value, 0) || 1
   return (
-    <div className="flex h-2 w-full overflow-hidden rounded-full bg-[var(--surface-2)]" role="img"
+    <div className="flex h-1.5 w-full overflow-hidden bg-[var(--surface-2)]" role="img"
       aria-label={parts.map((p) => `${p.label} ${p.value}`).join(', ')}>
       {parts.map((p) =>
         p.value ? (
@@ -109,7 +109,7 @@ export function Bar({ parts }: { parts: { value: number; tone: Tone; label: stri
 
 export function CaseLink({ tcId }: { tcId: string }) {
   return (
-    <Link href={`/cases/${tcId}`} className="font-mono text-xs text-[var(--accent)] hover:underline">
+    <Link href={`/cases/${tcId}`} className="mono text-[12px] font-medium text-[var(--accent)] hover:underline">
       {tcId}
     </Link>
   )
@@ -117,7 +117,7 @@ export function CaseLink({ tcId }: { tcId: string }) {
 
 export function TicketLink({ k }: { k: string }) {
   return (
-    <Link href={`/tickets/${encodeURIComponent(k)}`} className="font-mono text-xs text-[var(--accent)] hover:underline">
+    <Link href={`/tickets/${encodeURIComponent(k)}`} className="mono text-[12px] font-medium text-[var(--accent)] hover:underline">
       {k}
     </Link>
   )

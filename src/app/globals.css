@@ -1,61 +1,82 @@
 @import 'tailwindcss';
 
+/* Vulqan design language: navy bars, cool grey-blue page, square 2px corners,
+   IBM Plex Sans for text, IBM Plex Mono for ids/dates/labels, Space Grotesk for headings. */
 :root {
-  --bg: #f5f6f8;
+  --navy: #16327a;
+  --navy-2: #374f8d;
+  --navy-ink: #0f1b33;
+  --bg: #eef1f6;
   --surface: #ffffff;
-  --surface-2: #eef0f4;
-  --line: #dde1e8;
-  --ink: #141821;
-  --muted: #5d6576;
-  --accent: #1d4fd8;
-  --accent-soft: #e5ecfd;
-  --good: #17784a;
-  --good-soft: #e1f3e9;
-  --warn: #9a5b00;
-  --warn-soft: #fbefd9;
+  --surface-2: #edf1f7;
+  --surface-3: #f7f9fc;
+  --line: #c6cfdf;
+  --line-soft: #e4e9f1;
+  --row: #f0f3f8;
+  --ink: #1b1f26;
+  --ink-2: #3d4759;
+  --muted: #5b6478;
+  --faint: #8894ae;
+  --accent: #16327a;
+  --accent-soft: #e8effb;
+  --accent-line: #c3d4f0;
+  --good: #15803d;
+  --good-soft: #eaf3ec;
+  --good-line: #bfd9c6;
+  --warn: #b45309;
+  --warn-soft: #fdf3e4;
+  --warn-line: #f0d2a6;
   --crit: #b42318;
-  --crit-soft: #fbe4e1;
+  --crit-soft: #fbeceb;
+  --crit-line: #f1c2bd;
+  --teal: #0f766e;
   color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #111419;
-    --surface: #181c23;
-    --surface-2: #20252e;
-    --line: #2c323d;
-    --ink: #e9edf3;
-    --muted: #9aa2b2;
-    --accent: #7ea2ff;
-    --accent-soft: #1d2a4a;
-    --good: #5cc995;
-    --good-soft: #14301f;
-    --warn: #f0b454;
-    --warn-soft: #352812;
-    --crit: #f28b82;
-    --crit-soft: #3e1b18;
-    color-scheme: dark;
-  }
 }
 
 body {
   background: var(--bg);
   color: var(--ink);
-  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: 14px;
+  font-family: var(--font-sans), 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 13px;
 }
 
+h1, h2, h3, .heading { font-family: var(--font-display), 'Space Grotesk', sans-serif; letter-spacing: -0.01em; }
+.mono, code { font-family: var(--font-mono), 'IBM Plex Mono', monospace; }
+
 @layer components {
-  .card { @apply rounded-xl border border-[var(--line)] bg-[var(--surface)]; }
+  .card { @apply rounded-[2px] border border-[var(--line)] bg-[var(--surface)]; }
+
   .btn {
-    @apply inline-flex items-center justify-center gap-1 rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-sm font-medium hover:bg-[var(--surface-2)] disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex h-8 items-center justify-center gap-1.5 rounded-[2px] border border-[var(--line)] bg-white px-3 text-[12.5px] font-semibold whitespace-nowrap text-[var(--ink-2)]
+      transition-colors hover:border-[var(--navy)] hover:text-[var(--navy)] disabled:cursor-not-allowed disabled:opacity-60;
   }
-  .btn-primary { @apply border-transparent bg-[var(--accent)] text-white hover:opacity-90 hover:bg-[var(--accent)]; }
+  .btn-primary {
+    @apply border-[var(--navy)] bg-[var(--navy)] text-white hover:bg-[#10275f] hover:text-white;
+  }
+  .btn-sm { @apply h-7 px-2.5 text-xs; }
+
   .input, .select {
-    @apply rounded-md border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5 text-sm text-[var(--ink)];
+    @apply h-8 rounded-[2px] border border-[var(--line)] bg-white px-2.5 text-[12.5px] text-[var(--ink)] outline-none
+      placeholder:text-[#a2aabb] focus:border-[var(--navy)] focus:shadow-[0_0_0_1px_var(--navy)];
   }
-  .chip { @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap; }
-  .table { @apply w-full text-sm; }
-  .table th { @apply border-b border-[var(--line)] px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-[var(--muted)]; }
-  .table td { @apply border-b border-[var(--line)] px-3 py-2 align-top; }
-  .label { @apply text-xs font-semibold uppercase tracking-wide text-[var(--muted)]; }
+  textarea.input { @apply h-auto py-2; }
+
+  .chip {
+    @apply inline-flex h-[22px] items-center border px-2 text-[11.5px] font-semibold whitespace-nowrap;
+  }
+
+  .table { @apply w-full border-collapse text-[12.5px]; }
+  .table th {
+    @apply h-[34px] border-b border-[var(--line)] bg-[var(--surface-2)] px-3 text-left text-[11px] font-semibold whitespace-nowrap text-[var(--navy-ink)];
+  }
+  .table td { @apply border-b border-[var(--row)] px-3 py-2.5 align-middle text-[var(--ink-2)]; }
+  .table tbody tr:hover td { @apply bg-[var(--surface-3)]; }
+
+  .label {
+    @apply text-[10px] font-medium tracking-[0.1em] text-[var(--faint)] uppercase;
+    font-family: var(--font-mono), 'IBM Plex Mono', monospace;
+  }
 }
+
+@keyframes toast-in { from { transform: translateY(8px); opacity: 0 } to { transform: none; opacity: 1 } }
+.toast-in { animation: toast-in 160ms ease-out; }

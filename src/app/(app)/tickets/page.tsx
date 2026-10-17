@@ -1,3 +1,4 @@
+import { SubmitButton } from '@/components/submit-button'
 import Link from 'next/link'
 import { PageHeader } from '@/components/ui'
 import { Flash } from '@/components/flash'
@@ -60,7 +61,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
           <input type="hidden" name="back" value="/tickets" />
           <input name="title" required placeholder="What is wrong" className="input sm:col-span-2" />
           <select name="severity" defaultValue="High" className="select">{['Critical', 'High', 'Medium', 'Low'].map((p) => <option key={p}>{p}</option>)}</select>
-          <button className="btn btn-primary">Raise</button>
+          <SubmitButton primary pendingText="Raising…">Raise</SubmitButton>
           <textarea name="description" rows={2} placeholder="Where, which build, steps" className="input sm:col-span-4" />
         </form>
       </details>

@@ -9,14 +9,14 @@ export type Me = { id: string; name: string; email: string; role: Role }
 /** The signed-in team member. Signed-in people who are not on the team go to /no-access. */
 export const getMe = cache(async (): Promise<Me> => {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user?.email) redirect('/login')
+  // Verified locally from the session token; the database applies the same identity through RLS.
+  const { data: auth } = await supabase.auth.getClaims()
+  const email = typeof auth?.claims?.email === 'string' ? auth.claims.email : null
+  if (!email) redirect('/login')
   const { data } = await supabase
     .from('people')
     .select('id, name, email, role')
-    .ilike('email', user.email)
+    .ilike('email', email)
     .eq('active', true)
     .maybeSingle()
   if (!data) redirect('/no-access')

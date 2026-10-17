@@ -1,10 +1,11 @@
+import { RELEASE_TABS, Tabs, sprintTabs } from '@/components/tabs'
 import { SubmitButton } from '@/components/submit-button'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { CaseLink, Chip, PageHeader, PriorityChip, ResultChip, StateChip, TicketLink } from '@/components/ui'
 import { Flash } from '@/components/flash'
 import { getMe } from '@/lib/auth'
-import { fmtDate, loadAreas, loadCases, loadSprintAreas, loadSprintRuns, loadSprints, loadTickets, toStageInput, type CaseRow, type TicketRow } from '@/lib/data'
+import { currentSprint, fmtDate, loadAreas, loadCases, loadSprintAreas, loadSprintRuns, loadSprints, loadTickets, toStageInput, type CaseRow, type TicketRow } from '@/lib/data'
 import { STAGES, STAGE_LABEL, caseStage, needsTicket, type Stage } from '@/lib/workflow/case-stage'
 import { sprintGate } from '@/lib/workflow/sprint-gate'
 import { closeSprint, recordManualResult, startSprint } from '../../actions'
@@ -29,6 +30,7 @@ export default async function SprintPage({
   const [me, sprints, areas, sprintAreas] = await Promise.all([getMe(), loadSprints(), loadAreas(), loadSprintAreas()])
   const sprint = sprints.find((s) => s.id === id)
   if (!sprint) notFound()
+  const nowId = currentSprint(sprints)?.id ?? null
   const areaIds = sprintAreas.filter((x) => x.sprint_id === id).map((x) => x.area_id)
   const [cases, runs, allTickets] = await Promise.all([loadCases(areaIds), loadSprintRuns(id), loadTickets()])
   const caseIds = new Set(cases.map((c) => c.id))
@@ -61,6 +63,7 @@ export default async function SprintPage({
           </form>
         )}
       </PageHeader>
+      <Tabs items={[...sprintTabs(nowId), ...(id !== nowId ? [{ key: 'this', href: `/sprints/${id}`, label: `Sprint ${sprint.name}` }] : [])]} active={id === nowId ? 'board' : 'this'} />
       <Flash error={sp.error} ok={sp.ok} />
 
       <section className="card mb-5 p-4">

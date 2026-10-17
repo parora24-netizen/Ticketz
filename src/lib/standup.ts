@@ -79,7 +79,7 @@ export function buildStandup(input: {
     }
     if (person.role !== 'dev') {
       const retests = input.tickets.filter((t) => t.state === 'ready_for_retest')
-      if (retests.length) today.push({ ref: 'Retests', title: `${retests.length} tickets ready for retest`, note: 'QA queue', href: '/mine' })
+      if (retests.length) today.push({ ref: 'Retests', title: `${retests.length} tickets ready for retest`, note: 'QA queue', href: '/tickets' })
     }
     const late = (k: StandupTask) => k.status !== 'done' && new Date(`${k.due_on}T23:59:59+05:30`) < input.now
     const dueSoon = (k: StandupTask) => !late(k) && workingDaysBetween(input.now, new Date(`${k.due_on}T12:00:00Z`)) <= 2

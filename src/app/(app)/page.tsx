@@ -136,7 +136,7 @@ export default async function Home() {
                   <TicketRows rows={unownedHigh.sort(bySeverity)} note={(t) => STATE_LABEL[t.state]} />
                 </Panel>
               )}
-              <Panel title="Retest queue" count={retests.length} href="/mine" empty="Nothing ready for retest.">
+              <Panel title="Retest queue" count={retests.length} href="/tickets" empty="Nothing ready for retest.">
                 <TicketRows rows={retests} note={(t) => [t.owner_name, t.fixed_in_build && `build ${t.fixed_in_build}`].filter(Boolean).join(' · ')} />
               </Panel>
               {sprint && (

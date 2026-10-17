@@ -22,12 +22,12 @@ export async function updateSession(request: NextRequest) {
     },
   })
 
-  // Do not remove: refreshes the auth token.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Do not remove: refreshes the auth token when it is close to expiring. getClaims verifies the
+  // token's signature locally (cached signing keys), so most requests skip a call to the auth server.
+  const { data } = await supabase.auth.getClaims()
+  const signedIn = !!data?.claims?.sub
 
-  if (!user && !isPublicPath(request.nextUrl.pathname)) {
+  if (!signedIn && !isPublicPath(request.nextUrl.pathname)) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.search = `?next=${encodeURIComponent(request.nextUrl.pathname + request.nextUrl.search)}`

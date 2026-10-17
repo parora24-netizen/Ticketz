@@ -1,3 +1,4 @@
+import { RELEASE_TABS, Tabs, sprintTabs } from '@/components/tabs'
 import Link from 'next/link'
 import { Chip, PageHeader } from '@/components/ui'
 import { Flash } from '@/components/flash'
@@ -25,6 +26,7 @@ export default async function SprintsPage({ searchParams }: { searchParams: Prom
   return (
     <>
       <PageHeader title="Sprints" sub="Each sprint runs 2 to 4 working days over a set of Framework areas." />
+      <Tabs items={sprintTabs(current?.id ?? null)} active="all" />
       <Flash error={sp.error} ok={sp.ok} />
       <div className="card overflow-x-auto">
         <table className="table">

@@ -1,3 +1,4 @@
+import { RELEASE_TABS, Tabs, sprintTabs } from '@/components/tabs'
 import { SubmitButton } from '@/components/submit-button'
 import { PageHeader } from '@/components/ui'
 import { createClient } from '@/lib/supabase/server'
@@ -13,7 +14,8 @@ export default async function PlanPage() {
   const done = (tasks ?? []).filter((t) => t.status === 'done').length
   return (
     <>
-      <PageHeader title="Release plan" sub={`${done} of ${tasks?.length ?? 0} tasks done. Status changes save at once.`} />
+      <PageHeader title="Release" sub={`${done} of ${tasks?.length ?? 0} tasks done. Status changes save at once.`} />
+      <Tabs items={RELEASE_TABS} active="plan" />
       <div className="card overflow-x-auto">
         <table className="table">
           <thead><tr><th>#</th><th>Phase</th><th>Task</th><th>Owner</th><th>Due</th><th>Status</th></tr></thead>

@@ -1,3 +1,4 @@
+import { RELEASE_TABS, Tabs, sprintTabs } from '@/components/tabs'
 import Link from 'next/link'
 import { Bar, PageHeader } from '@/components/ui'
 import { HEALTH_CLASS, HEALTH_LABEL, summarizeArea } from '@/lib/areas'
@@ -9,7 +10,8 @@ export default async function AreasPage() {
     sprintAreas.filter((x) => x.area_id === areaId).map((x) => sprints.find((s) => s.id === x.sprint_id)?.name).filter(Boolean).join(', ')
   return (
     <>
-      <PageHeader title="Framework areas" sub="The 42 areas from the test workbook's Framework tab. Sprints are planned over these." />
+      <PageHeader title="Release" sub="The 42 areas from the test workbook's Framework tab. Sprints are planned over these." />
+      <Tabs items={RELEASE_TABS} active="areas" />
       <div className="card overflow-x-auto">
         <table className="table">
           <thead><tr><th>Zone</th><th>Area</th><th>Sprints</th><th className="text-right">Cases</th><th className="text-right">Tested</th><th className="text-right">Passed</th><th className="text-right">Open tickets</th><th className="w-48">Results</th><th>Status</th></tr></thead>

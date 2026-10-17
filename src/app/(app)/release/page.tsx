@@ -1,3 +1,4 @@
+import { RELEASE_TABS, Tabs, sprintTabs } from '@/components/tabs'
 import Link from 'next/link'
 import { Bar, PageHeader, Stat } from '@/components/ui'
 import { HEALTH_CLASS, HEALTH_LABEL, summarizeArea } from '@/lib/areas'
@@ -70,6 +71,7 @@ export default async function ReleasePage() {
         title={`Release in ${daysUntil(RELEASE_DATE)} days`}
         sub={`26.111 ships ${fmtDate(RELEASE_DATE)}; go/no-go ${fmtDate(GO_NO_GO_DATE)}. Ask MAIA ships behind a flag if it slips.`}
       />
+      <Tabs items={RELEASE_TABS} active="overview" />
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         <Stat label="Cases written" value={cases.length} sub={`${covered} of ${areas.length} areas have cases`} />

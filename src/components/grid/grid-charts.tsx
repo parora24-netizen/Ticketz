@@ -6,7 +6,7 @@ export type ChartData = { spec: ChartSpec; bars: { label: string; count: number 
 
 export function GridCharts({ charts, onToggle }: { charts: ChartData[]; onToggle: (key: string, value: string) => void }) {
   return (
-    <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="mb-3 grid grid-cols-1 items-start gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {charts.map(({ spec, bars, total, selected }) => {
         const max = Math.max(1, ...bars.map((b) => b.count))
         const filtering = selected.length > 0

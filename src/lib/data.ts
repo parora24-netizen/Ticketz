@@ -197,3 +197,13 @@ export function timeAgo(iso: string, now = new Date()): string {
   if (h < 24) return `${h}h ago`
   return `${Math.round(h / 24)}d ago`
 }
+
+export const loadTicketEvents = cache(async function loadTicketEvents(): Promise<{ ticket_id: string; to_state: string; at: string }[]> {
+  const supabase = await createClient()
+  return fetchAll((from, to) => supabase.from('ticket_events').select('ticket_id, to_state, at').order('at').range(from, to))
+})
+
+export const loadManualRuns = cache(async function loadManualRuns(): Promise<{ case_id: string; result: string; recorded_at: string }[]> {
+  const supabase = await createClient()
+  return fetchAll((from, to) => supabase.from('test_runs').select('case_id, result, recorded_at').eq('kind', 'manual').order('recorded_at').range(from, to))
+})

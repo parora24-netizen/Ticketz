@@ -94,3 +94,4 @@ html[data-density='airy'] .grid-table th { height: 38px; }
 .grid-table { table-layout: fixed; }
 .grid-table td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .grid-table th:first-child, .grid-table td:first-child { width: 36px; }
+.grid-table td:first-child { overflow: visible; text-overflow: clip; }

@@ -366,6 +366,7 @@ export function DataGrid<T extends { id: string }>({
                   const edited = col.edit && overrides[row.id]?.[col.edit.field] !== undefined
                   return (
                     <td key={col.key} data-cell={`${r}-${c}`}
+                      title={isEditing ? undefined : String(cellValue(row, col) ?? '')}
                       onClick={() => setActive({ r, c })}
                       onDoubleClick={() => startEdit(r, c)}
                       className={`${col.align === 'right' ? 'text-right tabular-nums' : ''} ${col.mono ? 'mono text-[12px]' : ''} ${col.muted ? 'text-[var(--faint)]' : ''} ${

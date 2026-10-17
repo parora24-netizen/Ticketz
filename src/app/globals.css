@@ -89,3 +89,8 @@ html[data-density='airy'] .grid-table td { padding-top: 11px; padding-bottom: 11
 html[data-density='airy'] .grid-table th { height: 38px; }
 .grid-table tr.is-selected td { background: var(--accent-soft); }
 .grid-scroll { max-height: calc(100vh - 230px); min-height: 200px; }
+
+/* One line per row: columns keep their set widths and long text ends in an ellipsis (full text on hover). */
+.grid-table { table-layout: fixed; }
+.grid-table td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.grid-table th:first-child, .grid-table td:first-child { width: 36px; }

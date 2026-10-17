@@ -4,7 +4,7 @@ import { SubmitButton } from '@/components/submit-button'
 import { startSprint } from './actions'
 import { getMe } from '@/lib/auth'
 import {
-  RELEASE_DATE, currentSprint, daysUntil, fmtDate, loadActivity, loadCases, loadSprintAreas, loadSprintRuns, loadSprints, loadTasks, loadTickets,
+  currentSprint, loadRelease, daysUntil, fmtDate, loadActivity, loadCases, loadSprintAreas, loadSprintRuns, loadSprints, loadTasks, loadTickets,
   timeAgo, toStageInput, type TicketRow,
 } from '@/lib/data'
 import { lastWorkingDayStart } from '@/lib/standup'
@@ -55,7 +55,7 @@ export default async function Home() {
   const now = new Date()
   const since = lastWorkingDayStart(now)
   // Sprints come from the layout's (cached) fetch, so every other query can start at once.
-  const [sprints, sprintAreas] = await Promise.all([loadSprints(), loadSprintAreas()])
+  const [sprints, sprintAreas, release] = await Promise.all([loadSprints(), loadSprintAreas(), loadRelease()])
   const sprint = currentSprint(sprints)
   const areaIds = sprint ? sprintAreas.filter((x) => x.sprint_id === sprint.id).map((x) => x.area_id) : []
   const [tickets, tasks, activity, cases, runs] = await Promise.all([
@@ -106,7 +106,7 @@ export default async function Home() {
           <Stat label="Open High" value={openHigh} tone={openHigh ? 'warn' : 'good'} />
           <Stat label="Unowned Crit/High" value={unownedHigh.length} tone={unownedHigh.length ? 'crit' : 'good'} sub="need an owner" />
           <Stat label="Ready for retest" value={retests.length} sub="waiting on QA" />
-          <Stat label="Days to release" value={daysUntil(RELEASE_DATE)} sub={`ships ${fmtDate(RELEASE_DATE)}`} />
+          <Stat label="Days to release" value={daysUntil(release.release_on)} sub={`ships ${fmtDate(release.release_on)}`} />
         </div>
       )}
 

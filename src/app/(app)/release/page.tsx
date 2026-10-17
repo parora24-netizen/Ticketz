@@ -1,9 +1,12 @@
 import Link from 'next/link'
 import { LineChart } from '@/components/charts/line-chart'
+import { ReleaseDateButton } from '@/components/release-controls'
+import { ScheduleLog } from '@/components/schedule-log'
+import { getMe } from '@/lib/auth'
 import { RELEASE_TABS, Tabs } from '@/components/tabs'
 import { PageHeader, Stat } from '@/components/ui'
 import {
-  GO_NO_GO_DATE, RELEASE_DATE, currentSprint, daysUntil, fmtDate,
+  currentSprint, loadRelease, loadScheduleChanges, daysUntil, fmtDate,
   loadAreas, loadCases, loadManualRuns, loadSprints, loadTasks, loadTicketEvents, loadTickets, toStageInput,
 } from '@/lib/data'
 import { casesTestedByDay, openTicketsByDay } from '@/lib/trends'
@@ -14,9 +17,13 @@ const TREND_FROM = '2026-10-08' // first tickets were logged on 8 Oct
 
 /** The executive view: is 26.111 going to make it, and what is in the way. */
 export default async function ReleasePage() {
-  const [areas, cases, tickets, sprints, tasks, events, manualRuns] = await Promise.all([
-    loadAreas(), loadCases(), loadTickets(), loadSprints(), loadTasks(), loadTicketEvents(), loadManualRuns(),
+  const me = await getMe()
+  const [areas, cases, tickets, sprints, tasks, events, manualRuns, release, changes] = await Promise.all([
+    loadAreas(), loadCases(), loadTickets(), loadSprints(), loadTasks(), loadTicketEvents(), loadManualRuns(), loadRelease(), loadScheduleChanges(),
   ])
+  const RELEASE_DATE = release.release_on
+  const GO_NO_GO_DATE = release.go_no_go_on
+  const slipped = daysUntil(release.release_on) - daysUntil(release.original_release_on)
   const today = new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10)
   const sprint = currentSprint(sprints)
 
@@ -96,13 +103,17 @@ export default async function ReleasePage() {
       <Tabs items={RELEASE_TABS} active="overview" />
       <PageHeader sub={`26.111 ships ${fmtDate(RELEASE_DATE)} (go/no-go ${fmtDate(GO_NO_GO_DATE)}). Ask MAIA ships behind a flag if it slips.`}>
         <Link href="/standup" className="btn">Standup</Link>
+        {me.role === 'lead' && <ReleaseDateButton release_on={release.release_on} go_no_go_on={release.go_no_go_on} />}
       </PageHeader>
 
       {/* Verdict */}
       <section className="card mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 px-5 py-4">
         <span className={`chip h-7 px-3 text-[13px] ${toneChip[verdict.tone]}`}>{verdict.label}</span>
         <p className="min-w-0 flex-1 text-[14px] text-[var(--ink)]">{verdict.why}</p>
-        <span className="mono text-[12px] text-[var(--muted)]">{daysLeft} days to release · {sprint ? `sprint ${sprint.name} running` : 'no sprint running'}</span>
+        <span className="mono text-[12px] text-[var(--muted)]">
+          {daysLeft} days to release · {sprint ? `sprint ${sprint.name} running` : 'no sprint running'}
+          {slipped !== 0 && <b className={slipped > 0 ? 'ml-2 text-[var(--crit)]' : 'ml-2 text-[var(--good)]'}>{slipped > 0 ? `slipped ${slipped} days` : `pulled in ${-slipped} days`}</b>}
+        </span>
       </section>
 
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
@@ -222,6 +233,7 @@ export default async function ReleasePage() {
           </table>
         </section>
       </div>
+      <ScheduleLog changes={changes} release={release} limit={6} />
     </>
   )
 }

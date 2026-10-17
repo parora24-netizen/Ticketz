@@ -7,7 +7,7 @@ import { updatePeople, updateTasks } from '@/app/(app)/actions'
 
 // ---- Sprints ---------------------------------------------------------------------------------
 
-export type SprintRow = { id: string; name: string; dates: string; starts_on: string; days: number; areas: string; cases: number; status: string; goal: string; current: boolean }
+export type SprintRow = { id: string; name: string; dates: string; starts_on: string; days: number; areas: string; cases: number; tested: number; status: string; goal: string; current: boolean }
 
 export function SprintsGrid({ rows }: { rows: SprintRow[] }) {
   const cols: Column<SprintRow>[] = [
@@ -20,6 +20,13 @@ export function SprintsGrid({ rows }: { rows: SprintRow[] }) {
     { key: 'goal', header: 'Goal', width: 320, value: (r) => r.goal },
     { key: 'areas', header: 'Areas', width: 420, value: (r) => r.areas, filter: 'text' },
     { key: 'cases', header: 'Cases', width: 80, align: 'right', value: (r) => r.cases },
+    { key: 'tested', header: 'Tested', width: 150, value: (r) => (r.cases ? Math.round((r.tested / r.cases) * 100) : 0), sortValue: (r) => (r.cases ? r.tested / r.cases : 0),
+      render: (r) => (
+        <span className="flex items-center gap-2">
+          <span className="h-1.5 w-16 bg-[var(--surface-2)]"><span className="block h-1.5 bg-[#2b57c4]" style={{ width: `${r.cases ? (r.tested / r.cases) * 100 : 0}%` }} /></span>
+          <span className="mono text-[11.5px]">{r.cases ? Math.round((r.tested / r.cases) * 100) : 0}%</span>
+        </span>
+      ) },
   ]
   return <DataGrid rows={rows} columns={cols} csvName="sprints" selectable={false} defaultSort={[{ key: 'dates', dir: 1 }]} searchPlaceholder="Search sprints" />
 }

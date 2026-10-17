@@ -17,6 +17,7 @@ export type SprintCard = {
   tc_id: string
   title: string
   priority: 'Critical' | 'High' | 'Medium' | 'Low'
+  area: string
   stage: Stage
   auto_result: string | null
   manual_result: string | null
@@ -45,8 +46,9 @@ const PER_COLUMN = 60
  * The sprint as six steps. Drag a card to the next step and the board does that step (record a
  * pass, raise the failure, mark a fix ready, close on retest); click a card to work on it in place.
  */
-export function SprintBoard({ cards, role, sprintId, people, sprints, active }: {
+export function SprintBoard({ cards, role, sprintId, people, sprints, active, areas = [] }: {
   cards: SprintCard[]
+  areas?: string[]
   role: Role
   sprintId: string
   people: { id: string; name: string }[]
@@ -62,12 +64,15 @@ export function SprintBoard({ cards, role, sprintId, people, sprints, active }: 
   const [open, setOpen] = useState<string | null>(null)
   const [q, setQ] = useState('')
   const [onlyHigh, setOnlyHigh] = useState(false)
+  const [area, setArea] = useState('')
+  const [byArea, setByArea] = useState(false)
 
   useEffect(() => setLocal({}), [cards])
   const stageOf = (c: SprintCard) => local[c.id] ?? c.stage
   const shown = useMemo(
-    () => cards.filter((c) => (!onlyHigh || c.priority === 'Critical' || c.priority === 'High') && (!q || `${c.tc_id} ${c.title} ${c.ticket?.key ?? ''}`.toLowerCase().includes(q.toLowerCase()))),
-    [cards, q, onlyHigh],
+    () => cards.filter((c) => (!onlyHigh || c.priority === 'Critical' || c.priority === 'High') && (!area || c.area === area)
+      && (!q || `${c.tc_id} ${c.title} ${c.ticket?.key ?? ''}`.toLowerCase().includes(q.toLowerCase()))),
+    [cards, q, onlyHigh, area],
   )
   const targets = dragging ? droppableStages(stageOf(dragging), role, dragging.ticket?.state ?? null) : []
 
@@ -106,15 +111,27 @@ export function SprintBoard({ cards, role, sprintId, people, sprints, active }: 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search cases or tickets" aria-label="Search the board" className="input w-60" />
         <button type="button" onClick={() => setOnlyHigh((v) => !v)} className={`btn ${onlyHigh ? 'btn-primary' : ''}`}>Critical &amp; High</button>
+        {areas.length > 1 && (
+          <>
+            <select value={area} onChange={(e) => setArea(e.target.value)} className="select" aria-label="Area">
+              <option value="">All {areas.length} areas</option>
+              {areas.map((a) => <option key={a} value={a}>{a} · {cards.filter((c) => c.area === a).length}</option>)}
+            </select>
+            <button type="button" onClick={() => setByArea((v) => !v)} className={`btn ${byArea ? 'btn-primary' : ''}`}>Group by area</button>
+          </>
+        )}
         <span className="text-[12px] text-[var(--muted)]">
           {active ? 'Drag a card to its next step, or click it to work on it here.' : 'Start the sprint to record results; you can still open cards and move automation.'}
         </span>
       </div>
 
-      <div className="overflow-x-auto pb-2">
+      <div className="space-y-4 overflow-x-auto pb-2">
+        {(byArea ? [...new Set(shown.map((c) => c.area))].sort() : ['']).map((lane, li) => (
+        <div key={lane || 'all'}>
+        {lane && <h3 className="label mb-1.5">{lane} · {shown.filter((c) => c.area === lane).length}</h3>}
         <div className="grid min-w-[1180px] grid-cols-6 gap-2">
           {STAGES.map((stage, n) => {
-            const list = shown.filter((c) => stageOf(c) === stage)
+            const list = shown.filter((c) => stageOf(c) === stage && (!lane || c.area === lane))
               .sort((a, b) => ['Critical', 'High', 'Medium', 'Low'].indexOf(a.priority) - ['Critical', 'High', 'Medium', 'Low'].indexOf(b.priority))
             const can = targets.includes(stage)
             return (
@@ -123,14 +140,14 @@ export function SprintBoard({ cards, role, sprintId, people, sprints, active }: 
                 onDrop={(e) => { e.preventDefault(); drop(stage) }}
                 className={`flex min-w-0 flex-col border transition-colors ${
                   can ? 'border-dashed border-[var(--navy)] bg-[var(--accent-soft)]' : dragging ? 'border-transparent bg-[var(--surface-2)] opacity-60' : 'border-transparent bg-[var(--surface-2)]'}`}>
-                <header className={`border-t-2 px-2.5 pt-2 pb-2 ${list.length && stage !== 'done' ? 'border-[var(--navy)]' : 'border-[var(--line)]'}`}>
+                <header className={`border-t-2 px-2.5 pt-2 pb-2 ${list.length && stage !== 'done' ? 'border-[var(--navy)]' : 'border-[var(--line)]'} ${li > 0 ? 'hidden' : ''}`}>
                   <div className="flex items-baseline justify-between">
                     <h3 className="text-[12.5px] font-semibold text-[var(--navy-ink)]"><span className="mono mr-1.5 text-[11px] text-[var(--faint)]">{n + 1}</span>{STAGE_LABEL[stage]}</h3>
                     <span className="mono text-[11.5px] text-[var(--muted)]">{list.length}</span>
                   </div>
                   <p className="text-[11px] leading-snug text-[var(--muted)]">{HELP[stage]}</p>
                 </header>
-                <div className="max-h-[calc(100vh-330px)] min-h-24 space-y-1.5 overflow-y-auto px-1.5 pb-1.5">
+                <div className={`${byArea ? 'max-h-[420px]' : 'max-h-[calc(100vh-330px)]'} min-h-24 space-y-1.5 overflow-y-auto px-1.5 pb-1.5 ${li > 0 ? 'pt-1.5' : ''}`}>
                   {list.slice(0, PER_COLUMN).map((c) => (
                     <article key={c.id} draggable
                       onDragStart={(e) => { setDragging(c); e.dataTransfer.effectAllowed = 'move' }}
@@ -169,6 +186,8 @@ export function SprintBoard({ cards, role, sprintId, people, sprints, active }: 
             )
           })}
         </div>
+        </div>
+        ))}
       </div>
 
       <Dialog open={!!ask} onClose={() => setAsk(null)}

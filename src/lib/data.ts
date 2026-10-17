@@ -4,8 +4,6 @@ import { createClient } from '@/lib/supabase/server'
 import type { Automation, CaseForStage, Priority, RunResult } from '@/lib/workflow/case-stage'
 import type { TicketState } from '@/lib/workflow/ticket-machine'
 
-export const RELEASE_DATE = '2026-12-04'
-export const GO_NO_GO_DATE = '2026-12-03'
 
 export type Area = { id: string; zone: string; page: string; sort: number }
 export type Sprint = {
@@ -206,4 +204,31 @@ export const loadTicketEvents = cache(async function loadTicketEvents(): Promise
 export const loadManualRuns = cache(async function loadManualRuns(): Promise<{ case_id: string; result: string; recorded_at: string }[]> {
   const supabase = await createClient()
   return fetchAll((from, to) => supabase.from('test_runs').select('case_id, result, recorded_at').eq('kind', 'manual').order('recorded_at').range(from, to))
+})
+
+/** Every result recorded in a sprint, with its time, for the sprint's daily chart. */
+export async function loadSprintRunTimes(sprintId: string): Promise<{ case_id: string; result: string; recorded_at: string }[]> {
+  const supabase = await createClient()
+  return fetchAll((from, to) =>
+    supabase.from('test_runs').select('case_id, result, recorded_at').eq('sprint_id', sprintId).order('recorded_at').range(from, to),
+  )
+}
+
+export type Release = { name: string; release_on: string; go_no_go_on: string; original_release_on: string }
+
+/** The release's dates. They move when sprints spill over, so they live in the database. */
+export const loadRelease = cache(async function loadRelease(): Promise<Release> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('release_settings').select('name, release_on, go_no_go_on, original_release_on').eq('id', 1).single()
+  if (error) throw new Error(error.message)
+  return data as Release
+})
+
+export type ScheduleChange = { id: number; kind: string; summary: string; reason: string | null; at: string; actor: string | null; sprint_id: string | null }
+
+export const loadScheduleChanges = cache(async function loadScheduleChanges(): Promise<ScheduleChange[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('schedule_changes').select('id, kind, summary, reason, at, sprint_id, people(name)').order('at', { ascending: false }).limit(100)
+  if (error) throw new Error(error.message)
+  return (data ?? []).map((r) => ({ id: r.id, kind: r.kind, summary: r.summary, reason: r.reason, at: r.at, sprint_id: r.sprint_id, actor: (r.people as unknown as { name: string } | null)?.name ?? null }))
 })

@@ -84,21 +84,22 @@ export default async function SprintPage({
       <section className="card mb-4 grid grid-cols-1 gap-x-6 gap-y-4 p-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
         <div>
           <SprintProgress counts={counts} />
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <span className="label mr-1">Close gate</span>
-            {gate.checks.map((c) => (
-              <span key={c.label} title={c.detail}
-                className={`chip ${c.ok ? 'border-[var(--good-line)] bg-[var(--good-soft)] text-[var(--good)]' : 'border-[var(--line)] bg-white text-[var(--ink-2)]'}`}>
-                {c.ok ? '✓' : '•'} {c.label}{!c.ok && <span className="ml-1.5 font-normal text-[var(--muted)]">{c.detail}</span>}
-              </span>
-            ))}
-          </div>
         </div>
         <div>
           <h3 className="text-[13px] font-semibold text-[var(--navy-ink)]">Cases with a result this sprint</h3>
           {daily.length > 1
             ? <LineChart points={daily} label="Cases with a result this sprint" unit="cases" target={{ value: cases.length, label: 'all' }} height={140} />
             : <p className="mt-2 text-[12.5px] text-[var(--muted)]">{sprint.status === 'planned' ? `Fills in day by day once ${sprint.name} starts on ${fmtDate(sprint.starts_on)}.` : `${new Set(runTimes.map((r) => r.case_id)).size} of ${cases.length} so far.`}</p>}
+        </div>
+        {/* Full card width so the four checks sit on one line on a desktop screen. */}
+        <div className="flex flex-wrap items-center gap-2 border-t border-[var(--line-soft)] pt-3 xl:col-span-2">
+          <span className="label mr-1">Close gate</span>
+          {gate.checks.map((c) => (
+            <span key={c.label} title={c.detail}
+              className={`chip sm:whitespace-nowrap ${c.ok ? 'border-[var(--good-line)] bg-[var(--good-soft)] text-[var(--good)]' : 'border-[var(--line)] bg-white text-[var(--ink-2)]'}`}>
+              {c.ok ? '✓' : '•'} {c.label}{!c.ok && <span className="ml-1.5 font-normal text-[var(--muted)]">{c.detail}</span>}
+            </span>
+          ))}
         </div>
       </section>
 

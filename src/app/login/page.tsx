@@ -55,7 +55,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           {codeMode && !sent && (
             <>
               <h1 className="mt-5 text-[26px] font-semibold text-[var(--navy-ink)]">Set a password</h1>
-              <p className="mt-1 text-[13px] text-[var(--muted)]">We email you a 6-digit code. Enter it here with your new password.</p>
+              <p className="mt-1 text-[13px] text-[var(--muted)]">We email you an 8-digit code. Enter it here with your new password.</p>
               <form action={sendCode} className="mt-6 space-y-3">
                 <input type="hidden" name="next" value={nextValue} />
                 <label className="block"><span className="label">Work email</span>
@@ -76,7 +76,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
                 <input type="hidden" name="next" value={nextValue} />
                 <input type="hidden" name="email" value={sent} />
                 <label className="block"><span className="label">Code from the email</span>
-                  <input name="code" required inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,12}" className="input mono mt-1 w-full text-[16px] tracking-[0.3em]" placeholder="123456" />
+                  <input name="code" required inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,12}" className="input mono mt-1 w-full text-[16px] tracking-[0.3em]" placeholder="12345678" />
                 </label>
                 <label className="block"><span className="label">New password</span>
                   <input name="password" type="password" required minLength={8} autoComplete="new-password" className="input mt-1 w-full" />

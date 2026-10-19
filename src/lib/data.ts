@@ -180,11 +180,11 @@ export async function loadActivity(since: Date, limit = 1000): Promise<Activity[
   return (data ?? []) as Activity[]
 }
 
-export type PlanTask = { id: string; num: number; phase: string; title: string; owner_label: string; owner_id: string | null; due_on: string; status: string }
+export type PlanTask = { id: string; num: number; phase: string; title: string; owner_label: string; owner_id: string | null; due_on: string; status: string; sprint_id: string | null }
 
 export const loadTasks = cache(async function loadTasks(): Promise<PlanTask[]> {
   const supabase = await createClient()
-  const { data, error } = await supabase.from('plan_tasks').select('id, num, phase, title, owner_label, owner_id, due_on, status').order('num')
+  const { data, error } = await supabase.from('plan_tasks').select('id, num, phase, title, owner_label, owner_id, due_on, status, sprint_id').order('num')
   if (error) throw new Error(error.message)
   return (data ?? []) as PlanTask[]
 })

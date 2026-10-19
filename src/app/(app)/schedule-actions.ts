@@ -78,7 +78,9 @@ export async function finishSprint(input: { sprint_id: string; target_sprint_id:
   const [cases, runs, tickets] = await Promise.all([loadCases(areaIds), loadSprintRuns(sprint.id), loadTickets()])
   const caseIds = new Set(cases.map((c) => c.id))
   const scoped = tickets.filter((t) => (t.case_id && caseIds.has(t.case_id)) || t.current_sprint_id === sprint.id)
-  const gate = sprintGate(cases.map((c) => toStageInput(c, runs)), scoped)
+  const { data: taskRows } = await supabase.from('plan_tasks').select('id, num, status').eq('sprint_id', sprint.id)
+  const sprintTasks = (taskRows ?? []) as { id: string; num: number; status: string }[]
+  const gate = sprintGate(cases.map((c) => toStageInput(c, runs)), scoped, sprintTasks)
   if (!gate.ok && v.data.reason.length < 3) return { error: 'The gate is not met. Say why the sprint is closing anyway.' }
 
   const open = scoped.filter((t) => !['closed', 'deferred', 'duplicate'].includes(t.state))
@@ -91,6 +93,12 @@ export async function finishSprint(input: { sprint_id: string; target_sprint_id:
   }
   if (parked.length) {
     const { error } = await supabase.from('tickets').update({ current_sprint_id: null }).in('id', parked.map((t) => t.id))
+    if (error) return { error: error.message }
+  }
+  // Unfinished plan tasks go with the tickets to the next sprint, or back to the plan.
+  const openTasks = sprintTasks.filter((t) => t.status !== 'done')
+  if (openTasks.length) {
+    const { error } = await supabase.from('plan_tasks').update({ sprint_id: target?.id ?? null }).in('id', openTasks.map((t) => t.id))
     if (error) return { error: error.message }
   }
   let addedAreas: string[] = []
@@ -110,11 +118,12 @@ export async function finishSprint(input: { sprint_id: string; target_sprint_id:
   const parts = [`${sprint.name} closed${gate.ok ? '' : ' with the gate not met'}`]
   if (moving.length) parts.push(`${plural(moving.length, 'ticket')} moved to ${target!.name}`)
   if (parked.length) parts.push(`${plural(parked.length, 'ticket')} left without a sprint`)
+  if (openTasks.length) parts.push(`${plural(openTasks.length, 'open task')} ${target ? `moved to ${target.name}` : 'back on the plan'}`)
   if (addedAreas.length) parts.push(`${plural(addedAreas.length, 'unfinished area')} added to ${target!.name}`)
   const summary = parts.join('; ')
   await logChange(supabase, me.id, {
     kind: gate.ok ? 'close_sprint' : 'spill_over', sprint_id: sprint.id, summary, reason: v.data.reason,
-    details: { moved: moving.map((t) => t.key), parked: parked.map((t) => t.key), target: target?.name ?? null, added_areas: addedAreas, gate: gate.checks },
+    details: { tasks: openTasks.map((t) => t.num), moved: moving.map((t) => t.key), parked: parked.map((t) => t.key), target: target?.name ?? null, added_areas: addedAreas, gate: gate.checks },
   })
   revalidatePath('/', 'layout')
   return { summary }

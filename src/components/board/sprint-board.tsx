@@ -12,6 +12,7 @@ import { moveTicketFromBoard, recordCaseResult } from '@/app/(app)/actions'
 import type { StandupCard } from '@/lib/standup'
 import { StandupPersonCard } from '@/app/(app)/standup/standup-deck'
 import { CaseDrawer } from './case-drawer'
+import { TaskBoard, type SprintTask } from './task-board'
 
 export type SprintCard = {
   id: string
@@ -55,8 +56,11 @@ function ownerOf(c: SprintCard, stage: Stage): { id: string | null; name: string
  * pass, raise the failure, mark a fix ready, close on retest); click a card to work on it in place.
  * Filter by person to run the standup from here: ‹ › walks the team.
  */
-export function SprintBoard({ cards, role, meId, people, sprints, active, areas = [], standup = [] }: {
+export function SprintBoard({ cards, role, meId, people, sprints, active, areas = [], standup = [], tasks = [], today }: {
   cards: SprintCard[]
+  /** Plan tasks in this sprint, shown as their own board above the cases. */
+  tasks?: SprintTask[]
+  today: string
   /** One card per active person, in the order standup goes round the room. */
   standup?: StandupCard[]
   areas?: string[]
@@ -106,8 +110,13 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
       const id = ownerOf(c, s).id ?? '__none'
       m.set(id, (m.get(id) ?? 0) + 1)
     }
+    for (const t of tasks) {
+      if (t.status === 'done') continue
+      const id = t.owner_id ?? '__none'
+      m.set(id, (m.get(id) ?? 0) + 1)
+    }
     return m
-  }, [cards, local])
+  }, [cards, local, tasks])
   // Round the room: the standup order when there is one, otherwise everyone on the team.
   const order = standup.length ? standup.map((s) => s.person.id) : people.map((p) => p.id)
   function step(d: 1 | -1) {
@@ -267,8 +276,10 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
         {turn === null
           ? <button type="button" onClick={startStandup} className="btn btn-primary">Run standup</button>
           : <button type="button" onClick={endStandup} className="btn">End standup</button>}
+        {cards.length > 0 && <>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search cases or tickets" aria-label="Search the board" className="input w-56" />
         <button type="button" onClick={() => setOnlyHigh((v) => !v)} className={`btn ${onlyHigh ? 'btn-primary' : ''}`}>Critical &amp; High</button>
+        </>}
         {areas.length > 1 && (
           <>
             <select value={area} onChange={(e) => setArea(e.target.value)} className="select" aria-label="Area">
@@ -298,6 +309,9 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
           {speaker && <StandupPersonCard card={speaker} big />}
         </div>
       )}
+      {tasks.length > 0 && <TaskBoard tasks={tasks} owner={owner} today={today} />}
+
+      {cards.length > 0 && <>
       <p className="mb-2 text-[12px] text-[var(--muted)]">
         {owner ? <>Showing <b className="text-[var(--ink-2)]">{ownerLabel}</b>&apos;s cards on this sprint{shown.length ? '' : ': none'}. </> : null}
         {active ? 'Drag a card to its next step, or click it to work on it here.' : 'Start the sprint to record results; you can still open cards and set owners.'}
@@ -341,6 +355,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
           )}
         </div>
       </div>
+      </>}
 
       <Dialog open={!!ask} onClose={() => setAsk(null)}
         title={ask?.kind === 'fail' ? `Record a failure · ${ask.card.tc_id}` : ask?.kind === 'build' ? 'Which build has the fix?' : 'What did the retest show?'}>

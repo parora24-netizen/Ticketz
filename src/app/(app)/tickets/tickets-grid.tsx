@@ -5,12 +5,12 @@ import { DataGrid, type Column } from '@/components/grid/data-grid'
 import { PriorityChip, StateChip } from '@/components/ui'
 import { STATE_LABEL } from '@/lib/workflow/ticket-machine'
 import type { BoardTicket } from '@/components/board/ticket-board'
-import { updateTickets } from '../actions'
+import { deleteRows, updateTickets } from '../actions'
 
 type Row = BoardTicket & { kind: 'defect' | 'test_mismatch'; logged_on: string }
 const SEVERITY = ['Critical', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: p }))
 
-export function TicketsGrid({ rows, people, canTriage, state }: { rows: Row[]; people: { value: string; label: string }[]; canTriage: boolean; state?: string }) {
+export function TicketsGrid({ rows, people, canTriage, isLead, state }: { rows: Row[]; people: { value: string; label: string }[]; canTriage: boolean; isLead?: boolean; state?: string }) {
   const owners = [{ value: '__none', label: 'Unassigned' }, ...people]
   const columns: Column<Row>[] = [
     { key: 'key', header: 'Ticket', width: 170, mono: true, value: (r) => r.key,
@@ -48,6 +48,7 @@ export function TicketsGrid({ rows, people, canTriage, state }: { rows: Row[]; p
         { field: 'owner_id', label: 'Assign to', options: owners },
         { field: 'severity', label: 'Set severity', options: SEVERITY },
       ] : []}
+      bulkActions={isLead ? [{ label: 'Delete', run: (ids) => deleteRows('tickets', ids), confirm: 'Delete {n} tickets for good, with their history and comments? This cannot be undone.' }] : []}
     />
   )
 }

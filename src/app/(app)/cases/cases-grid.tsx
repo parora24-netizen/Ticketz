@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { DataGrid, type Column } from '@/components/grid/data-grid'
 import { PriorityChip, ResultChip } from '@/components/ui'
 import type { Priority, RunResult } from '@/lib/workflow/case-stage'
-import { recordResults, updateCases } from '../actions'
+import { deleteRows, recordResults, updateCases } from '../actions'
 
 export type CaseGridRow = {
   id: string
@@ -28,8 +28,8 @@ const AUTOMATION = [
 const PRIORITY = ['Critical', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: p }))
 const RESULT_LABEL: Record<RunResult, string> = { passed: 'Passed', failed: 'Failed', known_defect: 'Known defect', skipped: 'Skipped', blocked: 'Blocked' }
 
-export function CasesGrid({ rows, areas, people, canEdit, inSprint }: {
-  rows: CaseGridRow[]; areas: { value: string; label: string }[]; people: { value: string; label: string }[]; canEdit: boolean; inSprint?: boolean
+export function CasesGrid({ rows, areas, people, canEdit, isLead, inSprint }: {
+  rows: CaseGridRow[]; areas: { value: string; label: string }[]; people: { value: string; label: string }[]; canEdit: boolean; isLead?: boolean; inSprint?: boolean
 }) {
   const testers = [{ value: '__none', label: 'No tester' }, ...people]
   const columns: Column<CaseGridRow>[] = [
@@ -77,6 +77,7 @@ export function CasesGrid({ rows, areas, people, canEdit, inSprint }: {
         { label: 'Record Pass', run: (ids) => recordResults(ids, 'passed'), confirm: 'Record a manual Pass for {n} cases?' },
         { label: 'Record Fail', run: (ids) => recordResults(ids, 'failed'), confirm: 'Record a manual Fail for {n} cases? Raise tickets from each case page or the Fix column.' },
         { label: 'Record Blocked', run: (ids) => recordResults(ids, 'blocked') },
+        ...(isLead ? [{ label: 'Delete', run: (ids: string[]) => deleteRows('test_cases', ids), confirm: 'Delete {n} test cases for good, with their results? Their tickets stay, without the link. This cannot be undone.' }] : []),
       ] : []}
     />
   )

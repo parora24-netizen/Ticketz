@@ -33,7 +33,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
       <Flash error={sp.error} ok={sp.ok} />
       {view === 'board'
         ? <TicketBoard tickets={rows} role={me.role} meId={me.id} zones={zones} />
-        : <TicketsGrid rows={rows} state={sp.state} canTriage={me.role !== 'dev'} people={people.filter((p) => p.active).map((p) => ({ value: p.id, label: p.name }))} />}
+        : <TicketsGrid rows={rows} state={sp.state} canTriage={me.role !== 'dev'} isLead={me.role === 'lead'} people={people.filter((p) => p.active).map((p) => ({ value: p.id, label: p.name }))} />}
     </>
   )
 }

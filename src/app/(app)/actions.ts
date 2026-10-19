@@ -544,15 +544,32 @@ export async function createTestCase(formData: FormData) {
   redirect(withMessage(`/cases/${tcId}`, 'ok', `${tcId} added`))
 }
 
-/** Status changes from the plan grid. Anyone on the team can move a task along. */
-export async function updateTasks(ids: string[], patch: { status?: string }): Promise<{ error?: string }> {
+/** Status and sprint changes from the plan grid and the sprint's task board. Anyone on the team can move a task along. */
+export async function updateTasks(ids: string[], patch: { status?: string; sprint_id?: string | null }): Promise<{ error?: string }> {
   await getMe()
-  const p = z.object({ status: z.enum(['not_started', 'in_progress', 'blocked', 'done']) }).safeParse(patch)
+  const p = z.object({
+    status: z.enum(['not_started', 'in_progress', 'blocked', 'done']).optional(),
+    sprint_id: z.uuid().nullable().optional(),
+  }).safeParse(patch)
   const idList = z.array(z.uuid()).min(1).max(200).safeParse(ids)
-  if (!p.success || !idList.success) return { error: 'Pick a status' }
+  if (!p.success || !idList.success || !Object.keys(p.data).length) return { error: 'Nothing valid to save' }
   const supabase = await createClient()
   const { error } = await supabase.from('plan_tasks').update({ ...p.data, updated_at: new Date().toISOString() }).in('id', idList.data)
   if (error) return { error: error.message }
+  revalidatePath('/', 'layout')
+  return {}
+}
+
+/** Lead only: delete rows for good. The database checks the role too. */
+export async function deleteRows(table: 'plan_tasks' | 'tickets' | 'test_cases', ids: string[]): Promise<{ error?: string }> {
+  const me = await getMe()
+  if (me.role !== 'lead') return { error: 'Only the lead deletes' }
+  const idList = z.array(z.uuid()).min(1).max(2000).safeParse(ids)
+  if (!idList.success || !['plan_tasks', 'tickets', 'test_cases'].includes(table)) return { error: 'Nothing to delete' }
+  const supabase = await createClient()
+  const { error, count } = await supabase.from(table).delete({ count: 'exact' }).in('id', idList.data)
+  if (error) return { error: error.message }
+  if (!count) return { error: 'Nothing was deleted' }
   revalidatePath('/', 'layout')
   return {}
 }

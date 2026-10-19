@@ -9,7 +9,8 @@ export type GateCheck = { label: string; ok: boolean; detail: string }
  * is waiting on triage, and every Critical/High ticket is closed, deferred or a duplicate.
  * Medium and Low tickets still open carry over to the next sprint.
  */
-export function sprintGate(cases: CaseForStage[], tickets: GateTicket[]): { ok: boolean; checks: GateCheck[] } {
+/** `tasks` are the plan tasks in the sprint; a sprint with tasks also needs them done. */
+export function sprintGate(cases: CaseForStage[], tickets: GateTicket[], tasks: { status: string }[] = []): { ok: boolean; checks: GateCheck[] } {
   const untested = cases.filter((c) => {
     const s = caseStage(c)
     return s === 'test'
@@ -44,5 +45,9 @@ export function sprintGate(cases: CaseForStage[], tickets: GateTicket[]): { ok: 
       detail: highOpen === 0 ? 'Closed, deferred or duplicate' : `${highOpen} Critical/High tickets still open`,
     },
   ]
+  if (tasks.length) {
+    const left = tasks.filter((t) => t.status !== 'done').length
+    checks.unshift({ label: 'Every task done', ok: left === 0, detail: left === 0 ? `All ${tasks.length} tasks done` : `${left} of ${tasks.length} tasks still open` })
+  }
   return { ok: checks.every((c) => c.ok), checks }
 }

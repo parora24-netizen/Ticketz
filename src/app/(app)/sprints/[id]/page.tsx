@@ -38,7 +38,8 @@ export default async function SprintPage({
   ])
   const caseIds = new Set(cases.map((c) => c.id))
   const tickets = allTickets.filter((t) => (t.case_id && caseIds.has(t.case_id)) || t.current_sprint_id === id)
-  const gate = sprintGate(cases.map((c) => toStageInput(c, runs)), tickets)
+  const sprintTasks = tasks.filter((t) => t.sprint_id === id)
+  const gate = sprintGate(cases.map((c) => toStageInput(c, runs)), tickets, sprintTasks)
   const lead = me.role === 'lead'
 
   // Standup goes round the whole team in this order: blocked first, then the busiest.
@@ -70,7 +71,7 @@ export default async function SprintPage({
       <Tabs items={[...sprintTabs(nowS), ...(id !== nowS?.id ? [{ key: 'this', href: `/sprints/${id}`, label: `Sprint ${sprint.name}` }] : [])]} active={id === nowS?.id ? 'board' : 'this'} />
       <PageHeader
         title={`Sprint ${sprint.name}`}
-        sub={<>{fmtDate(sprint.starts_on)} to {fmtDate(sprint.ends_on)} · {areaIds.length} areas · {cases.length} cases{sprint.goal ? ` · ${sprint.goal}` : ''}</>}>
+        sub={<>{fmtDate(sprint.starts_on)} to {fmtDate(sprint.ends_on)} · {sprintTasks.length ? `${sprintTasks.length} tasks · ` : ''}{areaIds.length} areas · {cases.length} cases{sprint.goal ? ` · ${sprint.goal}` : ''}</>}>
         <Chip tone={sprint.status === 'active' ? 'accent' : sprint.status === 'closed' ? 'good' : 'muted'}>
           {sprint.status === 'active' ? `Running · ${Math.max(daysUntil(sprint.ends_on), 0)} days left` : sprint.status === 'closed' ? 'Closed' : `Planned · starts in ${Math.max(daysUntil(sprint.starts_on), 0)} days`}
         </Chip>
@@ -91,6 +92,14 @@ export default async function SprintPage({
       <Flash error={sp.error} ok={sp.ok} />
 
       <section className="card mb-4 grid grid-cols-1 gap-x-6 gap-y-4 p-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        {cases.length === 0 ? (
+          <div className="xl:col-span-2">
+            <h3 className="text-[13px] font-semibold text-[var(--navy-ink)]">Progress</h3>
+            <p className="mt-1 text-[12.5px] text-[var(--muted)]">
+              No test areas in this sprint: it is {sprintTasks.length ? `${sprintTasks.length} plan tasks, ${sprintTasks.filter((t) => t.status === 'done').length} done` : 'empty so far; add areas with Edit sprint or tasks from the plan'}.
+            </p>
+          </div>
+        ) : <>
         <div>
           <SprintProgress counts={counts} />
         </div>
@@ -100,6 +109,7 @@ export default async function SprintPage({
             ? <LineChart points={daily} label="Cases with a result this sprint" unit="cases" target={{ value: cases.length, label: 'all' }} height={140} />
             : <p className="mt-2 text-[12.5px] text-[var(--muted)]">{sprint.status === 'planned' ? `Fills in day by day once ${sprint.name} starts on ${fmtDate(sprint.starts_on)}.` : `${new Set(runTimes.map((r) => r.case_id)).size} of ${cases.length} so far.`}</p>}
         </div>
+        </>}
         {/* Full card width so the four checks sit on one line on a desktop screen. */}
         <div className="flex flex-wrap items-center gap-2 border-t border-[var(--line-soft)] pt-3 xl:col-span-2">
           <span className="label mr-1">Close gate</span>
@@ -118,6 +128,8 @@ export default async function SprintPage({
         active={sprint.status === 'active'}
         people={activePeople.map((p) => ({ id: p.id, name: p.name }))}
         standup={standup}
+        today={today}
+        tasks={sprintTasks.map((t) => ({ id: t.id, num: t.num, phase: t.phase, title: t.title, owner: t.owner_label, owner_id: t.owner_id, due_on: t.due_on, status: t.status as 'not_started' }))}
         sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ id: s.id, name: s.name }))}
         areas={areaIds.map((a) => areaName.get(a) ?? '').sort()}
         cards={cases.map((c) => {

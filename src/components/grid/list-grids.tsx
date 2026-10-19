@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { DataGrid, type Column } from '@/components/grid/data-grid'
 import { Chip } from '@/components/ui'
-import { updatePeople, updateTasks } from '@/app/(app)/actions'
+import { deleteRows, updatePeople, updateTasks } from '@/app/(app)/actions'
 
 // ---- Sprints ---------------------------------------------------------------------------------
 
@@ -33,7 +33,7 @@ export function SprintsGrid({ rows }: { rows: SprintRow[] }) {
 
 // ---- Plan ------------------------------------------------------------------------------------
 
-export type TaskRow = { id: string; num: number; phase: string; title: string; owner: string; due_on: string; status: string; late: boolean }
+export type TaskRow = { id: string; num: number; phase: string; title: string; owner: string; due_on: string; status: string; late: boolean; sprint_id: string | null }
 const STATUS = [
   { value: 'not_started', label: 'Not started' },
   { value: 'in_progress', label: 'In progress' },
@@ -41,11 +41,16 @@ const STATUS = [
   { value: 'done', label: 'Done' },
 ]
 
-export function PlanGrid({ rows }: { rows: TaskRow[] }) {
+export function PlanGrid({ rows, sprints, isLead }: { rows: TaskRow[]; sprints: { id: string; name: string }[]; isLead: boolean }) {
+  const sprintOptions = [{ value: '__none', label: 'No sprint' }, ...sprints.map((s) => ({ value: s.id, label: s.name }))]
+  const sprintName = (id: string | null) => sprints.find((s) => s.id === id)?.name ?? ''
   const cols: Column<TaskRow>[] = [
     { key: 'num', header: '#', width: 50, align: 'right', value: (r) => r.num },
     { key: 'phase', header: 'Phase', width: 110, value: (r) => r.phase },
-    { key: 'title', header: 'Task', width: 480, value: (r) => r.title },
+    { key: 'sprint', header: 'Sprint', width: 90, value: (r) => sprintName(r.sprint_id),
+      render: (r) => r.sprint_id ? <Link href={`/sprints/${r.sprint_id}`} className="font-semibold text-[var(--accent)] hover:underline">{sprintName(r.sprint_id)}</Link> : <span className="text-[var(--faint)]">—</span>,
+      edit: { field: 'sprint_id', kind: 'select', options: sprintOptions } },
+    { key: 'title', header: 'Task', width: 460, value: (r) => r.title },
     { key: 'owner', header: 'Owner', width: 170, value: (r) => r.owner },
     { key: 'due', header: 'Due', width: 110, mono: true, value: (r) => r.due_on,
       render: (r) => <span className={r.late ? 'font-semibold text-[var(--crit)]' : ''}>{r.due_on}{r.late ? ' · late' : ''}</span> },
@@ -59,8 +64,13 @@ export function PlanGrid({ rows }: { rows: TaskRow[] }) {
         { key: 'phase', title: 'By phase' },
         { key: 'owner', title: 'By owner' },
       ]} defaultSort={[{ key: 'num', dir: 1 }]} searchPlaceholder="Search tasks"
-      onSave={(ids, patch) => updateTasks(ids, patch as { status?: string })}
-      bulkFields={[{ field: 'status', label: 'Set status', options: STATUS }]} />
+      onSave={(ids, patch) => {
+        const p: Record<string, string | null> = { ...patch }
+        if (p.sprint_id === '__none') p.sprint_id = null
+        return updateTasks(ids, p)
+      }}
+      bulkFields={[{ field: 'status', label: 'Set status', options: STATUS }, { field: 'sprint_id', label: 'Move to sprint', options: sprintOptions }]}
+      bulkActions={isLead ? [{ label: 'Delete', run: (ids) => deleteRows('plan_tasks', ids), confirm: 'Delete {n} tasks for good? This cannot be undone.' }] : []} />
   )
 }
 

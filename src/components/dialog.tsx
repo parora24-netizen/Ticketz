@@ -16,7 +16,7 @@ export function Dialog({ open, onClose, title, children, wide }: { open: boolean
       className={`m-auto ${wide ? 'w-[min(860px,calc(100vw-32px))]' : 'w-[min(440px,calc(100vw-32px))]'} border border-[var(--line)] bg-white p-0 shadow-[0_18px_48px_rgba(15,27,51,.24)] backdrop:bg-[rgba(15,27,51,.45)]`}>
       <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
         <h2 className="text-[16px] font-semibold text-[var(--navy-ink)]">{title}</h2>
-        <button type="button" onClick={onClose} aria-label="Close" className="text-[var(--muted)] hover:text-[var(--ink)]">✕</button>
+        <button type="button" onClick={onClose} aria-label="Close" className="-mr-2 flex h-8 w-8 cursor-pointer items-center justify-center text-[var(--muted)] hover:bg-[var(--surface-3)] hover:text-[var(--ink)]">✕</button>
       </div>
       <div className="max-h-[75vh] overflow-y-auto p-4">{children}</div>
     </dialog>

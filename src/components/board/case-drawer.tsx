@@ -68,7 +68,7 @@ export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, spr
             </div>
             <h2 className="mt-1 text-[17px] leading-snug font-semibold text-[var(--navy-ink)]">{c?.title ?? 'Loading…'}</h2>
           </div>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-[var(--muted)] hover:text-[var(--ink)]">✕</button>
+          <button type="button" onClick={onClose} aria-label="Close" className="-mr-2 flex h-8 w-8 cursor-pointer items-center justify-center text-[var(--muted)] hover:bg-[var(--surface-3)] hover:text-[var(--ink)]">✕</button>
         </header>
 
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">

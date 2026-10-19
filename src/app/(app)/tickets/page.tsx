@@ -3,20 +3,20 @@ import { PageHeader } from '@/components/ui'
 import { Flash } from '@/components/flash'
 import { TicketBoard } from '@/components/board/ticket-board'
 import { getMe } from '@/lib/auth'
-import { loadAreas, loadPeople, loadTickets } from '@/lib/data'
+import { loadAreas, loadPeople, loadTickets, loadSprints } from '@/lib/data'
 import { OPEN_STATES } from '@/lib/workflow/ticket-machine'
 import { TicketsGrid } from './tickets-grid'
 
 export default async function TicketsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams
   const view = sp.view === 'grid' ? 'grid' : 'board'
-  const [me, tickets, people, areas] = await Promise.all([getMe(), loadTickets(), loadPeople(), loadAreas()])
+  const [me, tickets, people, areas, sprints] = await Promise.all([getMe(), loadTickets(), loadPeople(), loadAreas(), loadSprints()])
   const zones = [...new Set(areas.map((a) => a.zone))]
   const open = tickets.filter((t) => OPEN_STATES.includes(t.state)).length
   const unowned = tickets.filter((t) => OPEN_STATES.includes(t.state) && !t.owner_id).length
   const rows = tickets.map((t) => ({
     id: t.id, key: t.key, title: t.title, severity: t.severity, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name,
-    tc_id: t.tc_id, zone: t.zone, page: t.page, updated_at: t.updated_at, kind: t.kind, logged_on: t.logged_on,
+    tc_id: t.tc_id, case_id: t.case_id, zone: t.zone, page: t.page, updated_at: t.updated_at, kind: t.kind, logged_on: t.logged_on,
   }))
 
   return (
@@ -32,7 +32,8 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
       {view === 'board'
-        ? <TicketBoard tickets={rows} role={me.role} meId={me.id} zones={zones} />
+        ? <TicketBoard tickets={rows} role={me.role} meId={me.id} zones={zones}
+          people={people.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name }))} sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ id: s.id, name: s.name }))} />
         : <TicketsGrid rows={rows} state={sp.state} canTriage={me.role !== 'dev'} isLead={me.role === 'lead'} people={people.filter((p) => p.active).map((p) => ({ value: p.id, label: p.name }))} />}
     </>
   )

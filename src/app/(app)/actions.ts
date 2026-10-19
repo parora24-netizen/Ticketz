@@ -700,15 +700,19 @@ export type CaseDetail = {
   comments: { body: string; created_at: string; who: string | null }[]
 }
 
-/** Everything the board's side panel shows for one case. */
-export async function getCaseDetail(caseId: string): Promise<CaseDetail | { error: string }> {
+/** Everything the board's side panel shows for one case: a given ticket of it, else its latest open one. */
+export async function getCaseDetail(caseId: string, ticketId?: string | null): Promise<CaseDetail | { error: string }> {
   await getMe()
   if (!z.uuid().safeParse(caseId).success) return { error: 'Unknown test case' }
+  const pick = ticketId && z.uuid().safeParse(ticketId).success ? ticketId : null
   const supabase = await createClient()
+  const ticketQuery = pick
+    ? supabase.from('tickets').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build').eq('id', pick).eq('case_id', caseId).maybeSingle()
+    : supabase.from('tickets').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build')
+      .eq('case_id', caseId).in('state', ['new', 'triaged', 'in_fix', 'reopened', 'ready_for_retest']).order('logged_on', { ascending: false }).limit(1).maybeSingle()
   const [{ data: c }, { data: t }, { data: runs }] = await Promise.all([
     supabase.from('test_cases').select('id, tc_id, title, priority, automation, tester_id, preconditions, steps, test_data, expected, areas(zone, page)').eq('id', caseId).single(),
-    supabase.from('tickets').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build')
-      .eq('case_id', caseId).in('state', ['new', 'triaged', 'in_fix', 'reopened', 'ready_for_retest']).order('logged_on', { ascending: false }).limit(1).maybeSingle(),
+    ticketQuery,
     supabase.from('test_runs').select('kind, result, recorded_at, note, people(name)').eq('case_id', caseId).order('recorded_at', { ascending: false }).limit(6),
   ])
   if (!c) return { error: 'Test case not found' }

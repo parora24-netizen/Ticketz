@@ -13,8 +13,10 @@ import { addTicketComment, getCaseDetail, type CaseDetail } from '@/app/(app)/ac
 const day = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 
 /** Work on one case, and its open ticket, without leaving the board. Esc or the backdrop closes it. */
-export function CaseDrawer({ caseId, onClose, role, people, sprints, active = true }: {
+export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, sprints, active = true }: {
   caseId: string | null
+  /** Show this ticket of the case (any state); otherwise its latest open one. */
+  ticketId?: string | null
   /** Results only count toward a running sprint, so the panel records them only then. */
   active?: boolean
   onClose: () => void
@@ -28,10 +30,10 @@ export function CaseDrawer({ caseId, onClose, role, people, sprints, active = tr
   const [posting, startPost] = useTransition()
 
   const load = useCallback(async (id: string) => {
-    const res = await getCaseDetail(id)
+    const res = await getCaseDetail(id, ticketId)
     if ('error' in res) setError(res.error)
     else { setError(null); setData(res) }
-  }, [])
+  }, [ticketId])
 
   useEffect(() => {
     setData(null)
@@ -131,7 +133,7 @@ export function CaseDrawer({ caseId, onClose, role, people, sprints, active = tr
                   </div>
                 </section>
               ) : (
-                <p className="text-[12.5px] text-[var(--muted)]">No open ticket. A Fail raises one.</p>
+                <p className="text-[12.5px] text-[var(--muted)]">No open ticket.</p>
               )}
 
               <section className="grid grid-cols-2 gap-3">

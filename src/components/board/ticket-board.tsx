@@ -6,6 +6,7 @@ import { Dialog } from '@/components/dialog'
 import { toast } from '@/components/toast'
 import { STATE_LABEL, canMove, requiredFor, type Role, type TicketState } from '@/lib/workflow/ticket-machine'
 import { moveTicketFromBoard } from '@/app/(app)/actions'
+import { CaseDrawer } from './case-drawer'
 
 export type BoardTicket = {
   id: string
@@ -16,6 +17,7 @@ export type BoardTicket = {
   owner_id: string | null
   owner_name: string | null
   tc_id: string | null
+  case_id?: string | null
   zone: string | null
   page: string | null
   updated_at: string
@@ -34,7 +36,12 @@ const INPUT_LABEL = {
 const ROLE_NAME: Record<Role, string> = { lead: 'lead', dev: 'dev', qa: 'QA' }
 
 /** Jira-style board: drag a ticket to a column; only the moves your role may make accept the drop. */
-export function TicketBoard({ tickets, role, meId, zones }: { tickets: BoardTicket[]; role: Role; meId: string; zones: string[] }) {
+export function TicketBoard({ tickets, role, meId, zones, people = [], sprints = [] }: {
+  tickets: BoardTicket[]; role: Role; meId: string; zones: string[]
+  people?: { id: string; name: string }[]; sprints?: { id: string; name: string }[]
+}) {
+  // The side panel: the clicked ticket with its test case.
+  const [opened, setOpened] = useState<BoardTicket | null>(null)
   const [local, setLocal] = useState<Record<string, TicketState>>({})
   const [dragging, setDragging] = useState<BoardTicket | null>(null)
   const [pending, setPending] = useState<{ t: BoardTicket; to: TicketState } | null>(null)
@@ -166,12 +173,14 @@ export function TicketBoard({ tickets, role, meId, zones }: { tickets: BoardTick
                       )}
                       <div className="max-h-[calc(100vh-250px)] min-h-16 space-y-1.5 overflow-y-auto">
                         {shown.map((t) => (
-                          <article key={t.id} draggable
+                          <article key={t.id} draggable tabIndex={0}
                             onDragStart={(e) => { setDragging(t); e.dataTransfer.effectAllowed = 'move' }}
                             onDragEnd={() => setDragging(null)}
-                            className={`cursor-grab border border-[var(--line)] bg-white p-2 active:cursor-grabbing ${
+                            onClick={() => (t.case_id ? setOpened(t) : window.location.assign(`/tickets/${encodeURIComponent(t.key)}`))}
+                            onKeyDown={(e) => { if (e.key === 'Enter') (t.case_id ? setOpened(t) : window.location.assign(`/tickets/${encodeURIComponent(t.key)}`)) }}
+                            className={`cursor-pointer border bg-white p-2 outline-none hover:border-[var(--navy)] focus-visible:border-[var(--navy)] ${opened?.id === t.id ? 'border-[var(--navy)]' : 'border-[var(--line)]'} ${
                               t.severity === 'Critical' ? 'shadow-[inset_3px_0_0_var(--crit)]' : t.severity === 'High' ? 'shadow-[inset_3px_0_0_var(--warn)]' : ''}`}>
-                            <Link href={`/tickets/${encodeURIComponent(t.key)}`} draggable={false}
+                            <Link href={`/tickets/${encodeURIComponent(t.key)}`} draggable={false} onClick={(e) => e.stopPropagation()}
                               className="mono block truncate text-[11px] font-medium text-[var(--accent)] hover:underline" title={t.key}>{t.key}</Link>
                             <p className="mt-1 line-clamp-2 text-[12.5px] leading-snug text-[var(--ink)]">{t.title}</p>
                             <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-[var(--faint)]">
@@ -179,8 +188,8 @@ export function TicketBoard({ tickets, role, meId, zones }: { tickets: BoardTick
                               <span>·</span>
                               <span className="min-w-0 flex-1 truncate">{t.page ?? ''}</span>
                               {t.owner_name
-                                ? <span title={t.owner_name} className="flex h-5 min-w-5 items-center justify-center bg-[#2b57c4] px-1 text-[10px] font-semibold text-white">{t.owner_name.slice(0, 2).toUpperCase()}</span>
-                                : <span className="text-[var(--faint)]">Unassigned</span>}
+                                ? <b className={`shrink-0 font-semibold ${t.owner_id === meId ? 'text-[var(--accent)]' : 'text-[var(--ink-2)]'}`}>{t.owner_id === meId ? 'You' : t.owner_name}</b>
+                                : <span className="shrink-0 font-semibold text-[var(--warn)]">No owner</span>}
                             </div>
                           </article>
                         ))}
@@ -213,6 +222,8 @@ export function TicketBoard({ tickets, role, meId, zones }: { tickets: BoardTick
           </form>
         )}
       </Dialog>
+      <CaseDrawer caseId={opened?.case_id ?? null} ticketId={opened?.id ?? null} onClose={() => setOpened(null)}
+        role={role} people={people} sprints={sprints} />
     </div>
   )
 }

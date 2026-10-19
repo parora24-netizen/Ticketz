@@ -160,11 +160,26 @@ export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, spr
                   <h3 className="label mb-2">Recent results</h3>
                   <ul className="divide-y divide-[var(--row)] border border-[var(--line-soft)]">
                     {data!.runs.map((r, i) => (
-                      <li key={i} className="flex items-center gap-2 px-3 py-1.5 text-[12px]">
-                        <span className="w-16 text-[var(--muted)]">{r.kind === 'auto' ? 'Automated' : 'Manual'}</span>
-                        <ResultChip r={r.result as RunResult} />
-                        <span className="min-w-0 flex-1 truncate text-[var(--muted)]" title={r.note ?? ''}>{r.note ?? ''}</span>
-                        <span className="text-[var(--faint)]">{r.who ?? (r.kind === 'auto' ? 'CI' : 'Workbook')} · {day(r.recorded_at)}</span>
+                      <li key={i} className="px-3 py-1.5 text-[12px]">
+                        <div className="flex items-center gap-2">
+                          <span className="w-16 text-[var(--muted)]">{r.kind === 'auto' ? 'Automated' : 'Manual'}</span>
+                          <ResultChip r={r.result as RunResult} />
+                          <span className="ml-auto text-[var(--faint)]">{r.who ?? (r.kind === 'auto' ? 'CI' : 'Workbook')} · {day(r.recorded_at)}</span>
+                        </div>
+                        {r.note && <p className="mt-1 whitespace-pre-wrap text-[var(--ink-2)]">{r.note}</p>}
+                        {r.files.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-2">
+                            {r.files.map((f) => (
+                              <a key={f.url} href={f.url} target="_blank" rel="noreferrer" title={f.name}
+                                className="block border border-[var(--line)] hover:border-[var(--navy)]">
+                                {/\.(png|jpe?g|gif|webp)$/i.test(f.name)
+                                  // eslint-disable-next-line @next/next/no-img-element -- signed link to a private screenshot
+                                  ? <img src={f.url} alt={f.name} className="h-14 w-20 object-cover" />
+                                  : <span className="flex h-14 w-20 items-center justify-center px-1 text-center text-[10.5px] text-[var(--accent)]">{f.name}</span>}
+                              </a>
+                            ))}
+                          </div>
+                        )}
                       </li>
                     ))}
                   </ul>

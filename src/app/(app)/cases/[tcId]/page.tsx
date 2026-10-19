@@ -24,6 +24,13 @@ export default async function CasePage({
     loadSprints(),
   ])
   const sprintName = new Map(sprints.map((s) => [s.id, s.name]))
+  // Screenshots attached to results: short-lived links, the files stay private.
+  const paths = (runs ?? []).flatMap((r) => (r.attachments as string[] | null) ?? [])
+  const signed = new Map<string, string>()
+  if (paths.length) {
+    const { data: links } = await supabase.storage.from('evidence').createSignedUrls(paths, 3600)
+    for (const l of links ?? []) if (l.signedUrl && l.path) signed.set(l.path, l.signedUrl)
+  }
   const lastAuto = runs?.find((r) => r.kind === 'auto')?.result ?? null
   const lastManual = runs?.find((r) => r.kind === 'manual')?.result ?? null
   const mm = mismatch(lastAuto, lastManual)
@@ -95,7 +102,7 @@ export default async function CasePage({
       <section className="card mt-4 overflow-x-auto">
         <h2 className="px-4 pt-4 font-semibold">Result history</h2>
         <table className="table mt-2">
-          <thead><tr><th>When</th><th>Kind</th><th>Result</th><th>Sprint</th><th>Build</th><th>By</th><th>Note</th></tr></thead>
+          <thead><tr><th>When</th><th>Kind</th><th>Result</th><th>Sprint</th><th>Build</th><th>By</th><th>Note</th><th>Files</th></tr></thead>
           <tbody>
             {(runs ?? []).map((r) => (
               <tr key={r.id}>
@@ -106,6 +113,13 @@ export default async function CasePage({
                 <td className="font-mono text-xs">{r.build ?? ''}</td>
                 <td>{r.people?.name ?? (r.kind === 'auto' ? 'CI' : '')}</td>
                 <td className="max-w-sm whitespace-pre-wrap text-xs">{r.note ?? ''}{r.url && <> <a href={r.url} className="text-[var(--accent)] hover:underline" target="_blank" rel="noreferrer">report</a></>}</td>
+                <td className="whitespace-nowrap text-xs">
+                  {((r.attachments as string[] | null) ?? []).map((path, i) => signed.get(path) && (
+                    <a key={path} href={signed.get(path)} target="_blank" rel="noreferrer" className="mr-2 text-[var(--accent)] hover:underline">
+                      {path.split('/').pop()!.replace(/^[0-9a-f-]{36}-/, '') || `file ${i + 1}`}
+                    </a>
+                  ))}
+                </td>
               </tr>
             ))}
           </tbody>

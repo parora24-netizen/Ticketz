@@ -659,6 +659,8 @@ export async function recordCaseResult(input: {
   note?: string
   build?: string
   raise_ticket?: boolean
+  /** Paths in the evidence bucket the tester uploaded with this result. */
+  attachments?: string[]
 }): Promise<{ error?: string; ticketKey?: string }> {
   const me = await getMe()
   if (me.role === 'dev') return { error: 'Only QA or the lead record results' }
@@ -669,14 +671,16 @@ export async function recordCaseResult(input: {
       note: z.string().trim().max(2000).optional(),
       build: z.string().trim().max(100).optional(),
       raise_ticket: z.boolean().optional(),
+      attachments: z.array(z.string().regex(/^runs\/[0-9a-f-]{36}\/[\w.-]{1,120}$/)).max(10).optional(),
     })
     .safeParse(input)
   if (!v.success) return { error: 'That result is not valid' }
+  if (v.data.attachments?.some((p) => !p.startsWith(`runs/${v.data.case_id}/`))) return { error: 'Those files belong to another case' }
   const supabase = await createClient()
   const sprintId = await activeSprintId()
   const { error } = await supabase.from('test_runs').insert({
     case_id: v.data.case_id, kind: 'manual', result: v.data.result, note: v.data.note || null, build: v.data.build || null,
-    sprint_id: sprintId, recorded_by: me.id,
+    sprint_id: sprintId, recorded_by: me.id, attachments: v.data.attachments ?? [],
   })
   if (error) return { error: error.message }
   let ticketKey: string | undefined
@@ -705,7 +709,7 @@ export async function recordCaseResult(input: {
 export type CaseDetail = {
   case: { id: string; tc_id: string; title: string; priority: string; automation: string; tester_id: string | null; preconditions: string | null; steps: string | null; test_data: string | null; expected: string | null; zone: string; page: string }
   ticket: { id: string; key: string; title: string; state: string; severity: string; owner_id: string | null; current_sprint_id: string | null; fixed_in_build: string | null } | null
-  runs: { kind: string; result: string; recorded_at: string; note: string | null; who: string | null }[]
+  runs: { kind: string; result: string; recorded_at: string; note: string | null; who: string | null; files: { name: string; url: string }[] }[]
   comments: { body: string; created_at: string; who: string | null }[]
 }
 
@@ -722,17 +726,27 @@ export async function getCaseDetail(caseId: string, ticketId?: string | null): P
   const [{ data: c }, { data: t }, { data: runs }] = await Promise.all([
     supabase.from('test_cases').select('id, tc_id, title, priority, automation, tester_id, preconditions, steps, test_data, expected, areas(zone, page)').eq('id', caseId).single(),
     ticketQuery,
-    supabase.from('test_runs').select('kind, result, recorded_at, note, people(name)').eq('case_id', caseId).order('recorded_at', { ascending: false }).limit(6),
+    supabase.from('test_runs').select('kind, result, recorded_at, note, attachments, people(name)').eq('case_id', caseId).order('recorded_at', { ascending: false }).limit(6),
   ])
   if (!c) return { error: 'Test case not found' }
   const area = c.areas as unknown as { zone: string; page: string } | null
+  // Screenshots: short-lived links, so files stay private to the team.
+  const paths = (runs ?? []).flatMap((r) => (r.attachments as string[] | null) ?? [])
+  const signed = new Map<string, string>()
+  if (paths.length) {
+    const { data: links } = await supabase.storage.from('evidence').createSignedUrls(paths, 3600)
+    for (const l of links ?? []) if (l.signedUrl && l.path) signed.set(l.path, l.signedUrl)
+  }
   const { data: comments } = t
     ? await supabase.from('ticket_comments').select('body, created_at, people(name)').eq('ticket_id', t.id).order('created_at', { ascending: false }).limit(10)
     : { data: [] }
   return {
     case: { ...c, zone: area?.zone ?? '', page: area?.page ?? '' } as CaseDetail['case'],
     ticket: (t as CaseDetail['ticket']) ?? null,
-    runs: (runs ?? []).map((r) => ({ kind: r.kind, result: r.result, recorded_at: r.recorded_at, note: r.note, who: (r.people as unknown as { name: string } | null)?.name ?? null })),
+    runs: (runs ?? []).map((r) => ({
+      kind: r.kind, result: r.result, recorded_at: r.recorded_at, note: r.note, who: (r.people as unknown as { name: string } | null)?.name ?? null,
+      files: ((r.attachments as string[] | null) ?? []).map((p) => ({ name: p.split('/').pop()!.replace(/^[0-9a-f-]{36}-/, ''), url: signed.get(p) ?? '' })).filter((f) => f.url),
+    })),
     comments: (comments ?? []).map((m) => ({ body: m.body, created_at: m.created_at, who: (m.people as unknown as { name: string } | null)?.name ?? null })),
   }
 }

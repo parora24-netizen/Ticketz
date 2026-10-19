@@ -38,7 +38,8 @@ export default async function SprintsPage({ searchParams }: { searchParams: Prom
     const zones = [...new Set(spots.map((x) => x.zone))]
     const pageText = zones.map((z) => {
       const pages = [...new Set(spots.filter((x) => x.zone === z).map((x) => x.page))]
-      return s.kind !== 'fix' && pages.length === pagesInZone(z) ? `${z}: all` : pages.join(', ')
+      if (s.kind !== 'fix' && pages.length === pagesInZone(z)) return `${z}: all`
+      return zones.length > 1 ? `${z}: ${pages.join(', ')}` : pages.join(', ')
     }).join(' · ')
     return {
       id: s.id,

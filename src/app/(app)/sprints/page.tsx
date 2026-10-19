@@ -1,10 +1,10 @@
 import Link from 'next/link'
 import { Flash } from '@/components/flash'
 import { SprintsGrid } from '@/components/grid/list-grids'
-import { Tabs, nowSprint, sprintTabs } from '@/components/tabs'
+import { Tabs, nowSprints, sprintTabs } from '@/components/tabs'
 import { PageHeader } from '@/components/ui'
 import { getMe } from '@/lib/auth'
-import { currentSprint, fmtDate, loadAreas, loadCases, loadRelease, loadScheduleChanges, loadSprintAreas, loadSprints, loadTickets } from '@/lib/data'
+import { runningSprints, fmtDate, loadAreas, loadCases, loadRelease, loadScheduleChanges, loadSprintAreas, loadSprints, loadTickets } from '@/lib/data'
 import { ScheduleLog } from '@/components/schedule-log'
 
 function workingDays(from: string, to: string): number {
@@ -19,7 +19,7 @@ function workingDays(from: string, to: string): number {
 export default async function SprintsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams
   const [me, sprints, areas, sprintAreas, cases, changes, release, tickets] = await Promise.all([getMe(), loadSprints(), loadAreas(), loadSprintAreas(), loadCases(), loadScheduleChanges(), loadRelease(), loadTickets()])
-  const current = currentSprint(sprints)
+  const running = runningSprints(sprints)
   const areaName = new Map(areas.map((a) => [a.id, a.page]))
   const casesByArea = new Map<string, number>()
   const testedByArea = new Map<string, number>()
@@ -42,13 +42,13 @@ export default async function SprintsPage({ searchParams }: { searchParams: Prom
       cases: ids.reduce((sum, id) => sum + (casesByArea.get(id) ?? 0), 0),
       tested: ids.reduce((sum, id) => sum + (testedByArea.get(id) ?? 0), 0),
       status: s.status === 'active' ? 'Running' : s.status === 'closed' ? 'Closed' : 'Planned',
-      current: s.id === current?.id,
+      current: running.some((r) => r.id === s.id),
     }
   })
 
   return (
     <>
-      <Tabs items={sprintTabs(nowSprint(sprints, current))} active="all" />
+      <Tabs items={sprintTabs(nowSprints(sprints, running))} active="all" />
       <PageHeader>
         {me.role === 'lead' && <Link href="/sprints/new" data-create className="btn btn-primary">+ New sprint</Link>}
       </PageHeader>

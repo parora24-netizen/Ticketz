@@ -4,16 +4,16 @@ import { SearchIcon } from '@/components/icons'
 import { DensityInit, PageTitle, ProfileMenu, Shortcuts } from '@/components/shell'
 import { Toaster } from '@/components/toast'
 import { getMe } from '@/lib/auth'
-import { currentSprint, daysLeft, fmtDate, loadSprints } from '@/lib/data'
+import { runningSprints, daysLeft, fmtDate, loadSprints } from '@/lib/data'
 import { BottomBar, Sidebar } from './nav-links'
 
 const ROLE = { lead: 'Lead', dev: 'Developer', qa: 'QA' } as const
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const [me, sprints] = await Promise.all([getMe(), loadSprints()])
-  const sprint = currentSprint(sprints)
-  const sprintLabel = sprint
-    ? `${sprint.name} · ${fmtDate(sprint.starts_on)} to ${fmtDate(sprint.ends_on)} · ${daysLeft(sprint.ends_on)}`
+  const running = runningSprints(sprints)
+  const sprintLabel = running.length
+    ? running.map((s) => `${s.name} · ${fmtDate(s.starts_on)} to ${fmtDate(s.ends_on)} · ${daysLeft(s.ends_on)}`).join('\n')
     : null
   const words = me.name.trim().split(/\s+/)
   const initials = (words.length > 1 ? words[0][0] + words[1][0] : me.name.slice(0, 2)).toUpperCase()

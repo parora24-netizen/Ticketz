@@ -41,7 +41,7 @@ export function Sidebar({ isLead, sprintLabel }: { isLead: boolean; sprintLabel:
       {sprintLabel && (
         <Link href="/sprint" className="mx-3 mb-2 block bg-white/10 px-3 py-2 text-[11.5px] text-white/80 hover:bg-white/15">
           <span className="mono block text-[10px] tracking-[0.08em] text-white/50 uppercase">Now</span>
-          {sprintLabel}
+          <span className="whitespace-pre-line">{sprintLabel}</span>
         </Link>
       )}
       <nav className="flex-1 space-y-0.5 px-2 py-1">

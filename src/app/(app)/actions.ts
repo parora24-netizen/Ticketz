@@ -7,7 +7,7 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { getMe, safeNext } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { currentSprint, loadSprints } from '@/lib/data'
+import { currentSprint, loadSprints, trackOf } from '@/lib/data'
 import { canMove, requiredFor, retestResult, type TicketState } from '@/lib/workflow/ticket-machine'
 
 function back(formData: FormData, fallback: string): string {
@@ -31,10 +31,14 @@ async function activeSprintId(): Promise<string | null> {
   return currentSprint(await loadSprints())?.id ?? null
 }
 
-/** Where a new ticket is fixed: the next fix sprint that has not closed (testing comes first). */
+/**
+ * Where a new ticket is fixed: the next fix sprint to start, since the one running now was planned
+ * from what the last test sprint found. Falls back to the running fix sprint near the end.
+ */
 async function fixSprintId(): Promise<string | null> {
   const today = new Date().toISOString().slice(0, 10)
-  return (await loadSprints()).find((s) => s.kind === 'fix' && s.status !== 'closed' && s.ends_on >= today)?.id ?? null
+  const fix = (await loadSprints()).filter((s) => s.kind === 'fix' && s.status !== 'closed')
+  return (fix.find((s) => s.starts_on > today && s.status === 'planned') ?? fix.find((s) => s.ends_on >= today))?.id ?? null
 }
 
 async function nextTicketKey(supabase: Awaited<ReturnType<typeof createClient>>, tcId: string | null): Promise<string> {
@@ -296,8 +300,11 @@ export async function startSprint(formData: FormData) {
   const me = await getMe()
   if (me.role !== 'lead') fail(path, 'Only the lead starts a sprint')
   const supabase = await createClient()
-  const { data: other } = await supabase.from('sprints').select('name').eq('status', 'active').neq('id', id)
-  if (other?.length) fail(path, `Close ${other[0].name} first; one sprint runs at a time`)
+  // Test and fix sprints run side by side; each track runs one sprint at a time.
+  const all = await loadSprints()
+  const me_ = all.find((s) => s.id === id)
+  const other = all.find((s) => s.id !== id && s.status === 'active' && me_ && trackOf(s) === trackOf(me_))
+  if (other) fail(path, `Close ${other.name} first; one ${trackOf(other) === 'dev' ? 'fix' : 'test'} sprint runs at a time`)
   const { error } = await supabase.from('sprints').update({ status: 'active' }).eq('id', id)
   if (error) fail(path, error.message)
   revalidatePath('/', 'layout')

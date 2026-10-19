@@ -22,15 +22,23 @@ export const RELEASE_TABS = [
 ]
 
 /** The running sprint's board (or the next one, before any has started), then all sprints. */
-export function sprintTabs(now: { id: string; name: string; running: boolean } | null) {
+type NowSprint = { id: string; name: string; running: boolean; track: 'qa' | 'dev' }
+
+/** One tab per track (Test and Fix run side by side), then the list. */
+export function sprintTabs(now: NowSprint[]) {
   return [
-    ...(now ? [{ key: 'board', href: `/sprints/${now.id}`, label: now.running ? `Board · ${now.name}` : `Next · ${now.name}` }] : []),
+    ...now.map((n) => ({ key: n.id, href: `/sprints/${n.id}`, label: `${n.track === 'dev' ? 'Fix' : 'Test'} · ${n.running ? n.name : `next ${n.name}`}` })),
     { key: 'all', href: '/sprints', label: 'All sprints' },
   ]
 }
 
-export function nowSprint<S extends { id: string; name: string; status: string; starts_on: string }>(sprints: S[], current: S | null) {
-  if (current) return { id: current.id, name: current.name, running: true }
-  const next = sprints.find((s) => s.status === 'planned')
-  return next ? { id: next.id, name: next.name, running: false } : null
+/** Each track's running sprint, or its next planned one. */
+export function nowSprints<S extends { id: string; name: string; status: string; starts_on: string; kind: string }>(sprints: S[], running: S[]): NowSprint[] {
+  return (['qa', 'dev'] as const).flatMap((track): NowSprint[] => {
+    const inTrack = (s: S) => (s.kind === 'fix' ? 'dev' : 'qa') === track
+    const cur = running.find(inTrack)
+    if (cur) return [{ id: cur.id, name: cur.name, running: true, track }]
+    const next = sprints.find((s) => inTrack(s) && s.status === 'planned')
+    return next ? [{ id: next.id, name: next.name, running: false, track }] : []
+  })
 }

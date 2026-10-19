@@ -143,13 +143,23 @@ export function toStageInput(c: CaseRow, _runs?: { auto: Set<string>; manual: Se
   }
 }
 
-/** The sprint whose dates cover today, else the one marked active. */
-export function currentSprint(sprints: Sprint[], today = new Date().toISOString().slice(0, 10)): Sprint | null {
+/** Testing and fixing run side by side: QA's track (triage, test, regression) and the devs' (fix). */
+export type Track = 'qa' | 'dev'
+export const trackOf = (s: { kind: Sprint['kind'] }): Track => (s.kind === 'fix' ? 'dev' : 'qa')
+
+/** A track's running sprint: the one marked active, else the one whose dates cover today. QA's by default. */
+export function currentSprint(sprints: Sprint[], today = new Date().toISOString().slice(0, 10), track: Track = 'qa'): Sprint | null {
+  const mine = sprints.filter((s) => trackOf(s) === track)
   return (
-    sprints.find((s) => s.status === 'active') ??
-    sprints.find((s) => s.starts_on <= today && today <= s.ends_on && s.status !== 'closed') ??
+    mine.find((s) => s.status === 'active') ??
+    mine.find((s) => s.starts_on <= today && today <= s.ends_on && s.status !== 'closed') ??
     null
   )
+}
+
+/** The running sprint on each track (QA first), for headers and tabs. */
+export function runningSprints(sprints: Sprint[], today = new Date().toISOString().slice(0, 10)): Sprint[] {
+  return (['qa', 'dev'] as const).map((t) => currentSprint(sprints, today, t)).filter((s): s is Sprint => !!s)
 }
 
 /** "1 day left", "3 days left" (never negative). */

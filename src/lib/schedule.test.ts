@@ -38,4 +38,16 @@ describe('extending a sprint', () => {
     const p = planExtension(sprints.slice(0, 2), 's1', 1, true, release)
     expect(p.release).toEqual(release)
   })
+
+  it('a late fix sprint moves later fixes, not testing; a late test sprint moves both tracks', () => {
+    const tracks = [
+      { id: 't1', name: 'T1', starts_on: '2026-10-21', ends_on: '2026-10-23', status: 'planned', kind: 'test' },
+      { id: 'f1', name: 'F1', starts_on: '2026-10-21', ends_on: '2026-10-23', status: 'planned', kind: 'fix' },
+      { id: 't2', name: 'T2', starts_on: '2026-10-26', ends_on: '2026-10-28', status: 'planned', kind: 'test' },
+      { id: 'f2', name: 'F2', starts_on: '2026-10-26', ends_on: '2026-10-28', status: 'planned', kind: 'fix' },
+    ]
+    const rel = { release_on: '2026-12-04', go_no_go_on: '2026-12-03' }
+    expect(planExtension(tracks, 'f1', 1, true, rel).sprints.map((s) => s.name)).toEqual(['F1', 'F2'])
+    expect(planExtension(tracks, 't1', 1, true, rel).sprints.map((s) => s.name)).toEqual(['T1', 'T2', 'F2'])
+  })
 })

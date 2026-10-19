@@ -6,11 +6,11 @@ import { SprintProgress } from '@/components/board/sprint-progress'
 import { LineChart } from '@/components/charts/line-chart'
 import { Flash } from '@/components/flash'
 import { SubmitButton } from '@/components/submit-button'
-import { Tabs, nowSprint, sprintTabs } from '@/components/tabs'
+import { Tabs, nowSprints, sprintTabs } from '@/components/tabs'
 import { Chip, PageHeader, PriorityChip, StateChip, TicketLink } from '@/components/ui'
 import { getMe } from '@/lib/auth'
 import {
-  currentSprint, daysLeft, daysUntil, fmtDate, loadActivity, loadAreas, loadCases, loadPeople, loadRelease, loadSprintAreas, loadSprintRunTimes, loadSprintRuns,
+  runningSprints, daysLeft, daysUntil, fmtDate, loadActivity, loadAreas, loadCases, loadPeople, loadRelease, loadSprintAreas, loadSprintRunTimes, loadSprintRuns,
   loadSprints, loadTasks, loadTickets, toStageInput, type CaseRow, type TicketRow,
 } from '@/lib/data'
 import { buildStandup, lastWorkingDayStart } from '@/lib/standup'
@@ -30,7 +30,7 @@ export default async function SprintPage({
   ])
   const sprint = sprints.find((s) => s.id === id)
   if (!sprint) notFound()
-  const nowS = nowSprint(sprints, currentSprint(sprints))
+  const nowS = nowSprints(sprints, runningSprints(sprints))
   const areaIds = sprintAreas.filter((x) => x.sprint_id === id).map((x) => x.area_id)
   const now = new Date()
   const [cases, runs, allTickets, runTimes, tasks, activity] = await Promise.all([
@@ -74,7 +74,7 @@ export default async function SprintPage({
 
   return (
     <>
-      <Tabs items={[...sprintTabs(nowS), ...(id !== nowS?.id ? [{ key: 'this', href: `/sprints/${id}`, label: `Sprint ${sprint.name}` }] : [])]} active={id === nowS?.id ? 'board' : 'this'} />
+      <Tabs items={[...sprintTabs(nowS), ...(nowS.some((n) => n.id === id) ? [] : [{ key: id, href: `/sprints/${id}`, label: `Sprint ${sprint.name}` }])]} active={id} />
       <PageHeader
         title={`Sprint ${sprint.name}`}
         sub={[`${fmtDate(sprint.starts_on)} to ${fmtDate(sprint.ends_on)}`, sprintTasks.length && `${sprintTasks.length} tasks`, areaIds.length && `${areaIds.length} areas · ${cases.length} cases`, sprint.goal].filter(Boolean).join(' · ')}>

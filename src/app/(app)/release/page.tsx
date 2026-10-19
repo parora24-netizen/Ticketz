@@ -6,7 +6,7 @@ import { getMe } from '@/lib/auth'
 import { RELEASE_TABS, Tabs } from '@/components/tabs'
 import { PageHeader, Stat } from '@/components/ui'
 import {
-  currentSprint, loadRelease, loadScheduleChanges, daysUntil, fmtDate,
+  runningSprints, loadRelease, loadScheduleChanges, daysUntil, fmtDate,
   loadAreas, loadCases, loadManualRuns, loadSprints, loadTasks, loadTicketEvents, loadTickets, toStageInput,
 } from '@/lib/data'
 import { casesTestedByDay, openTicketsByDay } from '@/lib/trends'
@@ -24,7 +24,7 @@ export default async function ReleasePage() {
   const RELEASE_DATE = release.release_on
   const slipped = daysUntil(release.release_on) - daysUntil(release.original_release_on)
   const today = new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10)
-  const sprint = currentSprint(sprints)
+  const running = runningSprints(sprints)
 
   // Release bar
   const open = tickets.filter((t) => OPEN_STATES.includes(t.state))
@@ -110,7 +110,7 @@ export default async function ReleasePage() {
         <span className={`chip h-7 px-3 text-[13px] ${toneChip[verdict.tone]}`}>{verdict.label}</span>
         <p className="min-w-0 flex-1 text-[14px] text-[var(--ink)]">{verdict.why}</p>
         <span className="mono text-[12px] text-[var(--muted)]">
-          {daysLeft} days to release · {sprint ? `sprint ${sprint.name} running` : 'no sprint running'}
+          {daysLeft} days to release · {running.length ? `${running.map((r) => r.name).join(' and ')} running` : 'no sprint running'}
           {slipped !== 0 && <b className={slipped > 0 ? 'ml-2 text-[var(--crit)]' : 'ml-2 text-[var(--good)]'}>{slipped > 0 ? `slipped ${slipped} days` : `pulled in ${-slipped} days`}</b>}
         </span>
       </section>

@@ -16,11 +16,12 @@ export function addWorkingDays(d: string, n: number): string {
   return toDate(ms)
 }
 
-export type SprintDates = { id: string; name: string; starts_on: string; ends_on: string; status: string }
+export type SprintDates = { id: string; name: string; starts_on: string; ends_on: string; status: string; kind?: string }
 
 /**
- * Extending sprint `id` by `days` working days. With `cascade`, every later sprint not yet
- * closed moves by the same number of working days, and the release moves if the last sprint
+ * Extending sprint `id` by `days` working days. With `cascade`, later sprints not yet closed move
+ * by the same number of working days: all of them after a test sprint (fixing follows testing),
+ * only fix and regression sprints after a fix sprint (testing does not wait on fixes), and the release moves if the last sprint
  * now ends on or after it. Returns the new dates; changes nothing.
  */
 export function planExtension(
@@ -38,6 +39,7 @@ export function planExtension(
   if (cascade) {
     for (const s of sprints) {
       if (s.id === id || s.status === 'closed' || s.starts_on <= target.ends_on) continue
+      if (target.kind === 'fix' && s.kind !== 'fix' && s.kind !== 'regression') continue
       changed.push({ id: s.id, name: s.name, starts_on: addWorkingDays(s.starts_on, days), ends_on: addWorkingDays(s.ends_on, days) })
     }
   }

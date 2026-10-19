@@ -8,7 +8,7 @@ const ERRORS: Record<string, string> = {
   credentials: 'That email and password do not match. First time here? Set a password below.',
   domain: 'Use your @vulqan.ai or @mezocliq.com email.',
   send: 'The code could not be sent. Try again in a minute.',
-  rate: 'Too many emails were sent just now. Wait a few minutes and try again.',
+  rate: 'Too many code emails were sent this hour. Ask the lead for a temporary password instead.',
   code: 'That code is wrong or has expired. Ask for a new one.',
   short: 'Use at least 8 characters for the password.',
   mismatch: 'The two passwords do not match.',
@@ -49,8 +49,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
                 <SubmitButton primary className="w-full" pendingText="Signing in…">Sign in</SubmitButton>
               </form>
               <p className="mt-5 text-[12.5px] text-[var(--muted)]">
-                First time here, or forgot your password?{' '}
-                <Link href={`/login?mode=code&next=${encodeURIComponent(nextValue)}`} className="font-semibold text-[var(--accent)] hover:underline">Set a password</Link>
+                First time here, or forgot your password? Ask the lead for a temporary password, or{' '}
+                <Link href={`/login?mode=code&next=${encodeURIComponent(nextValue)}`} className="font-semibold text-[var(--accent)] hover:underline">set one by email</Link>
               </p>
             </>
           )}

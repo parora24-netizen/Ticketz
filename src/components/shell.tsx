@@ -1,5 +1,6 @@
 'use client'
 
+import { ChangePasswordButton } from '@/components/account-controls'
 import { usePathname } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 
@@ -144,7 +145,8 @@ export function ProfileMenu({ name, email, role, initials }: { name: string; ema
             </div>
             <p className="mt-1.5 text-[11.5px] text-[var(--muted)]">{DENSITIES.find((d) => d.key === density)?.hint} Saved on this device.</p>
           </div>
-          <form action="/auth/signout" method="post" className="p-3">
+          <div className="px-3 pt-3"><ChangePasswordButton /></div>
+          <form action="/auth/signout" method="post" className="p-3 pt-2">
             <button className="btn btn-primary w-full">Sign out</button>
           </form>
         </div>

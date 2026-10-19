@@ -22,8 +22,8 @@ export async function createClient() {
 }
 
 /**
- * Secret-key client. Bypasses RLS. Only for the CI results API, which authenticates
- * with its own token. Never use it to render a page.
+ * Secret-key client. Bypasses RLS. Only for the CI results API, which authenticates with its
+ * own token, and for the lead's temporary passwords. Never use it to render a page.
  */
 export function createServiceClient() {
   return createPlainClient(publicEnv.supabaseUrl, serverEnv().secretKey, {

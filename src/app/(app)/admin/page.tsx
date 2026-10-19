@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { TempPasswordPanel } from '@/components/account-controls'
 import { Flash } from '@/components/flash'
 import { TeamGrid } from '@/components/grid/list-grids'
 import { SubmitButton } from '@/components/submit-button'
@@ -49,6 +50,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             </form>
           )}
           <TeamGrid rows={people.map((p) => ({ id: p.id, name: p.name, email: p.email, role: p.role, active: p.active }))} />
+          <TempPasswordPanel people={people.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name, email: p.email }))} />
         </>
       ) : (
         <>

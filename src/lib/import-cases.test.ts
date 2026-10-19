@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { areaPage, diffCases, mapHeaders, nextIds, parseCases, parseCsv, parseDelimited, parseTsv } from './import-cases'
+import { areaPage, diffCases, holdUnlabelledDuplicates, mapHeaders, nextIds, parseCases, parseCsv, parseDelimited, parseTsv } from './import-cases'
 
 const areas = [
   { id: 'a-signon', zone: 'Engine', page: 'Sign-On' },
@@ -81,6 +81,24 @@ describe('case import', () => {
     expect(present).toEqual([])
     const d = diffCases(cases, [{ tc_id: 'TC_FN_001', title: 'Same', area_id: 'a-signon', priority: 'High', preconditions: 'p', steps: 's', test_data: null, expected: 'e', test_type: 'UI' }], present)
     expect(d[0].status).toBe('unchanged')
+  })
+
+  it('keeps row numbers right after a bad row, and matches by ID only', () => {
+    const { cases, errors } = parseCases(
+      [
+        { 'Test Case ID': 'tc_fn_001 ', Zone: 'Engine', Page: 'Sign-On', Title: 'Login works', Priority: 'High' },
+        { 'Test Case ID': '', Zone: 'Nowhere', Page: 'X', Title: 'Bad area', Priority: 'High' },
+        { 'Test Case ID': '', Zone: 'Engine', Page: 'Sign-On', Title: 'login  WORKS', Priority: 'High' },
+        { 'Test Case ID': '', Zone: 'Engine', Page: 'Sign-On', Title: 'Truly new', Priority: 'Low' },
+      ],
+      areas,
+    )
+    expect(errors.map((e) => e.row)).toEqual([3])
+    expect(cases.map((c) => [c.tc_id, c.row])).toEqual([['TC_FN_001', 2], [null, 4], [null, 5]])
+    const existing = [{ tc_id: 'TC_FN_001', title: 'Login works', area_id: 'a-signon', priority: 'High' as const, preconditions: null, steps: null, test_data: null, expected: null, test_type: null }]
+    const held = holdUnlabelledDuplicates(cases, existing)
+    expect(held.cases.map((c) => c.title)).toEqual(['Login works', 'Truly new'])
+    expect(held.errors).toEqual([{ row: 4, message: expect.stringContaining('already TC_FN_001') }])
   })
 
   it('numbers new cases after the highest id', () => {

@@ -19,6 +19,8 @@ export type CaseInput = {
   expected: string | null
   priority: Priority
   test_type: string | null
+  /** The row in the file, for messages. */
+  row?: number
 }
 
 /** `present`: the optional fields the file actually has a column for. Others are left untouched on update. */
@@ -27,7 +29,7 @@ export const OPTIONAL_FIELDS = ['preconditions', 'steps', 'test_data', 'expected
 export type OptionalField = (typeof OPTIONAL_FIELDS)[number]
 
 /** Header spellings we accept, normalised to lower case without punctuation. */
-const ALIASES: Record<keyof Omit<CaseInput, 'area_id' | 'source_page'>, string[]> = {
+const ALIASES: Record<keyof Omit<CaseInput, 'area_id' | 'source_page' | 'row'>, string[]> = {
   tc_id: ['test case id', 'tc id', 'id', 'test id'],
   zone: ['zone'],
   page: ['page', 'area'],
@@ -114,6 +116,7 @@ export function parseCases(rows: Record<string, string>[], areas: AreaRef[], fir
       expected: get(r, 'expected') || null,
       priority: priority!,
       test_type: get(r, 'test_type') || null,
+      row,
     })
   })
   return { cases, errors, present }
@@ -158,6 +161,25 @@ export function parseDelimited(text: string, sep: string): string[][] {
 }
 
 export type Existing = Pick<CaseInput, 'title' | 'area_id' | 'priority' | 'preconditions' | 'steps' | 'test_data' | 'expected' | 'test_type'> & { tc_id: string }
+
+/**
+ * Matching is by Test Case ID only. A row with no ID would be added as a new case, so a row
+ * with no ID whose title is already a case in the same area is held back: it is almost
+ * certainly that case with its ID missing, and adding it would make a duplicate.
+ */
+export function holdUnlabelledDuplicates(cases: CaseInput[], existing: Existing[]): { cases: CaseInput[]; errors: { row: number; message: string }[] } {
+  const key = (area: string, title: string) => `${area}|${title.trim().toLowerCase().replace(/\s+/g, ' ')}`
+  const known = new Map(existing.map((e) => [key(e.area_id, e.title), e.tc_id]))
+  const errors: { row: number; message: string }[] = []
+  const kept = cases.filter((c) => {
+    if (c.tc_id) return true
+    const id = known.get(key(c.area_id, c.title))
+    if (!id) return true
+    errors.push({ row: c.row ?? 0, message: `no ID, but "${c.title}" is already ${id} in this area. Put ${id} in the Test Case ID column to update it` })
+    return false
+  })
+  return { cases: kept, errors }
+}
 
 /** Compare parsed cases with what the tracker holds. */
 export function diffCases(cases: CaseInput[], existing: Existing[], present: readonly OptionalField[] = OPTIONAL_FIELDS) {

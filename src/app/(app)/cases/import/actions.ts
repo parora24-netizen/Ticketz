@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { getMe } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/data'
-import { OPTIONAL_FIELDS, diffCases, nextIds, parseCases, parseCsv, parseTsv, type CaseInput, type Existing, type OptionalField } from '@/lib/import-cases'
+import { OPTIONAL_FIELDS, diffCases, holdUnlabelledDuplicates, nextIds, parseCases, parseCsv, parseTsv, type CaseInput, type Existing, type OptionalField } from '@/lib/import-cases'
 import { xlsxRecords } from '@/lib/xlsx-records'
 
 export type PreviewRow = {
@@ -60,11 +60,14 @@ export async function previewImport(_prev: ImportState, formData: FormData): Pro
 
   const supabase = await createClient()
   const { data: areas } = await supabase.from('areas').select('id, zone, page')
-  const { cases, errors, present } = parseCases(records, areas ?? [], 2, rowNumbers)
+  const parsed = parseCases(records, areas ?? [], 2, rowNumbers)
+  const { present } = parsed
   const existing = await fetchAll<Existing>((from, to) =>
     supabase.from('test_cases').select('tc_id, title, area_id, priority, preconditions, steps, test_data, expected, test_type').range(from, to),
   )
-  const diff = diffCases(cases, existing, present)
+  const held = holdUnlabelledDuplicates(parsed.cases, existing)
+  const errors = [...parsed.errors, ...held.errors].sort((a, b) => a.row - b.row)
+  const diff = diffCases(held.cases, existing, present)
   const areaName = new Map((areas ?? []).map((a) => [a.id, `${a.zone} · ${a.page}`]))
   const counts = { new: 0, updated: 0, unchanged: 0 }
   for (const d of diff) counts[d.status]++
@@ -72,8 +75,8 @@ export async function previewImport(_prev: ImportState, formData: FormData): Pro
     source,
     errors,
     counts,
-    rows: diff.map((d, i) => ({
-      row: rowNumbers?.[i] ?? null,
+    rows: diff.map((d) => ({
+      row: d.case.row ?? null,
       tc_id: d.case.tc_id,
       title: d.case.title,
       area: areaName.get(d.case.area_id) ?? '',
@@ -81,7 +84,7 @@ export async function previewImport(_prev: ImportState, formData: FormData): Pro
       status: d.status,
       changed: d.changed,
     })),
-    payload: JSON.stringify({ present, cases: diff.filter((d) => d.status !== 'unchanged').map((d) => d.case) }),
+    payload: JSON.stringify({ present, cases: diff.filter((d) => d.status !== 'unchanged').map(({ case: { row: _row, ...c } }) => c) }),
   }
 }
 

@@ -1,7 +1,7 @@
 import Link from 'next/link'
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { TempPasswordPanel } from '@/components/account-controls'
+import { PayloadExample, TokenCell } from '@/components/ci-controls'
 import { Flash } from '@/components/flash'
 import { TeamGrid } from '@/components/grid/list-grids'
 import { SubmitButton } from '@/components/submit-button'
@@ -26,9 +26,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const supabase = await createClient()
   const [people, holidays, { data: tokens }] = await Promise.all([
     loadPeople(), loadHolidays(),
-    supabase.from('ci_tokens').select('id, label, created_at, last_used_at, revoked_at').order('created_at', { ascending: false }),
+    supabase.from('ci_tokens').select('id, label, created_at, last_used_at, revoked_at, token_enc').order('created_at', { ascending: false }),
   ])
-  const newToken = (await cookies()).get('new_ci_token')?.value
   const noEmail = people.filter((p) => p.active && !p.email).length
 
   return (
@@ -82,23 +81,19 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       ) : (
         <>
           <PageHeader sub={<>Tokens for <code className="mono">/api/results</code></>} />
-          {newToken && (
-            <div className="mb-4 border border-[var(--warn-line)] bg-[var(--warn-soft)] p-3 text-[13px]">
-              Copy this token now; it is not shown again:
-              <code className="mono mt-1 block break-all">{newToken}</code>
-            </div>
-          )}
           <form action={createCiToken} className="mb-4 flex flex-wrap items-end gap-3">
             <label><span className="label">Label</span><input name="label" placeholder="e.g. CodeBuild e2e" className="input mt-1 block w-72" /></label>
             <SubmitButton primary pendingText="Creating…">Create token</SubmitButton>
           </form>
           <div className="border border-[var(--line)] bg-white">
             <table className="table grid-table plain">
-              <thead><tr><th>Label</th><th>Created</th><th>Last used</th><th>Status</th></tr></thead>
+              <colgroup><col className="w-48" /><col /><col className="w-32" /><col className="w-32" /><col className="w-32" /></colgroup>
+              <thead><tr><th>Label</th><th>Token</th><th>Created</th><th>Last used</th><th>Status</th></tr></thead>
               <tbody>
                 {(tokens ?? []).map((t) => (
                   <tr key={t.id}>
                     <td>{t.label}</td>
+                    <td>{t.revoked_at ? <span className="text-[12px] text-[var(--muted)]">Revoked</span> : <TokenCell id={t.id} revealable={!!t.token_enc} />}</td>
                     <td className="mono text-[12px]">{fmtDate(t.created_at)}</td>
                     <td className="mono text-[12px]">{t.last_used_at ? fmtDate(t.last_used_at) : 'Never'}</td>
                     <td>{t.revoked_at ? <span className="text-[var(--muted)]">Revoked</span> : (
@@ -110,6 +105,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             </table>
             {!tokens?.length && <p className="p-6 text-center text-[13px] text-[var(--muted)]">No tokens yet.</p>}
           </div>
+          <PayloadExample appUrl={process.env.NEXT_PUBLIC_APP_URL || 'https://vulqan-launchpad.vercel.app'} />
         </>
       )}
     </>

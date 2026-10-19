@@ -36,27 +36,8 @@ Only people listed under Admin can sign in, and only with an address on `ALLOWED
 
 ## Posting automated results (for CI)
 
-Create a token under **Admin → CI tokens** and store it as a CI secret. After each run:
-
-```bash
-curl -X POST "$TRACKER_URL/api/results" \
-  -H "Authorization: Bearer $TRACKER_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "build": "b39a5eab1",
-    "run_id": "codebuild-1234",
-    "results": [
-      { "tc_id": "TC_FN_070", "status": "passed", "duration_ms": 5400 },
-      { "tc_id": "TC_FN_071", "status": "failed", "error": "Expected error text not shown", "url": "https://reports.example/1234#TC_FN_071" },
-      { "tc_id": "TC_FN_072", "status": "skipped" },
-      { "tc_id": "TC_FN_073", "status": "known_defect" }
-    ]
-  }'
-```
-
-`status` is `passed`, `failed`, `skipped` or `known_defect`. Up to 5,000 results per call; a test reported
-twice keeps its last result. The response lists `recorded`, the `sprint` they landed in, and any
-`unmatched` ids that are not in the tracker. Results go into the running sprint.
+Admin → **CI tokens** has the token (Reveal / Copy), the request to post and what each field means.
+Store the token as a CI secret and post after each run; results land in the running test sprint.
 
 ## Development
 

@@ -1,8 +1,8 @@
 'use server'
 
 import { createHash, randomBytes } from 'node:crypto'
+import { open as unseal, seal } from '@/lib/secret-box'
 import { revalidatePath } from 'next/cache'
-import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { getMe, safeNext } from '@/lib/auth'
@@ -363,23 +363,32 @@ export async function createCiToken(formData: FormData) {
   const label = String(formData.get('label') ?? '').trim() || 'CI'
   const token = `vqt_${randomBytes(24).toString('base64url')}`
   const supabase = await createClient()
+  // The API checks the hash; the sealed copy lets the lead reveal it again on Admin.
   const { error } = await supabase.from('ci_tokens').insert({
     label,
     token_hash: createHash('sha256').update(token).digest('hex'),
+    token_enc: seal(token, 'ci-token'),
     created_by: me.id,
   })
-  if (error) fail('/admin', error.message)
-  // Handed to the admin page in a short-lived cookie rather than the URL, so it never lands in
-  // browser history or request logs. Only its hash is stored.
-  ;(await cookies()).set('new_ci_token', token, {
-    maxAge: 120,
-    httpOnly: true,
-    sameSite: 'strict',
-    secure: process.env.NODE_ENV === 'production',
-    path: '/admin',
-  })
+  if (error) fail('/admin?tab=ci', error.message)
   revalidatePath('/admin')
-  redirect('/admin?tab=ci')
+  redirect(withMessage('/admin?tab=ci', 'ok', `Token "${label}" created`))
+}
+
+/** Admin › CI tokens: the lead reveals or copies a token. */
+export async function revealCiToken(id: string): Promise<{ error?: string; token?: string }> {
+  const me = await getMe()
+  if (me.role !== 'lead') return { error: 'Only the lead sees CI tokens' }
+  if (!z.uuid().safeParse(id).success) return { error: 'Unknown token' }
+  const supabase = await createClient()
+  const { data } = await supabase.from('ci_tokens').select('token_enc, revoked_at').eq('id', id).maybeSingle()
+  if (!data?.token_enc) return { error: 'This token was made before tokens could be revealed. Make a new one.' }
+  if (data.revoked_at) return { error: 'This token is revoked' }
+  try {
+    return { token: unseal(data.token_enc, 'ci-token') }
+  } catch {
+    return { error: 'The token could not be read' }
+  }
 }
 
 export async function revokeCiToken(formData: FormData) {

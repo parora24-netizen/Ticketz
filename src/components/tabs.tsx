@@ -33,13 +33,17 @@ export function sprintTabs(now: NowSprint[]) {
   ]
 }
 
-/** Each track's running sprint, or its next planned one. */
+/**
+ * Tabs for the sprints that matter now: whatever is running, plus the next test and fix sprints
+ * when none of that type is running yet (so the next T and F are always one click away).
+ */
 export function nowSprints<S extends { id: string; name: string; status: string; starts_on: string; kind: string }>(sprints: S[], running: S[]): NowSprint[] {
-  return (['qa', 'dev'] as const).flatMap((track): NowSprint[] => {
-    const inTrack = (s: S) => (s.kind === 'fix' ? 'dev' : 'qa') === track
-    const cur = running.find(inTrack)
-    if (cur) return [{ id: cur.id, name: cur.name, running: true, track, kind: cur.kind }]
-    const next = sprints.find((s) => inTrack(s) && s.status === 'planned')
-    return next ? [{ id: next.id, name: next.name, running: false, track, kind: next.kind }] : []
+  return (['triage', 'test', 'fix', 'regression'] as const).flatMap((kind): NowSprint[] => {
+    const track = kind === 'fix' ? 'dev' : 'qa'
+    const cur = running.find((s) => s.kind === kind)
+    if (cur) return [{ id: cur.id, name: cur.name, running: true, track, kind }]
+    if (kind !== 'test' && kind !== 'fix') return []
+    const next = sprints.find((s) => s.kind === kind && s.status === 'planned')
+    return next ? [{ id: next.id, name: next.name, running: false, track, kind }] : []
   })
 }

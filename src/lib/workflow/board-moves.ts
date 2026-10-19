@@ -1,5 +1,5 @@
-import type { Stage } from './case-stage'
-import { STAGES } from './case-stage'
+import type { Stage, TestStage } from './case-stage'
+import { STAGES, TEST_STAGES } from './case-stage'
 import { canMove, type Role, type TicketState } from './ticket-machine'
 
 /** What dropping a case on another sprint-board column does. */
@@ -36,6 +36,25 @@ export function boardMove(from: Stage, to: Stage, role: Role, ticketState: Ticke
     default:
       return { error: 'That step does not follow from here' }
   }
+}
+
+/** A drop on a test sprint's board: mark it automated, or record a pass or a fail. */
+export type TestBoardMove =
+  | { kind: 'automation'; value: 'automated'; label: string }
+  | { kind: 'result'; result: 'passed' | 'failed'; ask: boolean; label: string }
+
+export function testBoardMove(from: TestStage, to: TestStage, role: Role): TestBoardMove | { error: string } {
+  if (role === 'dev') return { error: 'QA or the lead runs test sprints' }
+  switch (`${from}>${to}`) {
+    case 'automate>test': return { kind: 'automation', value: 'automated', label: 'Marked automated' }
+    case 'test>passed': return { kind: 'result', result: 'passed', ask: false, label: 'Pass recorded' }
+    case 'test>failed': return { kind: 'result', result: 'failed', ask: true, label: 'Fail recorded' }
+    default: return { error: from === 'failed' ? 'Failures are fixed in a fix sprint' : 'That step does not follow from here' }
+  }
+}
+
+export function droppableTestStages(from: TestStage, role: Role): TestStage[] {
+  return TEST_STAGES.filter((to) => to !== from && !('error' in testBoardMove(from, to, role)))
 }
 
 /** Columns a dragged case can be dropped on, for highlighting. */

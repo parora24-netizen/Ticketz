@@ -13,6 +13,7 @@ export type Sprint = {
   ends_on: string
   status: 'planned' | 'active' | 'closed'
   goal: string | null
+  kind: 'triage' | 'test' | 'fix' | 'regression'
 }
 export type CaseRow = {
   id: string

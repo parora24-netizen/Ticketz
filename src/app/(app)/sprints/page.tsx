@@ -4,7 +4,7 @@ import { SprintsGrid } from '@/components/grid/list-grids'
 import { Tabs, nowSprint, sprintTabs } from '@/components/tabs'
 import { PageHeader } from '@/components/ui'
 import { getMe } from '@/lib/auth'
-import { currentSprint, fmtDate, loadAreas, loadCases, loadRelease, loadScheduleChanges, loadSprintAreas, loadSprints } from '@/lib/data'
+import { currentSprint, fmtDate, loadAreas, loadCases, loadRelease, loadScheduleChanges, loadSprintAreas, loadSprints, loadTickets } from '@/lib/data'
 import { ScheduleLog } from '@/components/schedule-log'
 
 function workingDays(from: string, to: string): number {
@@ -18,7 +18,7 @@ function workingDays(from: string, to: string): number {
 
 export default async function SprintsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams
-  const [me, sprints, areas, sprintAreas, cases, changes, release] = await Promise.all([getMe(), loadSprints(), loadAreas(), loadSprintAreas(), loadCases(), loadScheduleChanges(), loadRelease()])
+  const [me, sprints, areas, sprintAreas, cases, changes, release, tickets] = await Promise.all([getMe(), loadSprints(), loadAreas(), loadSprintAreas(), loadCases(), loadScheduleChanges(), loadRelease(), loadTickets()])
   const current = currentSprint(sprints)
   const areaName = new Map(areas.map((a) => [a.id, a.page]))
   const casesByArea = new Map<string, number>()
@@ -32,6 +32,8 @@ export default async function SprintsPage({ searchParams }: { searchParams: Prom
     return {
       id: s.id,
       name: s.name,
+      kind: { triage: 'Triage', test: 'Test', fix: 'Fix', regression: 'Regression' }[s.kind],
+      tickets: tickets.filter((t) => t.current_sprint_id === s.id && !['closed', 'deferred', 'duplicate'].includes(t.state)).length,
       starts_on: s.starts_on,
       dates: `${fmtDate(s.starts_on)} to ${fmtDate(s.ends_on)}`,
       days: workingDays(s.starts_on, s.ends_on),
@@ -47,7 +49,7 @@ export default async function SprintsPage({ searchParams }: { searchParams: Prom
   return (
     <>
       <Tabs items={sprintTabs(nowSprint(sprints, current))} active="all" />
-      <PageHeader sub="Each sprint runs 2 to 4 working days over a set of Framework areas.">
+      <PageHeader>
         {me.role === 'lead' && <Link href="/sprints/new" data-create className="btn btn-primary">+ New sprint</Link>}
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />

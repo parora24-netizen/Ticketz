@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { loadCases, loadRelease, loadSprintRuns, loadSprints, loadTickets, toStageInput } from '@/lib/data'
 import { planExtension } from '@/lib/schedule'
 import { caseStage } from '@/lib/workflow/case-stage'
-import { sprintGate } from '@/lib/workflow/sprint-gate'
+import { gateFor } from '@/lib/workflow/sprint-gate'
 
 // Spillover: extend a sprint, or finish it and decide where the leftovers go. Every change is
 // written to schedule_changes with who, what and why.
@@ -76,11 +76,11 @@ export async function finishSprint(input: { sprint_id: string; target_sprint_id:
   const { data: sa } = await supabase.from('sprint_areas').select('area_id').eq('sprint_id', sprint.id)
   const areaIds = (sa ?? []).map((r) => r.area_id as string)
   const [cases, runs, tickets] = await Promise.all([loadCases(areaIds), loadSprintRuns(sprint.id), loadTickets()])
-  const caseIds = new Set(cases.map((c) => c.id))
-  const scoped = tickets.filter((t) => (t.case_id && caseIds.has(t.case_id)) || t.current_sprint_id === sprint.id)
+  const scoped = tickets.filter((t) => t.current_sprint_id === sprint.id)
   const { data: taskRows } = await supabase.from('plan_tasks').select('id, num, status').eq('sprint_id', sprint.id)
   const sprintTasks = (taskRows ?? []) as { id: string; num: number; status: string }[]
-  const gate = sprintGate(cases.map((c) => toStageInput(c, runs)), scoped, sprintTasks)
+  const emptyAreas = sprint.kind === 'test' ? areaIds.filter((a) => !cases.some((c) => c.area_id === a)).length : 0
+  const gate = gateFor(sprint.kind, { cases: cases.map((c) => toStageInput(c, runs)), tickets: scoped, tasks: sprintTasks, emptyAreas })
   if (!gate.ok && v.data.reason.length < 3) return { error: 'The gate is not met. Say why the sprint is closing anyway.' }
 
   const open = scoped.filter((t) => !['closed', 'deferred', 'duplicate'].includes(t.state))

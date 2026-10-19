@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { TRANSITIONS, allowedMoves, canMove, requiredFor, retestResult, type Role, type TicketState } from './ticket-machine'
-import { caseStage, mismatch, needsTicket, type CaseForStage, testBy } from './case-stage'
-import { sprintGate } from './sprint-gate'
+import { caseStage, mismatch, needsTicket, type CaseForStage, testBy, testStage } from './case-stage'
+import { sprintGate, gateFor } from './sprint-gate'
 
 describe('ticket machine', () => {
   it('matches the ticket_transitions rows in the schema migration', () => {
@@ -82,6 +82,15 @@ describe('case stage', () => {
     expect(caseStage({ ...high, auto_result: 'passed', manual_result: 'passed' })).toBe('done')
   })
 
+  it('places cases on a test sprint board', () => {
+    expect(testStage({ ...base, automation: 'not_automated', priority: 'Low' })).toBe('automate')
+    expect(testStage({ ...base, automation: 'not_automated', priority: 'High' })).toBe('test')
+    expect(testStage(base)).toBe('test')
+    expect(testStage({ ...base, auto_result: 'passed' })).toBe('passed')
+    expect(testStage({ ...base, auto_result: 'failed', manual_result: 'failed' })).toBe('failed')
+    expect(testStage({ ...base, auto_result: 'passed', open_fix: 1 })).toBe('failed')
+  })
+
   it('treats manual-only cases as manual work', () => {
     expect(caseStage({ ...base, automation: 'manual_only' })).toBe('test')
     expect(caseStage({ ...base, automation: 'manual_only', manual_result: 'passed' })).toBe('done')
@@ -117,5 +126,20 @@ describe('sprint gate', () => {
   it('passes a clean sprint', () => {
     const g = sprintGate([done], [{ state: 'deferred', severity: 'Critical' }, { state: 'in_fix', severity: 'Low' }])
     expect(g.ok).toBe(true)
+  })
+})
+
+describe('gate by sprint type', () => {
+  it('test sprints need every area written and every case through testing', () => {
+    const g = gateFor('test', { cases: [{ ...base, auto_result: 'passed' }], tickets: [], emptyAreas: 2 })
+    expect(g.ok).toBe(false)
+    expect(g.checks.find((c) => !c.ok)?.detail).toBe('2 areas have no cases yet')
+  })
+  it('fix sprints need their tickets triaged and closed', () => {
+    const g = gateFor('fix', { cases: [], tickets: [{ state: 'in_fix', severity: 'High' }, { state: 'closed', severity: 'Critical' }] })
+    expect(g.checks.map((c) => c.ok)).toEqual([true, false])
+  })
+  it('triage sprints only need their tasks', () => {
+    expect(gateFor('triage', { cases: [], tickets: [], tasks: [{ status: 'done' }] }).ok).toBe(true)
   })
 })

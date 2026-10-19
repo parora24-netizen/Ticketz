@@ -1,6 +1,6 @@
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { SprintBoard } from '@/components/board/sprint-board'
+import { TicketBoard } from '@/components/board/ticket-board'
 import { EditSprintButton, ExtendSprintButton, FinishSprintButton } from '@/components/board/sprint-controls'
 import { SprintProgress } from '@/components/board/sprint-progress'
 import { LineChart } from '@/components/charts/line-chart'
@@ -15,8 +15,8 @@ import {
 } from '@/lib/data'
 import { buildStandup, lastWorkingDayStart } from '@/lib/standup'
 import { casesTestedByDay, istDate } from '@/lib/trends'
-import { STAGES, caseStage, needsTicket, testBy, type Stage } from '@/lib/workflow/case-stage'
-import { sprintGate } from '@/lib/workflow/sprint-gate'
+import { STAGES, TEST_STAGES, caseStage, needsTicket, testBy, testStage } from '@/lib/workflow/case-stage'
+import { gateFor } from '@/lib/workflow/sprint-gate'
 import { startSprint } from '../../actions'
 import { SprintForm } from '../sprint-form'
 
@@ -37,9 +37,14 @@ export default async function SprintPage({
     loadCases(areaIds), loadSprintRuns(id), loadTickets(), loadSprintRunTimes(id), loadTasks(), loadActivity(lastWorkingDayStart(now)),
   ])
   const caseIds = new Set(cases.map((c) => c.id))
-  const tickets = allTickets.filter((t) => (t.case_id && caseIds.has(t.case_id)) || t.current_sprint_id === id)
+  // The sprint's own tickets: fix sprints are made of them; test sprints raise them for later.
+  const tickets = allTickets.filter((t) => t.current_sprint_id === id)
   const sprintTasks = tasks.filter((t) => t.sprint_id === id)
-  const gate = sprintGate(cases.map((c) => toStageInput(c, runs)), tickets, sprintTasks)
+  const kind = sprint.kind
+  const testMode = kind === 'test'
+  const casesWithArea = new Set(cases.map((c) => c.area_id))
+  const emptyAreaIds = testMode ? areaIds.filter((a) => !casesWithArea.has(a)) : []
+  const gate = gateFor(kind, { cases: cases.map((c) => toStageInput(c, runs)), tickets, tasks: sprintTasks, emptyAreas: emptyAreaIds.length })
   const lead = me.role === 'lead'
 
   // Standup goes round the whole team in this order: blocked first, then the busiest.
@@ -47,19 +52,20 @@ export default async function SprintPage({
   const standup = buildStandup({ now, people: activePeople.map((p) => ({ id: p.id, name: p.name, role: p.role })), activity, tickets: allTickets, tasks }).cards
     .sort((a, b) => b.blocked.length - a.blocked.length || (b.today.length + b.yesterday.length) - (a.today.length + a.yesterday.length))
 
-  const stageOf = new Map(cases.map((c) => [c.id, caseStage(toStageInput(c, runs))]))
-  const counts = Object.fromEntries(STAGES.map((s) => [s, 0])) as Record<Stage, number>
+  const stageOf = new Map<string, string>(cases.map((c) => [c.id, testMode ? testStage(toStageInput(c, runs)) : caseStage(toStageInput(c, runs))]))
+  const counts: Record<string, number> = Object.fromEntries((testMode ? TEST_STAGES : STAGES).map((s) => [s, 0]))
   for (const s of stageOf.values()) counts[s]++
+  if (testMode) counts.write = emptyAreaIds.length
 
   const ticketsByCase = new Map<string, TicketRow[]>()
-  for (const t of tickets) if (t.case_id) ticketsByCase.set(t.case_id, [...(ticketsByCase.get(t.case_id) ?? []), t])
+  for (const t of allTickets) if (t.case_id) ticketsByCase.set(t.case_id, [...(ticketsByCase.get(t.case_id) ?? []), t])
   const isOpen = (t: TicketRow) => !['closed', 'deferred', 'duplicate'].includes(t.state)
   const openTicket = (c: CaseRow) => (ticketsByCase.get(c.id) ?? []).find(isOpen)
   // Tickets moved here from an earlier sprint whose test case is not in this sprint's areas.
   const carriedIn = tickets.filter((t) => t.current_sprint_id === id && isOpen(t) && !(t.case_id && caseIds.has(t.case_id)))
 
   const areaName = new Map(areas.map((a) => [a.id, `${a.zone} · ${a.page}`]))
-  const unfinishedAreas = [...new Set(cases.filter((c) => stageOf.get(c.id) !== 'done').map((c) => c.area_id))].map((a) => areaName.get(a) ?? '')
+  const unfinishedAreas = [...new Set([...emptyAreaIds, ...cases.filter((c) => !['done', 'passed'].includes(stageOf.get(c.id)!)).map((c) => c.area_id)])].map((a) => areaName.get(a) ?? '')
   const laterSprints = sprints.filter((s) => s.id !== id && s.status !== 'closed' && s.starts_on > sprint.starts_on).map((s) => ({ id: s.id, name: s.name }))
 
   const today = istDate(new Date().toISOString())
@@ -91,10 +97,10 @@ export default async function SprintPage({
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
 
-      <section className={cases.length ? 'card mb-4 grid grid-cols-1 gap-x-6 gap-y-4 p-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]' : 'mb-3'}>
-        {cases.length > 0 && <>
+      <section className={cases.length && kind !== 'fix' ? 'card mb-4 grid grid-cols-1 gap-x-6 gap-y-4 p-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]' : 'mb-3'}>
+        {cases.length > 0 && kind !== 'fix' && <>
         <div>
-          <SprintProgress counts={counts} />
+          <SprintProgress counts={counts} mode={testMode ? 'test' : 'cases'} />
         </div>
         <div>
           <h3 className="text-[13px] font-semibold text-[var(--navy-ink)]">Cases with a result this sprint</h3>
@@ -104,7 +110,7 @@ export default async function SprintPage({
         </div>
         </>}
         {/* Only what still blocks closing; the checks already met fold into one chip. */}
-        <div className={`flex flex-wrap items-center gap-2 xl:col-span-2 ${cases.length ? 'border-t border-[var(--line-soft)] pt-3' : ''}`}>
+        <div className={`flex flex-wrap items-center gap-2 xl:col-span-2 ${cases.length && kind !== 'fix' ? 'border-t border-[var(--line-soft)] pt-3' : ''}`}>
           <span className="label mr-1">Close gate</span>
           {gate.checks.filter((c) => !c.ok).map((c) => (
             <span key={c.label} className="chip border-[var(--line)] bg-white text-[var(--ink-2)] sm:whitespace-nowrap">
@@ -121,7 +127,13 @@ export default async function SprintPage({
         </div>
       </section>
 
-      <SprintBoard
+      {kind === 'fix' && (
+        <TicketBoard role={me.role} meId={me.id} zones={[...new Set(areas.map((a) => a.zone))]}
+          tickets={tickets.map((t) => ({ id: t.id, key: t.key, title: t.title, severity: t.severity, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name, tc_id: t.tc_id, zone: t.zone, page: t.page, updated_at: t.updated_at }))} />
+      )}
+      {kind !== 'fix' && <SprintBoard
+        mode={testMode ? 'test' : 'cases'}
+        emptyAreas={emptyAreaIds.map((a) => ({ id: a, label: areaName.get(a) ?? '' }))}
         role={me.role}
         meId={me.id}
         active={sprint.status === 'active'}
@@ -136,13 +148,13 @@ export default async function SprintPage({
           const t = openTicket(c)
           return {
             id: c.id, tc_id: c.tc_id, title: c.title, priority: c.priority, zone: c.zone, page: c.page,
-            stage: stageOf.get(c.id)!, test_by: testBy(toStageInput(c)), tester_id: c.tester_id, tester_name: c.tester_name,
+            stage: stageOf.get(c.id)! as 'test', test_by: testBy(toStageInput(c)), tester_id: c.tester_id, tester_name: c.tester_name,
             auto_result: c.auto_result, manual_result: c.manual_result,
             needs_ticket: needsTicket(toStageInput(c, runs)),
             ticket: t ? { id: t.id, key: t.key, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name } : null,
           }
         })}
-      />
+      />}
 
       {carriedIn.length > 0 && (
         <section className="card mt-4">

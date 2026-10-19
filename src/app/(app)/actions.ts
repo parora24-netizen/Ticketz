@@ -7,8 +7,7 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { getMe, safeNext } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { currentSprint, loadCases, loadSprintRuns, loadSprints, loadTickets, toStageInput } from '@/lib/data'
-import { sprintGate } from '@/lib/workflow/sprint-gate'
+import { currentSprint, loadSprints } from '@/lib/data'
 import { canMove, requiredFor, retestResult, type TicketState } from '@/lib/workflow/ticket-machine'
 
 function back(formData: FormData, fallback: string): string {
@@ -30,6 +29,12 @@ function fail(path: string, msg: string): never {
 
 async function activeSprintId(): Promise<string | null> {
   return currentSprint(await loadSprints())?.id ?? null
+}
+
+/** Where a new ticket is fixed: the next fix sprint that has not closed (testing comes first). */
+async function fixSprintId(): Promise<string | null> {
+  const today = new Date().toISOString().slice(0, 10)
+  return (await loadSprints()).find((s) => s.kind === 'fix' && s.status !== 'closed' && s.ends_on >= today)?.id ?? null
 }
 
 async function nextTicketKey(supabase: Awaited<ReturnType<typeof createClient>>, tcId: string | null): Promise<string> {
@@ -85,7 +90,7 @@ export async function recordManualResult(formData: FormData) {
         description: v.note || null,
         severity: v.severity ?? c.priority,
         found_in_sprint_id: sprintId,
-        current_sprint_id: sprintId,
+        current_sprint_id: await fixSprintId(),
         created_by: me.id,
       })
       if (tErr) fail(path, tErr.message)
@@ -142,7 +147,7 @@ export async function raiseTicket(formData: FormData) {
     description: v.description || null,
     severity: v.severity,
     found_in_sprint_id: sprintId,
-    current_sprint_id: sprintId,
+    current_sprint_id: await fixSprintId(),
     created_by: me.id,
   })
   if (error) fail(path, error.message)
@@ -256,6 +261,7 @@ const SprintForm = z.object({
   starts_on: z.iso.date(),
   ends_on: z.iso.date(),
   goal: z.string().trim().max(500).optional(),
+  kind: z.enum(['triage', 'test', 'fix', 'regression']).default('test'),
 })
 
 export async function saveSprint(formData: FormData) {
@@ -268,7 +274,7 @@ export async function saveSprint(formData: FormData) {
   if (v.ends_on < v.starts_on) fail(path, 'The sprint ends before it starts')
   const areaIds = formData.getAll('area_id').map(String)
   const supabase = await createClient()
-  const row = { name: v.name, starts_on: v.starts_on, ends_on: v.ends_on, goal: v.goal || null }
+  const row = { name: v.name, kind: v.kind, starts_on: v.starts_on, ends_on: v.ends_on, goal: v.goal || null }
   const { data, error } = v.id
     ? await supabase.from('sprints').update(row).eq('id', v.id).select('id').single()
     : await supabase.from('sprints').insert(row).select('id').single()
@@ -296,39 +302,6 @@ export async function startSprint(formData: FormData) {
   if (error) fail(path, error.message)
   revalidatePath('/', 'layout')
   redirect(withMessage(path, 'ok', 'Sprint started'))
-}
-
-/** Close a sprint if its gate passes, and carry its still-open tickets into the next sprint. */
-export async function closeSprint(formData: FormData) {
-  const id = String(formData.get('sprint_id'))
-  const path = `/sprints/${id}`
-  const me = await getMe()
-  if (me.role !== 'lead') fail(path, 'Only the lead closes a sprint')
-  const supabase = await createClient()
-  const sprints = await loadSprints()
-  const sprint = sprints.find((s) => s.id === id)
-  if (!sprint) fail('/sprints', 'Sprint not found')
-  const { data: sa } = await supabase.from('sprint_areas').select('area_id').eq('sprint_id', id)
-  const areaIds = (sa ?? []).map((r) => r.area_id as string)
-  const [cases, runs, tickets] = await Promise.all([loadCases(areaIds), loadSprintRuns(id), loadTickets()])
-  const caseIds = new Set(cases.map((c) => c.id))
-  const scoped = tickets.filter((t) => (t.case_id && caseIds.has(t.case_id)) || t.current_sprint_id === id)
-  const gate = sprintGate(cases.map((c) => toStageInput(c, runs)), scoped)
-  if (!gate.ok) fail(path, 'The close gate is not met yet')
-
-  const next = sprints.find((s) => s.starts_on > sprint.ends_on && s.status !== 'closed')
-  const carry = scoped.filter((t) => !['closed', 'deferred', 'duplicate'].includes(t.state)).map((t) => t.id)
-  if (next && carry.length) {
-    const { error } = await supabase.from('tickets').update({ current_sprint_id: next.id }).in('id', carry)
-    if (error) fail(path, error.message)
-  }
-  const { error } = await supabase
-    .from('sprints')
-    .update({ status: 'closed', closed_at: new Date().toISOString() })
-    .eq('id', id)
-  if (error) fail(path, error.message)
-  revalidatePath('/', 'layout')
-  redirect(withMessage(path, 'ok', `Sprint closed${carry.length && next ? `; ${carry.length} tickets moved to ${next.name}` : ''}`))
 }
 
 // ---- Plan -------------------------------------------------------------------------------
@@ -676,7 +649,7 @@ export async function recordCaseResult(input: {
         ticketKey = await nextTicketKey(supabase, c.tc_id)
         const { error: tErr } = await supabase.from('tickets').insert({
           key: ticketKey, case_id: v.data.case_id, title: c.title, description: v.data.note || null, severity: c.priority,
-          found_in_sprint_id: sprintId, current_sprint_id: sprintId, created_by: me.id,
+          found_in_sprint_id: sprintId, current_sprint_id: await fixSprintId(), created_by: me.id,
         })
         if (tErr) return { error: `Result saved, but the ticket was not: ${tErr.message}` }
       }

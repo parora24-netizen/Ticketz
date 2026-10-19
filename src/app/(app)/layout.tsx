@@ -4,7 +4,7 @@ import { SearchIcon } from '@/components/icons'
 import { DensityInit, PageTitle, ProfileMenu, Shortcuts } from '@/components/shell'
 import { Toaster } from '@/components/toast'
 import { getMe } from '@/lib/auth'
-import { currentSprint, daysLeft, daysUntil, fmtDate, loadSprints } from '@/lib/data'
+import { currentSprint, daysLeft, fmtDate, loadSprints } from '@/lib/data'
 import { BottomBar, Sidebar } from './nav-links'
 
 const ROLE = { lead: 'Lead', dev: 'Developer', qa: 'QA' } as const

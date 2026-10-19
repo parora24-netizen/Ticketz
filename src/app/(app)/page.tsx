@@ -10,7 +10,7 @@ import {
 import { lastWorkingDayStart } from '@/lib/standup'
 import { istDate } from '@/lib/trends'
 import { caseStage, testBy, needsTicket } from '@/lib/workflow/case-stage'
-import { sprintGate } from '@/lib/workflow/sprint-gate'
+import { gateFor } from '@/lib/workflow/sprint-gate'
 import { STATE_LABEL } from '@/lib/workflow/ticket-machine'
 
 const SEV = ['Critical', 'High', 'Medium', 'Low']
@@ -63,8 +63,11 @@ export default async function Home() {
     sprint ? loadCases(areaIds) : Promise.resolve([]),
     sprint ? loadSprintRuns(sprint.id) : Promise.resolve(undefined),
   ])
-  const caseIds = new Set(cases.map((c) => c.id))
-  const gate = sprint ? sprintGate(cases.map((c) => toStageInput(c, runs)), tickets.filter((t) => (t.case_id && caseIds.has(t.case_id)) || t.current_sprint_id === sprint.id)) : null
+  const gate = sprint ? gateFor(sprint.kind, {
+    cases: cases.map((c) => toStageInput(c, runs)),
+    tickets: tickets.filter((t) => t.current_sprint_id === sprint.id),
+    emptyAreas: sprint.kind === 'test' ? areaIds.filter((a) => !cases.some((c) => c.area_id === a)).length : 0,
+  }) : null
   const stages = cases.map((c) => caseStage(toStageInput(c, runs)))
   const left = stages.filter((s) => s !== 'done').length
 

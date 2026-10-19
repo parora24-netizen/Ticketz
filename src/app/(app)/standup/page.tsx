@@ -1,12 +1,12 @@
 import Link from 'next/link'
 import { PageHeader, Stat } from '@/components/ui'
 import {
-  currentSprint, daysLeft, daysUntil, fmtDate, loadActivity, loadCases, loadPeople, loadSprintAreas, loadSprintRuns, loadSprints, loadTasks, loadTickets, toStageInput,
+  currentSprint, daysLeft, fmtDate, loadActivity, loadCases, loadPeople, loadSprintAreas, loadSprintRuns, loadSprints, loadTasks, loadTickets, toStageInput,
 } from '@/lib/data'
 import { buildStandup, lastWorkingDayStart } from '@/lib/standup'
 import { istDate } from '@/lib/trends'
 import { caseStage } from '@/lib/workflow/case-stage'
-import { sprintGate } from '@/lib/workflow/sprint-gate'
+import { gateFor } from '@/lib/workflow/sprint-gate'
 import { StandupDeck } from './standup-deck'
 
 export default async function StandupPage() {
@@ -30,8 +30,11 @@ export default async function StandupPage() {
   const sprint = running ?? sprints.find((s) => s.status === 'planned') ?? null
   const areaIds = sprint ? sprintAreas.filter((x) => x.sprint_id === sprint.id).map((x) => x.area_id) : []
   const [cases, runs] = sprint ? await Promise.all([loadCases(areaIds), loadSprintRuns(sprint.id)]) : [[], undefined]
-  const caseIds = new Set(cases.map((c) => c.id))
-  const gate = sprint ? sprintGate(cases.map((c) => toStageInput(c, runs)), tickets.filter((t) => (t.case_id && caseIds.has(t.case_id)) || t.current_sprint_id === sprint.id)) : null
+  const gate = sprint ? gateFor(sprint.kind, {
+    cases: cases.map((c) => toStageInput(c, runs)),
+    tickets: tickets.filter((t) => t.current_sprint_id === sprint.id),
+    emptyAreas: sprint.kind === 'test' ? areaIds.filter((a) => !cases.some((c) => c.area_id === a)).length : 0,
+  }) : null
   const left = cases.filter((c) => caseStage(toStageInput(c, runs)) !== 'done').length
   const moved = activity.filter((a) => a.kind === 'ticket')
   const closed = moved.filter((a) => a.what.endsWith('→ closed')).length

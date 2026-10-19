@@ -51,6 +51,25 @@ export function caseStage(c: CaseForStage): Stage {
   return 'done'
 }
 
+/**
+ * Test sprints (QA only, before any fixing): an area with no cases is written first, then cases
+ * are automated, run and tested by hand. A failure ends here with a ticket, which a fix sprint
+ * picks up. 'write' holds areas, not cases.
+ */
+export const TEST_STAGES = ['write', 'automate', 'test', 'passed', 'failed'] as const
+export type TestStage = (typeof TEST_STAGES)[number]
+export const TEST_STAGE_LABEL: Record<TestStage, string> = {
+  write: 'To write', automate: 'To automate', test: 'To test', passed: 'Passed', failed: 'Failed',
+}
+
+export function testStage(c: CaseForStage): Exclude<TestStage, 'write'> {
+  if (c.open_fix > 0 || c.awaiting_retest > 0 || needsTicket(c)) return 'failed'
+  // Critical/High never wait on automation, as on the other boards.
+  if (c.automation === 'not_automated' && !HIGH.includes(c.priority) && c.auto_result === null && c.manual_result === null) return 'automate'
+  if (caseStage(c) === 'test') return 'test'
+  return 'passed'
+}
+
 /** How a case in To test gets tested: by the automated suite, or by a person. */
 export function testBy(c: CaseForStage): 'auto' | 'manual' {
   return c.automation === 'automated' && c.auto_result === null ? 'auto' : 'manual'

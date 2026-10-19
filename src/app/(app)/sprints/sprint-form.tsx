@@ -9,8 +9,13 @@ export function SprintForm({ areas, sprint, selected }: { areas: Area[]; sprint?
     <form action={saveSprint} className="space-y-4">
       <input type="hidden" name="id" value={sprint?.id ?? ''} />
       <input type="hidden" name="back" value={sprint ? `/sprints/${sprint.id}` : '/sprints/new'} />
-      <div className="grid gap-3 sm:grid-cols-4">
-        <label className="block text-sm">Name<input name="name" required defaultValue={sprint?.name} className="input mt-1 w-full" placeholder="S12" /></label>
+      <div className="grid gap-3 sm:grid-cols-5">
+        <label className="block text-sm">Name<input name="name" required defaultValue={sprint?.name} className="input mt-1 w-full" placeholder="T5" /></label>
+        <label className="block text-sm">Type
+          <select name="kind" defaultValue={sprint?.kind ?? 'test'} className="select mt-1 w-full">
+            <option value="test">Test</option><option value="fix">Fix</option><option value="regression">Regression</option><option value="triage">Triage</option>
+          </select>
+        </label>
         <label className="block text-sm">Starts<input name="starts_on" type="date" required defaultValue={sprint?.starts_on} className="input mt-1 w-full" /></label>
         <label className="block text-sm">Ends<input name="ends_on" type="date" required defaultValue={sprint?.ends_on} className="input mt-1 w-full" /></label>
         <label className="block text-sm">Goal<input name="goal" defaultValue={sprint?.goal ?? ''} className="input mt-1 w-full" /></label>

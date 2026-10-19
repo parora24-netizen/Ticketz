@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { PageHeader, Stat } from '@/components/ui'
 import {
-  currentSprint, daysUntil, fmtDate, loadActivity, loadCases, loadPeople, loadSprintAreas, loadSprintRuns, loadSprints, loadTasks, loadTickets, toStageInput,
+  currentSprint, daysLeft, daysUntil, fmtDate, loadActivity, loadCases, loadPeople, loadSprintAreas, loadSprintRuns, loadSprints, loadTasks, loadTickets, toStageInput,
 } from '@/lib/data'
 import { buildStandup, lastWorkingDayStart } from '@/lib/standup'
 import { istDate } from '@/lib/trends'
@@ -48,7 +48,7 @@ export default async function StandupPage() {
       </PageHeader>
 
       <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
-        <Stat label={running ? 'Sprint' : 'Next sprint'} value={sprint?.name ?? '—'} sub={!sprint ? 'none planned' : running ? `${Math.max(daysUntil(sprint.ends_on), 0)} days left` : `starts ${fmtDate(sprint.starts_on)}`} />
+        <Stat label={running ? 'Sprint' : 'Next sprint'} value={sprint?.name ?? '—'} sub={!sprint ? 'none planned' : running ? `${daysLeft(sprint.ends_on)}` : `starts ${fmtDate(sprint.starts_on)}`} />
         <Stat label="Cases left" value={left} sub={`of ${cases.length} in ${sprint?.name ?? 'the sprint'}`} />
         <Stat label="Gate" value={gate ? `${gate.checks.filter((c) => c.ok).length}/${gate.checks.length}` : '—'} sub="close checks met" tone={gate?.ok ? 'good' : undefined} />
         <Stat label="Results recorded" value={results} sub="manual, since yesterday" />

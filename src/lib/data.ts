@@ -151,6 +151,12 @@ export function currentSprint(sprints: Sprint[], today = new Date().toISOString(
   )
 }
 
+/** "1 day left", "3 days left" (never negative). */
+export function daysLeft(date: string): string {
+  const n = Math.max(daysUntil(date), 0)
+  return n === 1 ? '1 day left' : `${n} days left`
+}
+
 export function daysUntil(date: string, today = new Date()): number {
   const ms = Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today.toISOString().slice(0, 10)}T00:00:00Z`)
   return Math.round(ms / 864e5)

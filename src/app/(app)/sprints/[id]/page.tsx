@@ -10,7 +10,7 @@ import { Tabs, nowSprint, sprintTabs } from '@/components/tabs'
 import { Chip, PageHeader, PriorityChip, StateChip, TicketLink } from '@/components/ui'
 import { getMe } from '@/lib/auth'
 import {
-  currentSprint, daysUntil, fmtDate, loadActivity, loadAreas, loadCases, loadPeople, loadRelease, loadSprintAreas, loadSprintRunTimes, loadSprintRuns,
+  currentSprint, daysLeft, daysUntil, fmtDate, loadActivity, loadAreas, loadCases, loadPeople, loadRelease, loadSprintAreas, loadSprintRunTimes, loadSprintRuns,
   loadSprints, loadTasks, loadTickets, toStageInput, type CaseRow, type TicketRow,
 } from '@/lib/data'
 import { buildStandup, lastWorkingDayStart } from '@/lib/standup'
@@ -73,7 +73,7 @@ export default async function SprintPage({
         title={`Sprint ${sprint.name}`}
         sub={<>{fmtDate(sprint.starts_on)} to {fmtDate(sprint.ends_on)} · {sprintTasks.length ? `${sprintTasks.length} tasks · ` : ''}{areaIds.length} areas · {cases.length} cases{sprint.goal ? ` · ${sprint.goal}` : ''}</>}>
         <Chip tone={sprint.status === 'active' ? 'accent' : sprint.status === 'closed' ? 'good' : 'muted'}>
-          {sprint.status === 'active' ? `Running · ${Math.max(daysUntil(sprint.ends_on), 0)} days left` : sprint.status === 'closed' ? 'Closed' : `Planned · starts in ${Math.max(daysUntil(sprint.starts_on), 0)} days`}
+          {sprint.status === 'active' ? `Running · ${daysLeft(sprint.ends_on)}` : sprint.status === 'closed' ? 'Closed' : `Planned · starts in ${Math.max(daysUntil(sprint.starts_on), 0)} days`}
         </Chip>
         {lead && sprint.status !== 'closed' && (
           <EditSprintButton><SprintForm areas={areas} sprint={sprint} selected={new Set(areaIds)} /></EditSprintButton>

@@ -71,7 +71,7 @@ export default async function SprintPage({
       <Tabs items={[...sprintTabs(nowS), ...(id !== nowS?.id ? [{ key: 'this', href: `/sprints/${id}`, label: `Sprint ${sprint.name}` }] : [])]} active={id === nowS?.id ? 'board' : 'this'} />
       <PageHeader
         title={`Sprint ${sprint.name}`}
-        sub={<>{fmtDate(sprint.starts_on)} to {fmtDate(sprint.ends_on)} · {sprintTasks.length ? `${sprintTasks.length} tasks · ` : ''}{areaIds.length ? `${areaIds.length} areas · ${cases.length} cases` : ''}{sprint.goal ? ` · ${sprint.goal}` : ''}</>}>
+        sub={[`${fmtDate(sprint.starts_on)} to ${fmtDate(sprint.ends_on)}`, sprintTasks.length && `${sprintTasks.length} tasks`, areaIds.length && `${areaIds.length} areas · ${cases.length} cases`, sprint.goal].filter(Boolean).join(' · ')}>
         <Chip tone={sprint.status === 'active' ? 'accent' : sprint.status === 'closed' ? 'good' : 'muted'}>
           {sprint.status === 'active' ? `Running · ${daysLeft(sprint.ends_on)}` : sprint.status === 'closed' ? 'Closed' : `Planned · starts in ${Math.max(daysUntil(sprint.starts_on), 0)} days`}
         </Chip>

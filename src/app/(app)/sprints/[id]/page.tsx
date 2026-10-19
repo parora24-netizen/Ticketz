@@ -91,7 +91,7 @@ export default async function SprintPage({
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
 
-      <section className="card mb-4 grid grid-cols-1 gap-x-6 gap-y-4 p-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+      <section className={cases.length ? 'card mb-4 grid grid-cols-1 gap-x-6 gap-y-4 p-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]' : 'mb-3'}>
         {cases.length > 0 && <>
         <div>
           <SprintProgress counts={counts} />

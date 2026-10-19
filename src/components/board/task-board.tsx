@@ -60,7 +60,9 @@ export function TaskBoard({ tasks, owner, today, sprintId, people, sprints, isLe
         </span>
       </header>
       <div className="max-lg:overflow-x-auto">
-        <div className="grid grid-cols-4 gap-2 max-lg:min-w-[760px]">
+        {/* Empty columns shrink to a slim drop target; full ones share the width and lay cards out in a grid. */}
+        <div className="grid gap-2 max-lg:min-w-[760px]"
+          style={{ gridTemplateColumns: COLUMNS.map((c) => (shown.some((t) => statusOf(t) === c.key) ? 'minmax(0,1fr)' : '150px')).join(' ') }}>
           {COLUMNS.map((col) => {
             const list = shown.filter((t) => statusOf(t) === col.key)
             const can = !!dragging && statusOf(dragging) !== col.key
@@ -68,12 +70,12 @@ export function TaskBoard({ tasks, owner, today, sprintId, people, sprints, isLe
               <div key={col.key}
                 onDragOver={(e) => { if (can) e.preventDefault() }}
                 onDrop={(e) => { e.preventDefault(); void drop(col.key) }}
-                className={`min-h-24 border p-1.5 ${can ? 'border-dashed border-[var(--navy)] bg-[var(--accent-soft)]' : 'border-transparent bg-[var(--surface-2)]'}`}>
+                className={`min-w-0 border p-1.5 ${can ? 'border-dashed border-[var(--navy)] bg-[var(--accent-soft)]' : 'border-transparent bg-[var(--surface-2)]'}`}>
                 <div className={`mb-1.5 flex items-baseline justify-between border-t-2 px-1 pt-1.5 ${col.key === 'blocked' && list.length ? 'border-[var(--crit)]' : list.length && col.key !== 'done' ? 'border-[var(--navy)]' : 'border-[var(--line)]'}`}>
                   <span className="text-[12.5px] font-semibold text-[var(--navy-ink)]">{col.label}</span>
                   <span className="mono text-[11.5px] text-[var(--muted)]">{list.length}</span>
                 </div>
-                <div className="space-y-1.5">
+                <div className="grid gap-1.5 [grid-template-columns:repeat(auto-fill,minmax(250px,1fr))]">
                   {list.map((t) => {
                     const late = statusOf(t) !== 'done' && t.due_on < today
                     return (
@@ -96,7 +98,7 @@ export function TaskBoard({ tasks, owner, today, sprintId, people, sprints, isLe
                       </article>
                     )
                   })}
-                  {list.length === 0 && <p className="py-2 text-center text-[11.5px] text-[var(--faint)]">{can ? 'Drop here' : 'Empty'}</p>}
+                  {list.length === 0 && can && <p className="py-2 text-center text-[11.5px] text-[var(--faint)]">Drop here</p>}
                 </div>
               </div>
             )

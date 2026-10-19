@@ -56,17 +56,17 @@ export function caseStage(c: CaseForStage): Stage {
  * are automated, run and tested by hand. A failure ends here with a ticket, which a fix sprint
  * picks up. 'write' holds areas, not cases.
  */
-export const TEST_STAGES = ['write', 'automate', 'test', 'passed', 'failed'] as const
+export const TEST_STAGES = ['write', 'automate', 'auto', 'manual', 'passed', 'failed'] as const
 export type TestStage = (typeof TEST_STAGES)[number]
 export const TEST_STAGE_LABEL: Record<TestStage, string> = {
-  write: 'To write', automate: 'To automate', test: 'To test', passed: 'Passed', failed: 'Failed',
+  write: 'No cases', automate: 'To automate', auto: 'Automated run', manual: 'Manual test', passed: 'Passed', failed: 'Failed',
 }
 
 export function testStage(c: CaseForStage): Exclude<TestStage, 'write'> {
   if (c.open_fix > 0 || c.awaiting_retest > 0 || needsTicket(c)) return 'failed'
   // Critical/High never wait on automation, as on the other boards.
   if (c.automation === 'not_automated' && !HIGH.includes(c.priority) && c.auto_result === null && c.manual_result === null) return 'automate'
-  if (caseStage(c) === 'test') return 'test'
+  if (caseStage(c) === 'test') return testBy(c)
   return 'passed'
 }
 

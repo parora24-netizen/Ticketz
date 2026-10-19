@@ -1,6 +1,5 @@
 import { notFound } from 'next/navigation'
 import { SprintBoard } from '@/components/board/sprint-board'
-import { TicketBoard } from '@/components/board/ticket-board'
 import { EditSprintButton, ExtendSprintButton, FinishSprintButton } from '@/components/board/sprint-controls'
 import { SprintProgress } from '@/components/board/sprint-progress'
 import { LineChart } from '@/components/charts/line-chart'
@@ -33,12 +32,15 @@ export default async function SprintPage({
   const nowS = nowSprints(sprints, runningSprints(sprints))
   const areaIds = sprintAreas.filter((x) => x.sprint_id === id).map((x) => x.area_id)
   const now = new Date()
-  const [cases, runs, allTickets, runTimes, tasks, activity] = await Promise.all([
-    loadCases(areaIds), loadSprintRuns(id), loadTickets(), loadSprintRunTimes(id), loadTasks(), loadActivity(lastWorkingDayStart(now)),
+  // Fix sprints have no areas: their board is the cases behind their tickets.
+  const [loaded, runs, allTickets, runTimes, tasks, activity] = await Promise.all([
+    sprint.kind === 'fix' ? loadCases() : loadCases(areaIds), loadSprintRuns(id), loadTickets(), loadSprintRunTimes(id), loadTasks(), loadActivity(lastWorkingDayStart(now)),
   ])
-  const caseIds = new Set(cases.map((c) => c.id))
   // The sprint's own tickets: fix sprints are made of them; test sprints raise them for later.
   const tickets = allTickets.filter((t) => t.current_sprint_id === id)
+  const ticketCases = new Set(tickets.map((t) => t.case_id).filter(Boolean))
+  const cases = sprint.kind === 'fix' ? loaded.filter((c) => ticketCases.has(c.id)) : loaded
+  const caseIds = new Set(cases.map((c) => c.id))
   const sprintTasks = tasks.filter((t) => t.sprint_id === id)
   const kind = sprint.kind
   const testMode = kind === 'test'
@@ -97,7 +99,7 @@ export default async function SprintPage({
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
 
-      {cases.length > 0 && kind !== 'fix' && (
+      {cases.length > 0 && (
       <section className="card mb-4 grid grid-cols-1 gap-x-6 gap-y-4 p-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
         <>
         <div>
@@ -113,11 +115,7 @@ export default async function SprintPage({
       </section>
       )}
 
-      {kind === 'fix' && (
-        <TicketBoard role={me.role} meId={me.id} zones={[...new Set(areas.map((a) => a.zone))]}
-          tickets={tickets.map((t) => ({ id: t.id, key: t.key, title: t.title, severity: t.severity, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name, tc_id: t.tc_id, zone: t.zone, page: t.page, updated_at: t.updated_at }))} />
-      )}
-      {kind !== 'fix' && <SprintBoard
+      <SprintBoard
         mode={testMode ? 'test' : 'cases'}
         emptyAreas={emptyAreaIds.map((a) => ({ id: a, label: areaName.get(a) ?? '' }))}
         role={me.role}
@@ -140,7 +138,7 @@ export default async function SprintPage({
             ticket: t ? { id: t.id, key: t.key, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name } : null,
           }
         })}
-      />}
+      />
 
       {kind !== 'fix' && carriedIn.length > 0 && (
         <section className="card mt-4">

@@ -101,7 +101,6 @@ export default async function ReleasePage() {
     <>
       <Tabs items={RELEASE_TABS} active="overview" />
       <PageHeader sub={`Ships ${fmtDate(release.release_on)} · go/no-go ${fmtDate(release.go_no_go_on)}`}>
-        <Link href="/standup" className="btn">Standup</Link>
         {me.role === 'lead' && <ReleaseDateButton release_on={release.release_on} go_no_go_on={release.go_no_go_on} />}
       </PageHeader>
 

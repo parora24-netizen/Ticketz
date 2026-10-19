@@ -70,7 +70,7 @@ export function gateFor(kind: SprintKind, input: { cases: CaseForStage[]; ticket
   let checks: GateCheck[]
   if (kind === 'regression') return sprintGate(cases, tickets, tasks)
   if (kind === 'test') {
-    const untested = cases.filter((c) => ['automate', 'test'].includes(testStage(c))).length
+    const untested = cases.filter((c) => ['automate', 'auto', 'manual'].includes(testStage(c))).length
     const unticketed = cases.filter(needsTicket).length
     checks = [
       { label: 'Every area has cases', ok: emptyAreas === 0, detail: emptyAreas === 0 ? 'All areas have cases' : `${emptyAreas} areas have no cases yet` },

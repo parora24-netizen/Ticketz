@@ -40,15 +40,18 @@ export function boardMove(from: Stage, to: Stage, role: Role, ticketState: Ticke
 
 /** A drop on a test sprint's board: mark it automated, or record a pass or a fail. */
 export type TestBoardMove =
-  | { kind: 'automation'; value: 'automated'; label: string }
+  | { kind: 'automation'; value: 'automated' | 'manual_only'; label: string }
   | { kind: 'result'; result: 'passed' | 'failed'; ask: boolean; label: string }
 
 export function testBoardMove(from: TestStage, to: TestStage, role: Role): TestBoardMove | { error: string } {
   if (role === 'dev') return { error: 'QA or the lead runs test sprints' }
   switch (`${from}>${to}`) {
-    case 'automate>test': return { kind: 'automation', value: 'automated', label: 'Marked automated' }
-    case 'test>passed': return { kind: 'result', result: 'passed', ask: false, label: 'Pass recorded' }
-    case 'test>failed': return { kind: 'result', result: 'failed', ask: true, label: 'Fail recorded' }
+    case 'automate>auto': return { kind: 'automation', value: 'automated', label: 'Marked automated' }
+    case 'automate>manual': return { kind: 'automation', value: 'manual_only', label: 'Marked manual only' }
+    case 'auto>passed':
+    case 'manual>passed': return { kind: 'result', result: 'passed', ask: false, label: 'Pass recorded' }
+    case 'auto>failed':
+    case 'manual>failed': return { kind: 'result', result: 'failed', ask: true, label: 'Fail recorded' }
     default: return { error: from === 'failed' ? 'Failures are fixed in a fix sprint' : 'That step does not follow from here' }
   }
 }

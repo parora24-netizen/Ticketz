@@ -4,7 +4,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { AdminIcon, CasesIcon, HomeIcon, MoreIcon, ReleaseIcon, SprintIcon, StandupIcon, TicketIcon } from '@/components/icons'
+import { AdminIcon, CasesIcon, HomeIcon, MoreIcon, ReleaseIcon, SprintIcon, TicketIcon } from '@/components/icons'
 
 type Item = { href: string; label: string; icon: (p: { className?: string }) => React.ReactNode; match: string[]; lead?: boolean }
 
@@ -14,7 +14,6 @@ const ITEMS: Item[] = [
   { href: '/sprint', label: 'Sprints', icon: SprintIcon, match: ['/sprint', '/sprints'] },
   { href: '/tickets', label: 'Tickets', icon: TicketIcon, match: ['/tickets'] },
   { href: '/cases', label: 'Test cases', icon: CasesIcon, match: ['/cases'] },
-  { href: '/standup', label: 'Standup', icon: StandupIcon, match: ['/standup'] },
   { href: '/release', label: 'Release', icon: ReleaseIcon, match: ['/release', '/plan', '/areas'] },
   { href: '/admin', label: 'Admin', icon: AdminIcon, match: ['/admin'], lead: true },
 ]

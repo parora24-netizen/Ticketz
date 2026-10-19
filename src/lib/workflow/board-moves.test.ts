@@ -28,10 +28,11 @@ describe('sprint board drops', () => {
   })
 
   it('test sprints: automate, then pass or fail; devs and failures stay put', () => {
-    expect(testBoardMove('automate', 'test', 'qa')).toMatchObject({ kind: 'automation', value: 'automated' })
-    expect(testBoardMove('test', 'failed', 'qa')).toMatchObject({ kind: 'result', result: 'failed', ask: true })
-    expect(droppableTestStages('test', 'qa')).toEqual(['passed', 'failed'])
-    expect(testBoardMove('test', 'passed', 'dev')).toHaveProperty('error')
+    expect(testBoardMove('automate', 'auto', 'qa')).toMatchObject({ kind: 'automation', value: 'automated' })
+    expect(testBoardMove('automate', 'manual', 'qa')).toMatchObject({ kind: 'automation', value: 'manual_only' })
+    expect(testBoardMove('manual', 'failed', 'qa')).toMatchObject({ kind: 'result', result: 'failed', ask: true })
+    expect(droppableTestStages('auto', 'qa')).toEqual(['passed', 'failed'])
+    expect(testBoardMove('manual', 'passed', 'dev')).toHaveProperty('error')
     expect(testBoardMove('failed', 'passed', 'lead')).toEqual({ error: 'Failures are fixed in a fix sprint' })
   })
 })

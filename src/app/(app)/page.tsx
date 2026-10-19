@@ -97,7 +97,7 @@ export default async function Home() {
           <h2 className="mt-1 text-[22px] font-semibold text-[var(--navy-ink)]">{greeting}, {me.name.split(' ')[0]}</h2>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/standup" className="btn">Run standup</Link>
+          <Link href="/sprint" className="btn">Run standup</Link>
           {sprint && me.role !== 'dev' && <Link href={`/sprints/${sprint.id}`} className="btn">Record results</Link>}
           <Link href="/tickets/new" data-create className="btn btn-primary">+ New ticket</Link>
         </div>

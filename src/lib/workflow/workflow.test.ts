@@ -84,8 +84,9 @@ describe('case stage', () => {
 
   it('places cases on a test sprint board', () => {
     expect(testStage({ ...base, automation: 'not_automated', priority: 'Low' })).toBe('automate')
-    expect(testStage({ ...base, automation: 'not_automated', priority: 'High' })).toBe('test')
-    expect(testStage(base)).toBe('test')
+    expect(testStage({ ...base, automation: 'not_automated', priority: 'High' })).toBe('manual')
+    expect(testStage(base)).toBe('auto')
+    expect(testStage({ ...base, auto_result: 'failed' })).toBe('manual')
     expect(testStage({ ...base, auto_result: 'passed' })).toBe('passed')
     expect(testStage({ ...base, auto_result: 'failed', manual_result: 'failed' })).toBe('failed')
     expect(testStage({ ...base, auto_result: 'passed', open_fix: 1 })).toBe('failed')

@@ -20,7 +20,8 @@ export default async function SprintsPage({ searchParams }: { searchParams: Prom
   const sp = await searchParams
   const [me, sprints, areas, sprintAreas, cases, changes, release, tickets] = await Promise.all([getMe(), loadSprints(), loadAreas(), loadSprintAreas(), loadCases(), loadScheduleChanges(), loadRelease(), loadTickets()])
   const running = runningSprints(sprints)
-  const areaName = new Map(areas.map((a) => [a.id, a.page]))
+  const areaById = new Map(areas.map((a) => [a.id, a]))
+  const pagesInZone = (zone: string) => areas.filter((a) => a.zone === zone).length
   const casesByArea = new Map<string, number>()
   const testedByArea = new Map<string, number>()
   for (const c of cases) {
@@ -29,16 +30,26 @@ export default async function SprintsPage({ searchParams }: { searchParams: Prom
   }
   const rows = sprints.map((s) => {
     const ids = sprintAreas.filter((x) => x.sprint_id === s.id).map((x) => x.area_id)
+    const open = tickets.filter((t) => t.current_sprint_id === s.id && !['closed', 'deferred', 'duplicate'].includes(t.state))
+    // Test sprints cover their areas; fix sprints cover wherever their tickets are.
+    const spots = s.kind === 'fix'
+      ? open.filter((t) => t.zone).map((t) => ({ zone: t.zone!, page: t.page! }))
+      : ids.map((id) => areaById.get(id)).filter((a) => !!a).map((a) => ({ zone: a!.zone, page: a!.page }))
+    const zones = [...new Set(spots.map((x) => x.zone))]
+    const pageText = zones.map((z) => {
+      const pages = [...new Set(spots.filter((x) => x.zone === z).map((x) => x.page))]
+      return s.kind !== 'fix' && pages.length === pagesInZone(z) ? `${z}: all` : pages.join(', ')
+    }).join(' · ')
     return {
       id: s.id,
       name: s.name,
       kind: { triage: 'Triage', test: 'Test', fix: 'Fix', regression: 'Regression' }[s.kind],
-      tickets: tickets.filter((t) => t.current_sprint_id === s.id && !['closed', 'deferred', 'duplicate'].includes(t.state)).length,
+      tickets: open.length,
       starts_on: s.starts_on,
       dates: `${fmtDate(s.starts_on)} to ${fmtDate(s.ends_on)}`,
       days: workingDays(s.starts_on, s.ends_on),
-      goal: s.goal ?? '',
-      areas: ids.length === areas.length ? 'All areas' : ids.map((id) => areaName.get(id)).join(', '),
+      zones: zones.join(', '),
+      pages: pageText,
       cases: ids.reduce((sum, id) => sum + (casesByArea.get(id) ?? 0), 0),
       tested: ids.reduce((sum, id) => sum + (testedByArea.get(id) ?? 0), 0),
       status: s.status === 'active' ? 'Running' : s.status === 'closed' ? 'Closed' : 'Planned',

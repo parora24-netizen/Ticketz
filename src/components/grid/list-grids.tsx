@@ -7,7 +7,7 @@ import { deleteRows, updatePeople, updateTasks } from '@/app/(app)/actions'
 
 // ---- Sprints ---------------------------------------------------------------------------------
 
-export type SprintRow = { id: string; name: string; kind: string; tickets: number; dates: string; starts_on: string; days: number; areas: string; cases: number; tested: number; status: string; goal: string; current: boolean }
+export type SprintRow = { id: string; name: string; kind: string; tickets: number; dates: string; starts_on: string; days: number; zones: string; pages: string; cases: number; tested: number; status: string; current: boolean }
 
 export function SprintsGrid({ rows }: { rows: SprintRow[] }) {
   const cols: Column<SprintRow>[] = [
@@ -18,8 +18,8 @@ export function SprintsGrid({ rows }: { rows: SprintRow[] }) {
       render: (r) => <Chip tone={r.status === 'Running' ? 'accent' : r.status === 'Closed' ? 'good' : 'muted'}>{r.status}</Chip> },
     { key: 'dates', header: 'Dates', width: 150, value: (r) => r.dates, sortValue: (r) => r.starts_on },
     { key: 'days', header: 'Days', width: 70, align: 'right', value: (r) => r.days },
-    { key: 'goal', header: 'Goal', width: 320, value: (r) => r.goal },
-    { key: 'areas', header: 'Areas', width: 420, value: (r) => r.areas, filter: 'text' },
+    { key: 'zones', header: 'Zone', width: 220, value: (r) => r.zones, filter: 'text' },
+    { key: 'pages', header: 'Page', width: 420, value: (r) => r.pages, filter: 'text' },
     { key: 'cases', header: 'Cases', width: 80, align: 'right', value: (r) => r.cases || null },
     { key: 'tickets', header: 'Open tickets', width: 110, align: 'right', value: (r) => r.tickets || null },
     { key: 'tested', header: 'Tested', width: 150, value: (r) => (r.cases ? Math.round((r.tested / r.cases) * 100) : 0), sortValue: (r) => (r.cases ? r.tested / r.cases : 0),

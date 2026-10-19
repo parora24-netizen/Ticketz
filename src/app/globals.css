@@ -98,3 +98,12 @@ html[data-density='airy'] .grid-table th { height: 38px; }
 /* Tables with no checkbox column: the first column is ordinary. */
 .grid-table.plain th:first-child, .grid-table.plain td:first-child { width: auto; }
 .grid-table.plain td:first-child { overflow: hidden; text-overflow: ellipsis; }
+
+/* Tailwind 4 leaves buttons with the arrow cursor; everything clickable gets the hand. */
+@layer base {
+  button:not(:disabled), [role='button']:not([aria-disabled='true']), [role='tab'], summary, select:not(:disabled),
+  label:has(> input[type='file']), label:has(> input[type='checkbox']), input[type='checkbox'], input[type='radio'] {
+    cursor: pointer;
+  }
+  button:disabled { cursor: not-allowed; }
+}

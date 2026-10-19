@@ -97,8 +97,9 @@ export default async function SprintPage({
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
 
-      <section className={cases.length && kind !== 'fix' ? 'card mb-4 grid grid-cols-1 gap-x-6 gap-y-4 p-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]' : 'mb-3'}>
-        {cases.length > 0 && kind !== 'fix' && <>
+      {cases.length > 0 && kind !== 'fix' && (
+      <section className="card mb-4 grid grid-cols-1 gap-x-6 gap-y-4 p-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        <>
         <div>
           <SprintProgress counts={counts} mode={testMode ? 'test' : 'cases'} />
         </div>
@@ -108,24 +109,9 @@ export default async function SprintPage({
             ? <LineChart points={daily} label="Cases with a result this sprint" unit="cases" target={{ value: cases.length, label: 'all' }} height={140} />
             : <p className="mt-2 text-[12.5px] text-[var(--muted)]">{new Set(runTimes.map((r) => r.case_id)).size} of {cases.length}</p>}
         </div>
-        </>}
-        {/* Only what still blocks closing; the checks already met fold into one chip. */}
-        <div className={`flex flex-wrap items-center gap-2 xl:col-span-2 ${cases.length && kind !== 'fix' ? 'border-t border-[var(--line-soft)] pt-3' : ''}`}>
-          <span className="label mr-1">Close gate</span>
-          {gate.checks.filter((c) => !c.ok).map((c) => (
-            <span key={c.label} className="chip border-[var(--line)] bg-white text-[var(--ink-2)] sm:whitespace-nowrap">
-              {c.label}<span className="ml-1.5 font-normal text-[var(--muted)]">{c.detail}</span>
-            </span>
-          ))}
-          {gate.ok
-            ? <span className="chip border-[var(--good-line)] bg-[var(--good-soft)] text-[var(--good)]">✓ Ready to close</span>
-            : gate.checks.some((c) => c.ok) && (
-              <span className="chip border-[var(--good-line)] bg-[var(--good-soft)] text-[var(--good)]" title={gate.checks.filter((c) => c.ok).map((c) => c.label).join(' · ')}>
-                ✓ {gate.checks.filter((c) => c.ok).length} met
-              </span>
-            )}
-        </div>
+        </>
       </section>
+      )}
 
       {kind === 'fix' && (
         <TicketBoard role={me.role} meId={me.id} zones={[...new Set(areas.map((a) => a.zone))]}

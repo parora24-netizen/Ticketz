@@ -1,6 +1,7 @@
 'use server'
 
 import { randomInt } from 'node:crypto'
+import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { getMe } from '@/lib/auth'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
@@ -30,20 +31,34 @@ export async function setTempPassword(personId: string): Promise<{ error?: strin
   if (listError) return { error: listError.message }
   const existing = list.users.find((u) => u.email?.toLowerCase() === email)
   const password = tempPassword()
+  // The flag sends them to /set-password on their first sign-in, until they choose their own.
   const { error } = existing
-    ? await admin.auth.admin.updateUserById(existing.id, { password, email_confirm: true })
-    : await admin.auth.admin.createUser({ email, password, email_confirm: true })
+    ? await admin.auth.admin.updateUserById(existing.id, { password, email_confirm: true, user_metadata: { ...existing.user_metadata, must_change_password: true } })
+    : await admin.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { must_change_password: true } })
   if (error) return { error: error.message }
   return { password, email }
 }
 
-/** Anyone signed in changes their own password; no email needed. */
+/**
+ * Anyone signed in changes their own password; no email needed. Also clears the temporary-password
+ * flag, and refreshes the session so the next page sees it cleared. Not behind getMe(), which
+ * would send someone with a temporary password straight back to /set-password.
+ */
 export async function changePassword(password: string, confirm: string): Promise<{ error?: string }> {
-  await getMe()
+  const supabase = await createClient()
+  const { data: auth } = await supabase.auth.getClaims()
+  if (!auth?.claims?.email) return { error: 'Sign in again' }
   if (password.length < 8) return { error: 'Use at least 8 characters' }
   if (password !== confirm) return { error: 'The two passwords do not match' }
-  const supabase = await createClient()
-  const { error } = await supabase.auth.updateUser({ password })
-  if (error) return { error: /weak|password/i.test(error.message) ? 'Choose a stronger password' : error.message }
+  const { error } = await supabase.auth.updateUser({ password, data: { must_change_password: false } })
+  if (error) return { error: /weak|password|same/i.test(error.message) ? 'Choose a different, stronger password' : error.message }
+  await supabase.auth.refreshSession()
   return {}
+}
+
+/** The /set-password form: save, then into the app. */
+export async function finishTempPassword(formData: FormData): Promise<{ error?: string }> {
+  const res = await changePassword(String(formData.get('password') ?? ''), String(formData.get('confirm') ?? ''))
+  if (res.error) return res
+  redirect('/')
 }

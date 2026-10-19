@@ -13,6 +13,9 @@ export const getMe = cache(async (): Promise<Me> => {
   const { data: auth } = await supabase.auth.getClaims()
   const email = typeof auth?.claims?.email === 'string' ? auth.claims.email : null
   if (!email) redirect('/login')
+  // Signed in with a temporary password from the lead: choose your own before anything else.
+  const meta = auth?.claims?.user_metadata as { must_change_password?: boolean } | undefined
+  if (meta?.must_change_password) redirect('/set-password')
   const { data } = await supabase
     .from('people')
     .select('id, name, email, role')

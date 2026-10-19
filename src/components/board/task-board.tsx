@@ -54,7 +54,6 @@ export function TaskBoard({ tasks, owner, today, sprintId, people, sprints, isLe
     <section className="mb-4">
       <header className="mb-2 flex flex-wrap items-baseline gap-3">
         <h3 className="text-[14px] font-semibold text-[var(--navy-ink)]">Tasks · {shown.filter((t) => statusOf(t) === 'done').length} of {shown.length} done</h3>
-        <span className="text-[12px] text-[var(--muted)]">Drag to change status; click a task to edit it.</span>
         <span className="ml-auto flex items-center gap-3">
           <Link href="/plan" className="text-[12px] text-[var(--accent)] hover:underline">Move tasks in from the plan</Link>
           {isLead && <button type="button" onClick={() => setEditing('new')} className="btn btn-sm btn-primary">+ Add task</button>}

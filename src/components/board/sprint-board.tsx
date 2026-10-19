@@ -240,7 +240,6 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
             <h3 className="text-[12.5px] font-semibold text-[var(--navy-ink)]"><span className="mono mr-1.5 text-[11px] text-[var(--faint)]">{n + 1}</span>{STAGE_LABEL[stage]}</h3>
             <span className="mono text-[11.5px] text-[var(--muted)]">{counts(stage)}</span>
           </div>
-          <p className="text-[11px] leading-snug text-[var(--muted)]">{HELP[stage]}</p>
         </div>
       ))}
     </div>
@@ -313,10 +312,6 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
       {tasks.length > 0 && <TaskBoard tasks={tasks} owner={owner} today={today} sprintId={sprintId} people={people} sprints={sprints} isLead={role === 'lead'} />}
 
       {cards.length > 0 && <>
-      <p className="mb-2 text-[12px] text-[var(--muted)]">
-        {owner ? <>Showing <b className="text-[var(--ink-2)]">{ownerLabel}</b>&apos;s cards on this sprint{shown.length ? '' : ': none'}. </> : null}
-        {active ? 'Drag a card to its next step, or click it to work on it here.' : 'Start the sprint to record results; you can still open cards and set owners.'}
-      </p>
 
       {/* One page scroll: no column scrolls, the headings stick. Narrow screens scroll sideways instead. */}
       <div className="max-lg:overflow-x-auto">

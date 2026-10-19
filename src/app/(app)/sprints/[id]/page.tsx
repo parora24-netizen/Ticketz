@@ -71,7 +71,7 @@ export default async function SprintPage({
       <Tabs items={[...sprintTabs(nowS), ...(id !== nowS?.id ? [{ key: 'this', href: `/sprints/${id}`, label: `Sprint ${sprint.name}` }] : [])]} active={id === nowS?.id ? 'board' : 'this'} />
       <PageHeader
         title={`Sprint ${sprint.name}`}
-        sub={<>{fmtDate(sprint.starts_on)} to {fmtDate(sprint.ends_on)} · {sprintTasks.length ? `${sprintTasks.length} tasks · ` : ''}{areaIds.length} areas · {cases.length} cases{sprint.goal ? ` · ${sprint.goal}` : ''}</>}>
+        sub={<>{fmtDate(sprint.starts_on)} to {fmtDate(sprint.ends_on)} · {sprintTasks.length ? `${sprintTasks.length} tasks · ` : ''}{areaIds.length ? `${areaIds.length} areas · ${cases.length} cases` : ''}{sprint.goal ? ` · ${sprint.goal}` : ''}</>}>
         <Chip tone={sprint.status === 'active' ? 'accent' : sprint.status === 'closed' ? 'good' : 'muted'}>
           {sprint.status === 'active' ? `Running · ${daysLeft(sprint.ends_on)}` : sprint.status === 'closed' ? 'Closed' : `Planned · starts in ${Math.max(daysUntil(sprint.starts_on), 0)} days`}
         </Chip>
@@ -92,14 +92,7 @@ export default async function SprintPage({
       <Flash error={sp.error} ok={sp.ok} />
 
       <section className="card mb-4 grid grid-cols-1 gap-x-6 gap-y-4 p-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-        {cases.length === 0 ? (
-          <div className="xl:col-span-2">
-            <h3 className="text-[13px] font-semibold text-[var(--navy-ink)]">Progress</h3>
-            <p className="mt-1 text-[12.5px] text-[var(--muted)]">
-              No test areas in this sprint: it is {sprintTasks.length ? `${sprintTasks.length} plan tasks, ${sprintTasks.filter((t) => t.status === 'done').length} done` : 'empty so far; add areas with Edit sprint or tasks from the plan'}.
-            </p>
-          </div>
-        ) : <>
+        {cases.length > 0 && <>
         <div>
           <SprintProgress counts={counts} />
         </div>
@@ -107,18 +100,24 @@ export default async function SprintPage({
           <h3 className="text-[13px] font-semibold text-[var(--navy-ink)]">Cases with a result this sprint</h3>
           {daily.length > 1
             ? <LineChart points={daily} label="Cases with a result this sprint" unit="cases" target={{ value: cases.length, label: 'all' }} height={140} />
-            : <p className="mt-2 text-[12.5px] text-[var(--muted)]">{sprint.status === 'planned' ? `Fills in day by day once ${sprint.name} starts on ${fmtDate(sprint.starts_on)}.` : `${new Set(runTimes.map((r) => r.case_id)).size} of ${cases.length} so far.`}</p>}
+            : <p className="mt-2 text-[12.5px] text-[var(--muted)]">{new Set(runTimes.map((r) => r.case_id)).size} of {cases.length}</p>}
         </div>
         </>}
-        {/* Full card width so the four checks sit on one line on a desktop screen. */}
-        <div className="flex flex-wrap items-center gap-2 border-t border-[var(--line-soft)] pt-3 xl:col-span-2">
+        {/* Only what still blocks closing; the checks already met fold into one chip. */}
+        <div className={`flex flex-wrap items-center gap-2 xl:col-span-2 ${cases.length ? 'border-t border-[var(--line-soft)] pt-3' : ''}`}>
           <span className="label mr-1">Close gate</span>
-          {gate.checks.map((c) => (
-            <span key={c.label} title={c.detail}
-              className={`chip sm:whitespace-nowrap ${c.ok ? 'border-[var(--good-line)] bg-[var(--good-soft)] text-[var(--good)]' : 'border-[var(--line)] bg-white text-[var(--ink-2)]'}`}>
-              {c.ok ? '✓' : '•'} {c.label}{!c.ok && <span className="ml-1.5 font-normal text-[var(--muted)]">{c.detail}</span>}
+          {gate.checks.filter((c) => !c.ok).map((c) => (
+            <span key={c.label} className="chip border-[var(--line)] bg-white text-[var(--ink-2)] sm:whitespace-nowrap">
+              {c.label}<span className="ml-1.5 font-normal text-[var(--muted)]">{c.detail}</span>
             </span>
           ))}
+          {gate.ok
+            ? <span className="chip border-[var(--good-line)] bg-[var(--good-soft)] text-[var(--good)]">✓ Ready to close</span>
+            : gate.checks.some((c) => c.ok) && (
+              <span className="chip border-[var(--good-line)] bg-[var(--good-soft)] text-[var(--good)]" title={gate.checks.filter((c) => c.ok).map((c) => c.label).join(' · ')}>
+                ✓ {gate.checks.filter((c) => c.ok).length} met
+              </span>
+            )}
         </div>
       </section>
 
@@ -149,7 +148,6 @@ export default async function SprintPage({
         <section className="card mt-4">
           <header className="border-b border-[var(--line)] px-4 py-2.5">
             <h3 className="text-[14px] font-semibold text-[var(--navy-ink)]">Carried into {sprint.name} · {carriedIn.length}</h3>
-            <p className="text-[12px] text-[var(--muted)]">Open tickets moved here from an earlier sprint. They count toward this sprint&apos;s gate.</p>
           </header>
           <ul className="divide-y divide-[var(--row)]">
             {carriedIn.map((t) => (
@@ -165,9 +163,6 @@ export default async function SprintPage({
         </section>
       )}
 
-      <p className="mt-4 text-[12px] text-[var(--muted)]">
-        Every extension and spillover is recorded in the <Link href="/sprints#schedule" className="text-[var(--accent)] hover:underline">schedule log</Link>.
-      </p>
     </>
   )
 }

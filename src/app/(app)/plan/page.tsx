@@ -12,7 +12,7 @@ export default async function PlanPage() {
   return (
     <>
       <Tabs items={RELEASE_TABS} active="plan" />
-      <PageHeader sub={`${done} of ${tasks.length} tasks done${late ? ` · ${late} late` : ''}. Change a status or sprint in the grid; it saves at once.`} />
+      <PageHeader sub={`${done} of ${tasks.length} tasks done${late ? ` · ${late} late` : ''}`} />
       <PlanGrid rows={tasks.map((t) => ({
         id: t.id, num: t.num, phase: t.phase, title: t.title, owner: t.owner_label, due_on: t.due_on, status: t.status,
         late: t.status !== 'done' && t.due_on < today, sprint_id: t.sprint_id,

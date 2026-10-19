@@ -38,12 +38,10 @@ export function ImportForm() {
       <form action={previewAction} className="card grid gap-5 p-5 lg:grid-cols-2">
         <div>
           <h2 className="text-[15px] font-semibold">Upload a file</h2>
-          <p className="mt-1 text-[12.5px] text-[var(--muted)]">The test workbook (.xlsx) or a CSV with the same column headers.</p>
           <input type="file" name="file" accept=".xlsx,.csv" className="mt-3 block w-full text-[12.5px] file:mr-3 file:h-8 file:border file:border-[var(--line)] file:bg-white file:px-3 file:font-semibold file:text-[var(--ink-2)]" />
         </div>
         <div>
           <h2 className="text-[15px] font-semibold">Or paste from Excel</h2>
-          <p className="mt-1 text-[12.5px] text-[var(--muted)]">Copy the header row and the rows below it, then paste here.</p>
           <textarea name="pasted" rows={4} className="input mono mt-3 w-full text-[11.5px]" placeholder={'Zone\tPage\tTest Case Title\tPriority\tTest Steps\tExpected Result'} />
         </div>
         <div className="flex items-center gap-3 lg:col-span-2">

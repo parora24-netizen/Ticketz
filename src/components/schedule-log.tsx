@@ -20,7 +20,7 @@ export function ScheduleLog({ changes, release, limit }: { changes: ScheduleChan
         </span>
       </header>
       {list.length === 0
-        ? <p className="px-4 py-4 text-[12.5px] text-[var(--muted)]">No changes yet. Extensions, spillovers and release moves are recorded here with who made them and why.</p>
+        ? <p className="px-4 py-4 text-[12.5px] text-[var(--muted)]">No changes yet.</p>
         : (
           <ul className="divide-y divide-[var(--row)]">
             {list.map((c) => (

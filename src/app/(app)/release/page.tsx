@@ -22,7 +22,6 @@ export default async function ReleasePage() {
     loadAreas(), loadCases(), loadTickets(), loadSprints(), loadTasks(), loadTicketEvents(), loadManualRuns(), loadRelease(), loadScheduleChanges(),
   ])
   const RELEASE_DATE = release.release_on
-  const GO_NO_GO_DATE = release.go_no_go_on
   const slipped = daysUntil(release.release_on) - daysUntil(release.original_release_on)
   const today = new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10)
   const sprint = currentSprint(sprints)
@@ -101,7 +100,7 @@ export default async function ReleasePage() {
   return (
     <>
       <Tabs items={RELEASE_TABS} active="overview" />
-      <PageHeader sub={`26.111 ships ${fmtDate(RELEASE_DATE)} (go/no-go ${fmtDate(GO_NO_GO_DATE)}). Ask MAIA ships behind a flag if it slips.`}>
+      <PageHeader sub={`Ships ${fmtDate(release.release_on)} · go/no-go ${fmtDate(release.go_no_go_on)}`}>
         <Link href="/standup" className="btn">Standup</Link>
         {me.role === 'lead' && <ReleaseDateButton release_on={release.release_on} go_no_go_on={release.go_no_go_on} />}
       </PageHeader>
@@ -128,12 +127,10 @@ export default async function ReleasePage() {
       <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
         <section className="card px-4 pt-3 pb-2">
           <h3 className="text-[14px] font-semibold text-[var(--navy-ink)]">Open Critical and High tickets</h3>
-          <p className="text-[12px] text-[var(--muted)]">End of each day. The release needs this at zero, or worked around.</p>
           <LineChart points={openTrend} label="Open Critical and High tickets" unit="open" target={{ value: 0, label: 'goal' }} />
         </section>
         <section className="card px-4 pt-3 pb-2">
           <h3 className="text-[14px] font-semibold text-[var(--navy-ink)]">Test cases tested manually</h3>
-          <p className="text-[12px] text-[var(--muted)]">Distinct cases with a manual result, out of {cases.length}.</p>
           <LineChart points={testedTrend} label="Test cases tested manually" unit="cases" target={{ value: cases.length, label: 'all' }} />
         </section>
       </div>

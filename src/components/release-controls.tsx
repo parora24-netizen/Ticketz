@@ -33,7 +33,6 @@ export function ReleaseDateButton({ release_on, go_no_go_on }: { release_on: str
           <label className="block"><span className="label">Why</span>
             <textarea required minLength={3} rows={2} value={reason} onChange={(e) => setReason(e.target.value)} className="input mt-1 w-full" />
           </label>
-          <p className="text-[12px] text-[var(--muted)]">Sprint dates stay as they are; use Extend on a sprint to move sprints. Recorded in the schedule log.</p>
           <div className="flex justify-end gap-2">
             <button type="button" onClick={() => setOpen(false)} className="btn">Cancel</button>
             <button disabled={pending} className="btn btn-primary">{pending ? 'Saving…' : 'Save dates'}</button>

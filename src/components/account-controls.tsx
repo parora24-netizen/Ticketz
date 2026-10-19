@@ -14,7 +14,7 @@ export function TempPasswordPanel({ people }: { people: { id: string; name: stri
     <section className="card mt-4 p-4">
       <h2 className="text-[14px] font-semibold text-[var(--navy-ink)]">Give someone a sign-in</h2>
       <p className="mt-0.5 text-[12.5px] text-[var(--muted)]">
-        Makes a temporary password, no email needed. Send it to them directly; they can change it from their profile menu.
+        Temporary password, no email needed. They choose their own on first sign-in.
       </p>
       <form className="mt-3 flex flex-wrap items-end gap-2" onSubmit={(e) => {
         e.preventDefault()

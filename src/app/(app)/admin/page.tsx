@@ -36,7 +36,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
       <Flash error={sp.error} ok={sp.ok} />
       {tab === 'team' ? (
         <>
-          <PageHeader sub={`Only people listed here can sign in, with the email shown.${noEmail ? ` ${noEmail} still need an email.` : ''} Double-click a cell to edit.`}>
+          <PageHeader sub={noEmail ? `${noEmail} still need an email` : undefined}>
             <Link href={sp.add ? '/admin' : '/admin?add=1'} {...(sp.add ? {} : { 'data-create': '' })} className={`btn ${sp.add ? '' : 'btn-primary'}`}>{sp.add ? 'Cancel' : '+ Add person'}</Link>
           </PageHeader>
           {sp.add && (
@@ -54,7 +54,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         </>
       ) : (
         <>
-          <PageHeader sub={<>The automated suite posts results to <code className="mono">/api/results</code> with one of these tokens. The README has the payload.</>} />
+          <PageHeader sub={<>Tokens for <code className="mono">/api/results</code></>} />
           {newToken && (
             <div className="mb-4 border border-[var(--warn-line)] bg-[var(--warn-soft)] p-3 text-[13px]">
               Copy this token now; it is not shown again:

@@ -156,7 +156,7 @@ export default async function SprintPage({
         })}
       />}
 
-      {carriedIn.length > 0 && (
+      {kind !== 'fix' && carriedIn.length > 0 && (
         <section className="card mt-4">
           <header className="border-b border-[var(--line)] px-4 py-2.5">
             <h3 className="text-[14px] font-semibold text-[var(--navy-ink)]">Carried into {sprint.name} · {carriedIn.length}</h3>

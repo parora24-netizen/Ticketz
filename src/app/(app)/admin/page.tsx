@@ -87,7 +87,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           </form>
           <div className="border border-[var(--line)] bg-white">
             <table className="table grid-table plain">
-              <colgroup><col className="w-48" /><col /><col className="w-32" /><col className="w-32" /><col className="w-32" /></colgroup>
+              <colgroup><col className="w-36" /><col /><col className="w-24" /><col className="w-24" /><col className="w-24" /></colgroup>
               <thead><tr><th>Label</th><th>Token</th><th>Created</th><th>Last used</th><th>Status</th></tr></thead>
               <tbody>
                 {(tokens ?? []).map((t) => (

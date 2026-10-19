@@ -1,15 +1,16 @@
+import { FIX_STAGES, FIX_STAGE_LABEL } from '@/lib/workflow/board-moves'
 import { STAGES, STAGE_LABEL, TEST_STAGES, TEST_STAGE_LABEL } from '@/lib/workflow/case-stage'
 
 // One hue, light to dark as work moves along; red marks failures.
 const FILL: Record<string, string> = {
   test: '#c3d0ee', fix: '#d03b3b', retest: '#6f8bd0', done: '#16327a',
-  write: '#e3e9f6', automate: '#c3d0ee', auto: '#9db1e0', manual: '#6f8bd0', passed: '#16327a', failed: '#d03b3b',
+  triage: '#c3d0ee', write: '#e3e9f6', automate: '#c3d0ee', auto: '#9db1e0', manual: '#6f8bd0', passed: '#16327a', failed: '#d03b3b',
 }
 
 /** Where the sprint's work is, as one bar in process order, with counts. Test sprints count areas still to write too. */
-export function SprintProgress({ counts, mode = 'cases' }: { counts: Record<string, number>; mode?: 'cases' | 'test' }) {
-  const cols: readonly string[] = mode === 'test' ? TEST_STAGES : STAGES
-  const label: Record<string, string> = mode === 'test' ? TEST_STAGE_LABEL : STAGE_LABEL
+export function SprintProgress({ counts, mode = 'cases' }: { counts: Record<string, number>; mode?: 'cases' | 'test' | 'fix' }) {
+  const cols: readonly string[] = mode === 'test' ? TEST_STAGES : mode === 'fix' ? FIX_STAGES : STAGES
+  const label: Record<string, string> = mode === 'test' ? TEST_STAGE_LABEL : mode === 'fix' ? FIX_STAGE_LABEL : STAGE_LABEL
   const finished = mode === 'test' ? 'passed' : 'done'
   const total = cols.reduce((s, k) => s + (counts[k] ?? 0), 0) || 1
   const pct = Math.round(((counts[finished] ?? 0) / total) * 100)

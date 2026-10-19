@@ -16,6 +16,7 @@ import { buildStandup, lastWorkingDayStart } from '@/lib/standup'
 import { casesTestedByDay, istDate } from '@/lib/trends'
 import { STAGES, TEST_STAGES, caseStage, needsTicket, testBy, testStage } from '@/lib/workflow/case-stage'
 import { gateFor } from '@/lib/workflow/sprint-gate'
+import { FIX_STAGES, fixStage } from '@/lib/workflow/board-moves'
 import { startSprint } from '../../actions'
 import { SprintForm } from '../sprint-form'
 
@@ -54,8 +55,15 @@ export default async function SprintPage({
   const standup = buildStandup({ now, people: activePeople.map((p) => ({ id: p.id, name: p.name, role: p.role })), activity, tickets: allTickets, tasks }).cards
     .sort((a, b) => b.blocked.length - a.blocked.length || (b.today.length + b.yesterday.length) - (a.today.length + a.yesterday.length))
 
-  const stageOf = new Map<string, string>(cases.map((c) => [c.id, testMode ? testStage(toStageInput(c, runs)) : caseStage(toStageInput(c, runs))]))
-  const counts: Record<string, number> = Object.fromEntries((testMode ? TEST_STAGES : STAGES).map((s) => [s, 0]))
+  // Fix sprints follow each case's ticket in this sprint (an open one first).
+  const sprintTicketOf = (caseId: string) => {
+    const mine = tickets.filter((t) => t.case_id === caseId)
+    return mine.find((t) => !['closed', 'deferred', 'duplicate'].includes(t.state)) ?? mine[0]
+  }
+  const fixMode = kind === 'fix'
+  const stageOf = new Map<string, string>(cases.map((c) => [c.id,
+    fixMode ? fixStage(sprintTicketOf(c.id)!.state) : testMode ? testStage(toStageInput(c, runs)) : caseStage(toStageInput(c, runs))]))
+  const counts: Record<string, number> = Object.fromEntries((fixMode ? FIX_STAGES : testMode ? TEST_STAGES : STAGES).map((s) => [s, 0]))
   for (const s of stageOf.values()) counts[s]++
   if (testMode) counts.write = emptyAreaIds.length
 
@@ -103,7 +111,7 @@ export default async function SprintPage({
       <section className="card mb-4 grid grid-cols-1 gap-x-6 gap-y-4 p-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
         <>
         <div>
-          <SprintProgress counts={counts} mode={testMode ? 'test' : 'cases'} />
+          <SprintProgress counts={counts} mode={fixMode ? 'fix' : testMode ? 'test' : 'cases'} />
         </div>
         <div>
           <h3 className="text-[13px] font-semibold text-[var(--navy-ink)]">Cases with a result this sprint</h3>
@@ -116,7 +124,7 @@ export default async function SprintPage({
       )}
 
       <SprintBoard
-        mode={testMode ? 'test' : 'cases'}
+        mode={fixMode ? 'fix' : testMode ? 'test' : 'cases'}
         emptyAreas={emptyAreaIds.map((a) => ({ id: a, label: areaName.get(a) ?? '' }))}
         role={me.role}
         meId={me.id}
@@ -129,13 +137,13 @@ export default async function SprintPage({
         sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ id: s.id, name: s.name }))}
         areas={areaIds.map((a) => areaName.get(a) ?? '').sort()}
         cards={cases.map((c) => {
-          const t = openTicket(c)
+          const t = fixMode ? sprintTicketOf(c.id) : openTicket(c)
           return {
             id: c.id, tc_id: c.tc_id, title: c.title, priority: c.priority, zone: c.zone, page: c.page,
             stage: stageOf.get(c.id)! as 'test', test_by: testBy(toStageInput(c)), tester_id: c.tester_id, tester_name: c.tester_name,
             auto_result: c.auto_result, manual_result: c.manual_result,
             needs_ticket: needsTicket(toStageInput(c, runs)),
-            ticket: t ? { id: t.id, key: t.key, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name } : null,
+            ticket: t ? { id: t.id, key: t.key, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name, kind: t.kind } : null,
           }
         })}
       />

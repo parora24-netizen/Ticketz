@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { boardMove, droppableStages, droppableTestStages, testBoardMove } from './board-moves'
+import { boardMove, droppableFixStages, droppableStages, droppableTestStages, fixBoardMove, fixStage, testBoardMove } from './board-moves'
 
 describe('sprint board drops', () => {
   it('turns drops into the right step for QA', () => {
@@ -34,5 +34,16 @@ describe('sprint board drops', () => {
     expect(droppableTestStages('auto', 'qa')).toEqual(['passed', 'failed'])
     expect(testBoardMove('manual', 'passed', 'dev')).toHaveProperty('error')
     expect(testBoardMove('failed', 'passed', 'lead')).toEqual({ error: 'Failures are fixed in a fix sprint' })
+  })
+
+  it('fix sprints: triage, fix, retest, close; passing cases close from triage', () => {
+    expect(fixStage('new')).toBe('triage')
+    expect(fixStage('reopened')).toBe('fix')
+    expect(fixBoardMove('triage', 'fix', 'qa', 'new')).toMatchObject({ kind: 'ticket', to: 'triaged' })
+    expect(fixBoardMove('triage', 'fix', 'dev', 'new')).toMatchObject({ kind: 'ticket', to: 'in_fix' })
+    expect(fixBoardMove('triage', 'done', 'qa', 'new')).toMatchObject({ kind: 'ticket', to: 'closed' })
+    expect(fixBoardMove('triage', 'done', 'dev', 'new')).toHaveProperty('error')
+    expect(fixBoardMove('fix', 'retest', 'dev', 'triaged')).toEqual({ error: 'Start the fix first (open the card)' })
+    expect(droppableFixStages('retest', 'qa', 'ready_for_retest')).toEqual(['fix', 'done'])
   })
 })

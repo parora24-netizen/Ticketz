@@ -7,7 +7,7 @@ import { toast } from '@/components/toast'
 import { PriorityChip } from '@/components/ui'
 import Link from 'next/link'
 import { STAGES, STAGE_LABEL, TEST_STAGES, TEST_STAGE_LABEL, type Stage, type TestStage } from '@/lib/workflow/case-stage'
-import { boardMove, droppableStages, droppableTestStages, testBoardMove } from '@/lib/workflow/board-moves'
+import { FIX_STAGES, FIX_STAGE_LABEL, boardMove, droppableFixStages, droppableStages, droppableTestStages, fixBoardMove, testBoardMove, type FixStage } from '@/lib/workflow/board-moves'
 import { STATE_LABEL, type Role, type TicketState } from '@/lib/workflow/ticket-machine'
 import { moveTicketFromBoard, recordCaseResult, updateCases } from '@/app/(app)/actions'
 import type { StandupCard } from '@/lib/standup'
@@ -29,7 +29,7 @@ export type SprintCard = {
   auto_result: string | null
   manual_result: string | null
   needs_ticket: boolean
-  ticket: { id: string; key: string; state: TicketState; owner_id: string | null; owner_name: string | null } | null
+  ticket: { id: string; key: string; state: TicketState; owner_id: string | null; owner_name: string | null; kind?: 'defect' | 'test_mismatch' } | null
 }
 
 const RESULT: Record<string, [string, string]> = {
@@ -41,13 +41,12 @@ const Res = ({ r }: { r: string | null }) =>
 const PRIORITY = ['Critical', 'High', 'Medium', 'Low']
 
 /** A column on either board: the case board (To test, Fix, Retest, Done) or a test sprint's. */
-type Col = Stage | TestStage
-const LABEL: Record<Col, string> = { ...STAGE_LABEL, ...TEST_STAGE_LABEL }
+type Col = Stage | TestStage | FixStage
 const isDone = (s: Col) => s === 'done' || s === 'passed'
 
 /** Whose move a card is: the dev on the ticket while it is in Fix, otherwise the case's tester. */
 function ownerOf(c: SprintCard, stage: Col): { id: string | null; name: string | null; role: string } {
-  if (stage === 'fix' || stage === 'failed') return { id: c.ticket?.owner_id ?? null, name: c.ticket?.owner_name ?? null, role: 'Fix' }
+  if (stage === 'fix' || stage === 'failed' || stage === 'triage') return { id: c.ticket?.owner_id ?? null, name: c.ticket?.owner_name ?? null, role: stage === 'triage' ? 'Owner' : 'Fix' }
   return { id: c.tester_id, name: c.tester_name, role: stage === 'retest' ? 'Retest' : 'Test' }
 }
 
@@ -58,8 +57,8 @@ function ownerOf(c: SprintCard, stage: Col): { id: string | null; name: string |
  */
 export function SprintBoard({ cards, role, meId, people, sprints, active, areas = [], standup = [], tasks = [], today, sprintId, mode = 'cases', emptyAreas = [] }: {
   cards: SprintCard[]
-  /** 'test' for a test sprint: To write, To automate, To test, Passed, Failed. */
-  mode?: 'cases' | 'test'
+  /** 'test' for a test sprint (No cases … Failed); 'fix' for a fix sprint (To triage, Fix, Retest, Done). */
+  mode?: 'cases' | 'test' | 'fix'
   /** Test sprints: areas with no cases yet, shown in To write. */
   emptyAreas?: { id: string; label: string }[]
   sprintId: string
@@ -94,9 +93,12 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
 
   useEffect(() => setLocal({}), [cards])
   const stageOf = (c: SprintCard) => local[c.id] ?? c.stage
-  const cols: readonly Col[] = mode === 'test' ? TEST_STAGES : STAGES
+  const cols: readonly Col[] = mode === 'test' ? TEST_STAGES : mode === 'fix' ? FIX_STAGES : STAGES
+  const LABEL: Record<string, string> = mode === 'test' ? TEST_STAGE_LABEL : mode === 'fix' ? FIX_STAGE_LABEL : STAGE_LABEL
   const moveOf = (c: SprintCard, to: Col) => mode === 'test'
     ? testBoardMove(stageOf(c) as TestStage, to as TestStage, role)
+    : mode === 'fix'
+    ? (c.ticket ? fixBoardMove(stageOf(c) as FixStage, to as FixStage, role, c.ticket.state) : { error: 'No ticket on this card' })
     : boardMove(stageOf(c) as Stage, to as Stage, role, c.ticket?.state ?? null)
   const areaOf = (c: SprintCard) => `${c.zone} · ${c.page}`
   const matchesOwner = (c: SprintCard) => {
@@ -108,6 +110,8 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
     && matchesOwner(c) && (!q || `${c.tc_id} ${c.title} ${c.ticket?.key ?? ''}`.toLowerCase().includes(q.toLowerCase())))
   const targets: Col[] = !dragging ? [] : mode === 'test'
     ? droppableTestStages(stageOf(dragging) as TestStage, role)
+    : mode === 'fix'
+    ? (dragging.ticket ? droppableFixStages(stageOf(dragging) as FixStage, role, dragging.ticket.state) : [])
     : droppableStages(stageOf(dragging) as Stage, role, dragging.ticket?.state ?? null)
   const lanes = [...new Set([...shown.map(areaOf), ...(mode === 'test' && !q && !onlyHigh && !owner ? emptyAreas.filter((a) => !area || a.label === area).map((a) => a.label) : [])])].sort()
   const sortByPriority = (list: SprintCard[]) => list.sort((a, b) => PRIORITY.indexOf(a.priority) - PRIORITY.indexOf(b.priority))
@@ -231,6 +235,12 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
           </div>
         )}
         {c.needs_ticket && !c.ticket && <div className="mt-1 text-[11px] font-semibold text-[var(--crit)]">Needs a ticket</div>}
+        {mode === 'fix' && (s === 'triage' || s === 'fix') && (c.ticket?.kind === 'test_mismatch' || c.manual_result === 'passed') && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {c.ticket?.kind === 'test_mismatch' && <span className="chip px-1.5 text-[10.5px]">Test issue</span>}
+            {c.manual_result === 'passed' && <span className="chip border-[var(--good-line)] bg-[var(--good-soft)] px-1.5 text-[10.5px] text-[var(--good)]">Passes now: close?</span>}
+          </div>
+        )}
         {!isDone(s) && (
           <div className="mt-1.5 flex items-center gap-1.5 border-t border-[var(--line-soft)] pt-1.5 text-[11px]">
             <span className="text-[var(--faint)]">{o.role}</span>

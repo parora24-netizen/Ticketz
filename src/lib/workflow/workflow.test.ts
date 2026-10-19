@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { TRANSITIONS, allowedMoves, canMove, requiredFor, retestResult, type Role, type TicketState } from './ticket-machine'
@@ -6,9 +6,10 @@ import { caseStage, mismatch, needsTicket, type CaseForStage, testBy, testStage 
 import { sprintGate, gateFor } from './sprint-gate'
 
 describe('ticket machine', () => {
-  it('matches the ticket_transitions rows in the schema migration', () => {
-    const sql = readFileSync(path.resolve(__dirname, '../../../supabase/migrations/20261017000100_schema.sql'), 'utf8')
-    const block = sql.slice(sql.indexOf('insert into ticket_transitions'), sql.indexOf('create table plan_tasks'))
+  it('matches the ticket_transitions rows in the migrations', () => {
+    const dir = path.resolve(__dirname, '../../../supabase/migrations')
+    const block = readdirSync(dir).sort().map((f) => readFileSync(path.join(dir, f), 'utf8'))
+      .flatMap((sql) => [...sql.matchAll(/insert into ticket_transitions[^;]*;/g)].map((m) => m[0])).join(' ')
     const fromSql = [...block.matchAll(/\('(\w+)', '(\w+)', '(\w+)'\)/g)].map((m) => `${m[1]}>${m[2]}>${m[3]}`).sort()
     const fromTs = Object.entries(TRANSITIONS)
       .flatMap(([from, tos]) => Object.entries(tos ?? {}).flatMap(([to, roles]) => (roles ?? []).map((r) => `${from}>${to}>${r}`)))
@@ -32,7 +33,7 @@ describe('ticket machine', () => {
       ['in_fix', 'ready_for_retest', 'qa'],
       ['new', 'deferred', 'qa'],
       ['new', 'deferred', 'dev'],
-      ['new', 'closed', 'lead'],
+      ['new', 'closed', 'dev'],
       ['closed', 'in_fix', 'dev'],
     ]
     for (const [from, to, role] of denied) expect(canMove(from, to, role), `${role} ${from}->${to}`).toBe(false)

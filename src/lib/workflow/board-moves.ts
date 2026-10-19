@@ -64,3 +64,39 @@ export function droppableTestStages(from: TestStage, role: Role): TestStage[] {
 export function droppableStages(from: Stage, role: Role, ticketState: TicketState | null): Stage[] {
   return STAGES.filter((to) => to !== from && !('error' in boardMove(from, to, role, ticketState)))
 }
+
+/**
+ * Fix sprints: the board follows each ticket. New tickets wait in To triage, where they are
+ * given to a developer, or closed straight away when the case already passes.
+ */
+export const FIX_STAGES = ['triage', 'fix', 'retest', 'done'] as const
+export type FixStage = (typeof FIX_STAGES)[number]
+export const FIX_STAGE_LABEL: Record<FixStage, string> = { triage: 'To triage', fix: 'Fix', retest: 'Retest', done: 'Done' }
+
+export function fixStage(state: TicketState): FixStage {
+  if (state === 'new') return 'triage'
+  if (state === 'ready_for_retest') return 'retest'
+  if (state === 'closed' || state === 'deferred' || state === 'duplicate') return 'done'
+  return 'fix'
+}
+
+export function fixBoardMove(from: FixStage, to: FixStage, role: Role, state: TicketState): BoardMove | { error: string } {
+  const go = (next: TicketState, label: string, ask: 'build' | 'note' | null = null): BoardMove | { error: string } =>
+    canMove(state, next, role) ? { kind: 'ticket', to: next, ask, label } : { error: `A ${role === 'qa' ? 'QA' : role} cannot do that step` }
+  switch (`${from}>${to}`) {
+    // QA and the lead triage; a developer picking a ticket up starts the fix.
+    case 'triage>fix': return role === 'dev' ? go('in_fix', 'Fix started') : go('triaged', 'Triaged')
+    case 'triage>done':
+    case 'fix>done': return state === 'in_fix' || state === 'reopened'
+      ? { error: 'Mark the fix ready for retest first' }
+      : go('closed', 'Closed: the case already passes')
+    case 'fix>retest': return state === 'in_fix' ? go('ready_for_retest', 'Ready for retest', 'build') : { error: 'Start the fix first (open the card)' }
+    case 'retest>done': return go('closed', 'Retest passed, ticket closed')
+    case 'retest>fix': return go('reopened', 'Retest failed, ticket reopened', 'note')
+    default: return { error: 'That step does not follow from here' }
+  }
+}
+
+export function droppableFixStages(from: FixStage, role: Role, state: TicketState): FixStage[] {
+  return FIX_STAGES.filter((to) => to !== from && !('error' in fixBoardMove(from, to, role, state)))
+}

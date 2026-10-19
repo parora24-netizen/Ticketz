@@ -2,6 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { SearchIcon } from '@/components/icons'
 import { DensityInit, PageTitle, ProfileMenu, Shortcuts } from '@/components/shell'
+import { RememberProvider } from '@/components/remember'
 import { Toaster } from '@/components/toast'
 import { getMe } from '@/lib/auth'
 import { runningSprints, daysLeft, fmtDate, loadSprints } from '@/lib/data'
@@ -37,7 +38,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <ProfileMenu name={me.name} email={me.email} role={ROLE[me.role]} initials={initials} />
           </div>
         </header>
-        <main className="px-4 pt-5 pb-24 sm:px-6 md:pb-8">{children}</main>
+        <main className="px-4 pt-5 pb-24 sm:px-6 md:pb-8"><RememberProvider personId={me.id}>{children}</RememberProvider></main>
       </div>
       <BottomBar isLead={me.role === 'lead'} />
     </div>

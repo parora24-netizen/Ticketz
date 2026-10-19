@@ -13,6 +13,7 @@ import { moveTicketFromBoard, recordCaseResult, updateCases } from '@/app/(app)/
 import type { StandupCard } from '@/lib/standup'
 import { StandupPersonCard } from '@/app/(app)/standup/standup-deck'
 import { CaseDrawer } from './case-drawer'
+import { useRemembered } from '@/components/remember'
 import { TaskBoard, type SprintTask } from './task-board'
 
 export type SprintCard = {
@@ -81,11 +82,12 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
   const [text, setText] = useState('')
   const [build, setBuild] = useState('')
   const [open, setOpen] = useState<string | null>(null)
-  const [q, setQ] = useState('')
-  const [onlyHigh, setOnlyHigh] = useState(false)
-  const [area, setArea] = useState('')
-  const [owner, setOwner] = useState('') // '' everyone, '__none' nobody, else a person id
-  const [byArea, setByArea] = useState(false)
+  // Filters are remembered per sprint for this person until they clear them.
+  const [q, setQ] = useRemembered(`sprint-board:${sprintId}:q`, '')
+  const [onlyHigh, setOnlyHigh] = useRemembered(`sprint-board:${sprintId}:high`, false)
+  const [area, setArea] = useRemembered(`sprint-board:${sprintId}:area`, '')
+  const [owner, setOwner] = useRemembered(`sprint-board:${sprintId}:owner`, '') // '' everyone, '__none' nobody, else a person id
+  const [byArea, setByArea] = useRemembered(`sprint-board:${sprintId}:by-area`, false)
   const [turn, setTurn] = useState<number | null>(null) // standup: whose turn, or null when not running
   // Lanes the user folded, and finished lanes they opened (finished lanes start folded).
   const [folded, setFolded] = useState<Set<string>>(new Set())

@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { readRemembered, useRememberKey, writeRemembered } from '@/components/remember'
 import { toast } from '@/components/toast'
 import { GridCharts, type ChartData, type ChartSpec } from './grid-charts'
 import { exportCsv, exportXlsx } from './export'
@@ -46,6 +47,8 @@ type Props<T extends { id: string }> = {
   footerNote?: string
   /** Small bar charts above the grid, one per column key; clicking a bar filters that column. */
   charts?: ChartSpec[]
+  /** Keep this person's search, filters and sort for next time (off when a link opened the grid with filters of its own). */
+  remember?: boolean
 }
 
 type Sort = { key: string; dir: 1 | -1 }
@@ -61,13 +64,28 @@ const EMPTY = '(blank)'
  */
 export function DataGrid<T extends { id: string }>({
   rows, columns, onSave, bulkFields = [], bulkActions = [], csvName = 'export', toolbar, actions,
-  defaultSort = [], defaultFilters, searchPlaceholder = 'Search', emptyText = 'No rows.', selectable = true, footerNote, charts,
+  defaultSort = [], defaultFilters, searchPlaceholder = 'Search', emptyText = 'No rows.', selectable = true, footerNote, charts, remember = true,
 }: Props<T>) {
   const [overrides, setOverrides] = useState<Record<string, Record<string, string | null>>>({})
   const [filters, setFilters] = useState<Record<string, Filter>>(() =>
     Object.fromEntries(Object.entries(defaultFilters ?? {}).map(([k, values]) => [k, { kind: 'values' as const, values }])))
   const [query, setQuery] = useState('')
   const [sorts, setSorts] = useState<Sort[]>(defaultSort)
+  // Each person's search, filters and sort come back next visit, until they clear them.
+  const keep = remember && !defaultFilters
+  const rememberKey = useRememberKey(`grid:${csvName}`)
+  const restored = useRef(false)
+  useEffect(() => {
+    if (!keep) return
+    const saved = readRemembered<{ filters?: Record<string, Filter>; query?: string; sorts?: Sort[] }>(rememberKey)
+    if (saved?.filters) setFilters(saved.filters)
+    if (typeof saved?.query === 'string') setQuery(saved.query)
+    if (saved?.sorts?.length) setSorts(saved.sorts)
+    restored.current = true
+  }, [keep, rememberKey])
+  useEffect(() => {
+    if (keep && restored.current) writeRemembered(rememberKey, { filters, query, sorts })
+  }, [keep, rememberKey, filters, query, sorts])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [anchor, setAnchor] = useState<number | null>(null)
   const [active, setActive] = useState<{ r: number; c: number } | null>(null)

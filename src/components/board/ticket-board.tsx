@@ -7,6 +7,7 @@ import { toast } from '@/components/toast'
 import { STATE_LABEL, canMove, requiredFor, type Role, type TicketState } from '@/lib/workflow/ticket-machine'
 import { moveTicketFromBoard } from '@/app/(app)/actions'
 import { CaseDrawer } from './case-drawer'
+import { useRemembered } from '@/components/remember'
 
 export type BoardTicket = {
   id: string
@@ -47,11 +48,12 @@ export function TicketBoard({ tickets, role, meId, zones, people = [], sprints =
   const [pending, setPending] = useState<{ t: BoardTicket; to: TicketState } | null>(null)
   const [input, setInput] = useState('')
   const setMsg = (m: { tone: 'ok' | 'error'; text: string }) => toast(m.text, m.tone)
-  const [owner, setOwner] = useState('') // '' everyone, '__none' nobody, else a person id
-  const [high, setHigh] = useState(false)
-  const [zone, setZone] = useState('')
-  const [lane, setLane] = useState<Lane>('none')
-  const [q, setQ] = useState('')
+  // Filters are remembered for this person until they clear them.
+  const [owner, setOwner] = useRemembered('ticket-board:owner', '') // '' everyone, '__none' nobody, else a person id
+  const [high, setHigh] = useRemembered('ticket-board:high', false)
+  const [zone, setZone] = useRemembered('ticket-board:zone', '')
+  const [lane, setLane] = useRemembered<Lane>('ticket-board:lane', 'none')
+  const [q, setQ] = useRemembered('ticket-board:q', '')
 
   useEffect(() => setLocal({}), [tickets])
 

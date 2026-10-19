@@ -28,8 +28,8 @@ const AUTOMATION = [
 const PRIORITY = ['Critical', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: p }))
 const RESULT_LABEL: Record<RunResult, string> = { passed: 'Passed', failed: 'Failed', known_defect: 'Known defect', skipped: 'Skipped', blocked: 'Blocked' }
 
-export function CasesGrid({ rows, areas, people, canEdit, isLead, inSprint }: {
-  rows: CaseGridRow[]; areas: { value: string; label: string }[]; people: { value: string; label: string }[]; canEdit: boolean; isLead?: boolean; inSprint?: boolean
+export function CasesGrid({ rows, areas, people, canEdit, isLead, inSprint, remember = true }: {
+  rows: CaseGridRow[]; areas: { value: string; label: string }[]; people: { value: string; label: string }[]; canEdit: boolean; isLead?: boolean; inSprint?: boolean; remember?: boolean
 }) {
   const testers = [{ value: '__none', label: 'No tester' }, ...people]
   const columns: Column<CaseGridRow>[] = [
@@ -53,6 +53,7 @@ export function CasesGrid({ rows, areas, people, canEdit, isLead, inSprint }: {
       rows={rows}
       columns={columns}
       csvName="test-cases"
+      remember={remember}
       charts={[
         { key: 'area', title: 'By area' },
         { key: 'priority', title: 'By priority', order: ['Critical', 'High', 'Medium', 'Low'] },

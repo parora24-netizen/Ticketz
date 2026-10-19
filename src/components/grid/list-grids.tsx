@@ -20,14 +20,16 @@ export function SprintsGrid({ rows }: { rows: SprintRow[] }) {
     { key: 'days', header: 'Days', width: 70, align: 'right', value: (r) => r.days },
     { key: 'zones', header: 'Zone', width: 220, value: (r) => r.zones, filter: 'text' },
     { key: 'pages', header: 'Page', width: 420, value: (r) => r.pages, filter: 'text' },
-    { key: 'cases', header: 'Cases', width: 80, align: 'right', value: (r) => r.cases || null },
-    { key: 'tickets', header: 'Open tickets', width: 110, align: 'right', value: (r) => r.tickets || null },
+    { key: 'cases', header: 'Cases', width: 80, align: 'right', value: (r) => r.cases || null,
+      render: (r) => (r.cases ? <Link href={`/cases?sprint=${r.id}`} className="text-[var(--accent)] hover:underline">{r.cases}</Link> : null) },
+    { key: 'tickets', header: 'Open tickets', width: 110, align: 'right', value: (r) => r.tickets || null,
+      render: (r) => (r.tickets ? <Link href={`/tickets?view=grid&sprint=${r.id}`} className="text-[var(--accent)] hover:underline">{r.tickets}</Link> : null) },
     { key: 'tested', header: 'Tested', width: 150, value: (r) => (r.cases ? Math.round((r.tested / r.cases) * 100) : 0), sortValue: (r) => (r.cases ? r.tested / r.cases : 0),
       render: (r) => (
-        <span className="flex items-center gap-2">
+        <Link href={`/cases?sprint=${r.id}`} className="flex items-center gap-2 hover:underline">
           <span className="h-1.5 w-16 bg-[var(--surface-2)]"><span className="block h-1.5 bg-[#2b57c4]" style={{ width: `${r.cases ? (r.tested / r.cases) * 100 : 0}%` }} /></span>
           <span className="mono text-[11.5px]">{r.cases ? Math.round((r.tested / r.cases) * 100) : 0}%</span>
-        </span>
+        </Link>
       ) },
   ]
   return <DataGrid rows={rows} columns={cols} csvName="sprints" selectable={false} charts={[{ key: 'kind', title: 'By type', order: ['Triage', 'Test', 'Fix', 'Regression'] }, { key: 'status', title: 'By status', order: ['Running', 'Planned', 'Closed'] }]} defaultSort={[{ key: 'dates', dir: 1 }]} searchPlaceholder="Search sprints" />

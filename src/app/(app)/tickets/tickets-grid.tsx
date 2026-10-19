@@ -10,7 +10,7 @@ import { deleteRows, updateTickets } from '../actions'
 type Row = BoardTicket & { kind: 'defect' | 'test_mismatch'; logged_on: string }
 const SEVERITY = ['Critical', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: p }))
 
-export function TicketsGrid({ rows, people, canTriage, isLead, state }: { rows: Row[]; people: { value: string; label: string }[]; canTriage: boolean; isLead?: boolean; state?: string }) {
+export function TicketsGrid({ rows, people, canTriage, isLead, state, remember = true }: { rows: Row[]; people: { value: string; label: string }[]; canTriage: boolean; isLead?: boolean; state?: string; remember?: boolean }) {
   const owners = [{ value: '__none', label: 'Unassigned' }, ...people]
   const columns: Column<Row>[] = [
     { key: 'key', header: 'Ticket', width: 170, mono: true, value: (r) => r.key,
@@ -30,6 +30,7 @@ export function TicketsGrid({ rows, people, canTriage, isLead, state }: { rows: 
       rows={rows}
       columns={columns}
       csvName="tickets"
+      remember={remember}
       charts={[
         { key: 'state', title: 'By state', order: Object.values(STATE_LABEL) },
         { key: 'severity', title: 'By severity', order: ['Critical', 'High', 'Medium', 'Low'] },

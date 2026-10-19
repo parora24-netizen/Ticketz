@@ -128,8 +128,9 @@ export default async function SprintPage({
         active={sprint.status === 'active'}
         people={activePeople.map((p) => ({ id: p.id, name: p.name }))}
         standup={standup}
+        sprintId={id}
         today={today}
-        tasks={sprintTasks.map((t) => ({ id: t.id, num: t.num, phase: t.phase, title: t.title, owner: t.owner_label, owner_id: t.owner_id, due_on: t.due_on, status: t.status as 'not_started' }))}
+        tasks={sprintTasks.map((t) => ({ id: t.id, num: t.num, phase: t.phase, title: t.title, owner: t.owner_label, owner_id: t.owner_id, due_on: t.due_on, status: t.status as 'not_started', note: t.note }))}
         sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ id: s.id, name: s.name }))}
         areas={areaIds.map((a) => areaName.get(a) ?? '').sort()}
         cards={cases.map((c) => {

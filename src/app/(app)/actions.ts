@@ -560,6 +560,46 @@ export async function updateTasks(ids: string[], patch: { status?: string; sprin
   return {}
 }
 
+const TaskInput = z.object({
+  title: z.string().trim().min(3).max(300),
+  phase: z.string().trim().min(1).max(40),
+  owner_id: z.uuid().nullable(),
+  owner_label: z.string().trim().max(120).optional(),
+  due_on: z.iso.date(),
+  status: z.enum(['not_started', 'in_progress', 'blocked', 'done']),
+  sprint_id: z.uuid().nullable(),
+  note: z.string().trim().max(2000).nullable(),
+})
+
+/**
+ * Save a plan task from the sprint's task panel. Anyone on the team edits; the lead adds new
+ * ones. The owner label follows the picked person, or keeps free text like "Uday with zone owners".
+ */
+export async function saveTask(id: string | null, input: z.infer<typeof TaskInput>): Promise<{ error?: string }> {
+  const me = await getMe()
+  const v = TaskInput.safeParse(input)
+  if (!v.success) return { error: 'Give the task a title, a phase and a due date' }
+  if (id && !z.uuid().safeParse(id).success) return { error: 'Unknown task' }
+  const supabase = await createClient()
+  let label = v.data.owner_label?.trim() || ''
+  if (v.data.owner_id) {
+    const { data: person } = await supabase.from('people').select('name').eq('id', v.data.owner_id).single()
+    label = person?.name ?? label
+  }
+  const row = { ...v.data, owner_label: label || 'Unassigned', updated_at: new Date().toISOString() }
+  if (id) {
+    const { error } = await supabase.from('plan_tasks').update(row).eq('id', id)
+    if (error) return { error: error.message }
+  } else {
+    if (me.role !== 'lead') return { error: 'Only the lead adds tasks' }
+    const { data: last } = await supabase.from('plan_tasks').select('num').order('num', { ascending: false }).limit(1).maybeSingle()
+    const { error } = await supabase.from('plan_tasks').insert({ ...row, num: (last?.num ?? 0) + 1 })
+    if (error) return { error: error.message }
+  }
+  revalidatePath('/', 'layout')
+  return {}
+}
+
 /** Lead only: delete rows for good. The database checks the role too. */
 export async function deleteRows(table: 'plan_tasks' | 'tickets' | 'test_cases', ids: string[]): Promise<{ error?: string }> {
   const me = await getMe()

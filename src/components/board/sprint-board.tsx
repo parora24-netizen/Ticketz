@@ -56,8 +56,9 @@ function ownerOf(c: SprintCard, stage: Stage): { id: string | null; name: string
  * pass, raise the failure, mark a fix ready, close on retest); click a card to work on it in place.
  * Filter by person to run the standup from here: ‹ › walks the team.
  */
-export function SprintBoard({ cards, role, meId, people, sprints, active, areas = [], standup = [], tasks = [], today }: {
+export function SprintBoard({ cards, role, meId, people, sprints, active, areas = [], standup = [], tasks = [], today, sprintId }: {
   cards: SprintCard[]
+  sprintId: string
   /** Plan tasks in this sprint, shown as their own board above the cases. */
   tasks?: SprintTask[]
   today: string
@@ -266,7 +267,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
           <button type="button" onClick={() => step(-1)} aria-label="Previous person" className="btn px-2">‹</button>
           <select value={owner} onChange={(e) => { setOwner(e.target.value); if (turn !== null) { const n = order.indexOf(e.target.value); if (n < 0) endStandup(); else setTurn(n) } }}
             aria-label="Person" className="select -ml-px min-w-48">
-            <option value="">Everyone · {cards.filter((c) => stageOf(c) !== 'done').length} open</option>
+            <option value="">Everyone · {cards.filter((c) => stageOf(c) !== 'done').length + tasks.filter((t) => t.status !== 'done').length} open</option>
             <option value={meId}>Me · {load.get(meId) ?? 0} open</option>
             {people.filter((p) => p.id !== meId).map((p) => <option key={p.id} value={p.id}>{p.name} · {load.get(p.id) ?? 0} open</option>)}
             {load.has('__none') && <option value="__none">No owner · {load.get('__none')} open</option>}
@@ -309,7 +310,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
           {speaker && <StandupPersonCard card={speaker} big />}
         </div>
       )}
-      {tasks.length > 0 && <TaskBoard tasks={tasks} owner={owner} today={today} />}
+      {tasks.length > 0 && <TaskBoard tasks={tasks} owner={owner} today={today} sprintId={sprintId} people={people} sprints={sprints} isLead={role === 'lead'} />}
 
       {cards.length > 0 && <>
       <p className="mb-2 text-[12px] text-[var(--muted)]">

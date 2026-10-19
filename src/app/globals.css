@@ -95,3 +95,6 @@ html[data-density='airy'] .grid-table th { height: 38px; }
 .grid-table td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .grid-table th:first-child, .grid-table td:first-child { width: 36px; }
 .grid-table td:first-child { overflow: visible; text-overflow: clip; }
+/* Tables with no checkbox column: the first column is ordinary. */
+.grid-table.plain th:first-child, .grid-table.plain td:first-child { width: auto; }
+.grid-table.plain td:first-child { overflow: hidden; text-overflow: ellipsis; }

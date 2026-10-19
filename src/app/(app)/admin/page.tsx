@@ -62,7 +62,8 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             <SubmitButton primary pendingText="Adding…">Add holiday</SubmitButton>
           </form>
           <div className="border border-[var(--line)] bg-white">
-            <table className="table grid-table">
+            <table className="table grid-table plain">
+              <colgroup><col className="w-36" /><col className="w-36" /><col /><col className="w-32" /></colgroup>
               <thead><tr><th>Date</th><th>Day</th><th>Holiday</th><th></th></tr></thead>
               <tbody>
                 {holidays.map((h) => (
@@ -92,7 +93,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             <SubmitButton primary pendingText="Creating…">Create token</SubmitButton>
           </form>
           <div className="border border-[var(--line)] bg-white">
-            <table className="table grid-table">
+            <table className="table grid-table plain">
               <thead><tr><th>Label</th><th>Created</th><th>Last used</th><th>Status</th></tr></thead>
               <tbody>
                 {(tokens ?? []).map((t) => (

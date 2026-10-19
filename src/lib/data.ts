@@ -236,6 +236,14 @@ export async function loadSprintRunTimes(sprintId: string): Promise<{ case_id: s
 export type Release = { name: string; release_on: string; go_no_go_on: string; original_release_on: string }
 
 /** The release's dates. They move when sprints spill over, so they live in the database. */
+export type Holiday = { day: string; name: string }
+export const loadHolidays = cache(async function loadHolidays(): Promise<Holiday[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.from('holidays').select('day, name').order('day')
+  if (error) throw new Error(error.message)
+  return (data ?? []) as Holiday[]
+})
+
 export const loadRelease = cache(async function loadRelease(): Promise<Release> {
   const supabase = await createClient()
   const { data, error } = await supabase.from('release_settings').select('name, release_on, go_no_go_on, original_release_on').eq('id', 1).single()

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addWorkingDays, planExtension } from './schedule'
+import { addWorkingDays, planExtension, workingDaysBetween } from './schedule'
 
 describe('working days', () => {
   it('skips weekends both ways', () => {
@@ -49,5 +49,12 @@ describe('extending a sprint', () => {
     const rel = { release_on: '2026-12-04', go_no_go_on: '2026-12-03' }
     expect(planExtension(tracks, 'f1', 1, true, rel).sprints.map((s) => s.name)).toEqual(['F1', 'F2'])
     expect(planExtension(tracks, 't1', 1, true, rel).sprints.map((s) => s.name)).toEqual(['T1', 'T2', 'F2'])
+  })
+
+  it('skips office holidays like weekends', () => {
+    const off = new Set(['2026-10-20'])
+    expect(addWorkingDays('2026-10-19', 1, off)).toBe('2026-10-21')
+    expect(workingDaysBetween('2026-10-19', '2026-10-23', off)).toBe(4)
+    expect(workingDaysBetween('2026-11-06', '2026-11-13', new Set(['2026-11-10']))).toBe(5)
   })
 })

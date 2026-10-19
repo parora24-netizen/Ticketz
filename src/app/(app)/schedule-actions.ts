@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { getMe } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { loadCases, loadRelease, loadSprintRuns, loadSprints, loadTickets, toStageInput } from '@/lib/data'
+import { loadCases, loadHolidays, loadRelease, loadSprintRuns, loadSprints, loadTickets, toStageInput } from '@/lib/data'
 import { planExtension } from '@/lib/schedule'
 import { caseStage } from '@/lib/workflow/case-stage'
 import { gateFor } from '@/lib/workflow/sprint-gate'
@@ -28,10 +28,10 @@ export async function extendSprint(input: { sprint_id: string; days: number; cas
   const v = z.object({ sprint_id: z.uuid(), days: z.number().int().min(1).max(15), cascade: z.boolean(), reason: z.string().trim().min(3).max(500) }).safeParse(input)
   if (!v.success) return { error: 'Give the number of working days (1 to 15) and a reason' }
   const supabase = await createClient()
-  const [sprints, release] = await Promise.all([loadSprints(), loadRelease()])
+  const [sprints, release, holidays] = await Promise.all([loadSprints(), loadRelease(), loadHolidays()])
   const s = sprints.find((x) => x.id === v.data.sprint_id)
   if (!s || s.status === 'closed') return { error: 'Only a planned or running sprint can be extended' }
-  const plan = planExtension(sprints, s.id, v.data.days, v.data.cascade, release)
+  const plan = planExtension(sprints, s.id, v.data.days, v.data.cascade, release, new Set(holidays.map((h) => h.day)))
   // Latest sprint first, so dates never overlap mid-update.
   for (const c of [...plan.sprints].sort((a, b) => b.starts_on.localeCompare(a.starts_on))) {
     const { error } = await supabase.from('sprints').update({ starts_on: c.starts_on, ends_on: c.ends_on }).eq('id', c.id)

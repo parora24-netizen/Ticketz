@@ -10,7 +10,7 @@ import { Tabs, nowSprints, sprintTabs } from '@/components/tabs'
 import { Chip, PageHeader, PriorityChip, StateChip, TicketLink } from '@/components/ui'
 import { getMe } from '@/lib/auth'
 import {
-  runningSprints, daysLeft, daysUntil, fmtDate, loadActivity, loadAreas, loadCases, loadPeople, loadRelease, loadSprintAreas, loadSprintRunTimes, loadSprintRuns,
+  runningSprints, daysLeft, daysUntil, fmtDate, loadActivity, loadAreas, loadHolidays, loadCases, loadPeople, loadRelease, loadSprintAreas, loadSprintRunTimes, loadSprintRuns,
   loadSprints, loadTasks, loadTickets, toStageInput, type CaseRow, type TicketRow,
 } from '@/lib/data'
 import { buildStandup, lastWorkingDayStart } from '@/lib/standup'
@@ -25,8 +25,8 @@ export default async function SprintPage({
 }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
   const { id } = await params
   const sp = await searchParams
-  const [me, sprints, areas, sprintAreas, people, release] = await Promise.all([
-    getMe(), loadSprints(), loadAreas(), loadSprintAreas(), loadPeople(), loadRelease(),
+  const [me, sprints, areas, sprintAreas, people, release, holidays] = await Promise.all([
+    getMe(), loadSprints(), loadAreas(), loadSprintAreas(), loadPeople(), loadRelease(), loadHolidays(),
   ])
   const sprint = sprints.find((s) => s.id === id)
   if (!sprint) notFound()
@@ -85,7 +85,7 @@ export default async function SprintPage({
           <EditSprintButton><SprintForm areas={areas} sprint={sprint} selected={new Set(areaIds)} /></EditSprintButton>
         )}
         {lead && sprint.status !== 'closed' && (
-          <ExtendSprintButton sprintId={id} sprints={sprints} release={{ release_on: release.release_on, go_no_go_on: release.go_no_go_on }} />
+          <ExtendSprintButton sprintId={id} sprints={sprints} holidays={holidays.map((h) => h.day)} release={{ release_on: release.release_on, go_no_go_on: release.go_no_go_on }} />
         )}
         {lead && sprint.status === 'planned' && (
           <form action={startSprint}><input type="hidden" name="sprint_id" value={id} /><SubmitButton primary pendingText="Starting…">Start sprint</SubmitButton></form>

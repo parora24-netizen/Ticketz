@@ -1,25 +1,19 @@
 import Link from 'next/link'
+import { workingDaysBetween } from '@/lib/schedule'
 import { Flash } from '@/components/flash'
 import { SprintsGrid } from '@/components/grid/list-grids'
 import { Tabs, nowSprints, sprintTabs } from '@/components/tabs'
 import { PageHeader } from '@/components/ui'
 import { getMe } from '@/lib/auth'
-import { runningSprints, fmtDate, loadAreas, loadCases, loadRelease, loadScheduleChanges, loadSprintAreas, loadSprints, loadTickets } from '@/lib/data'
+import { runningSprints, fmtDate, loadAreas, loadCases, loadRelease, loadScheduleChanges, loadSprintAreas, loadSprints, loadTickets, loadHolidays } from '@/lib/data'
 import { ScheduleLog } from '@/components/schedule-log'
 
-function workingDays(from: string, to: string): number {
-  let n = 0
-  for (let d = Date.parse(`${from}T00:00:00Z`); d <= Date.parse(`${to}T00:00:00Z`); d += 864e5) {
-    const wd = new Date(d).getUTCDay()
-    if (wd !== 0 && wd !== 6) n++
-  }
-  return n
-}
 
 export default async function SprintsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams
-  const [me, sprints, areas, sprintAreas, cases, changes, release, tickets] = await Promise.all([getMe(), loadSprints(), loadAreas(), loadSprintAreas(), loadCases(), loadScheduleChanges(), loadRelease(), loadTickets()])
+  const [me, sprints, areas, sprintAreas, cases, changes, release, tickets, holidays] = await Promise.all([getMe(), loadSprints(), loadAreas(), loadSprintAreas(), loadCases(), loadScheduleChanges(), loadRelease(), loadTickets(), loadHolidays()])
   const running = runningSprints(sprints)
+  const off = new Set(holidays.map((h) => h.day))
   const areaById = new Map(areas.map((a) => [a.id, a]))
   const pagesInZone = (zone: string) => areas.filter((a) => a.zone === zone).length
   const casesByArea = new Map<string, number>()
@@ -48,7 +42,7 @@ export default async function SprintsPage({ searchParams }: { searchParams: Prom
       tickets: open.length,
       starts_on: s.starts_on,
       dates: `${fmtDate(s.starts_on)} to ${fmtDate(s.ends_on)}`,
-      days: workingDays(s.starts_on, s.ends_on),
+      days: workingDaysBetween(s.starts_on, s.ends_on, off),
       zones: zones.join(', '),
       pages: pageText,
       cases: ids.reduce((sum, id) => sum + (casesByArea.get(id) ?? 0), 0),

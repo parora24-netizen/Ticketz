@@ -580,6 +580,31 @@ export async function saveTask(id: string | null, input: z.infer<typeof TaskInpu
   return {}
 }
 
+/** Admin › Holidays: office days off, skipped when sprint dates move. Lead only. */
+export async function saveHoliday(formData: FormData) {
+  const me = await getMe()
+  if (me.role !== 'lead') fail('/admin?tab=holidays', 'Only the lead edits holidays')
+  const v = z.object({ day: z.iso.date(), name: z.string().trim().min(2).max(80) }).safeParse(Object.fromEntries(formData))
+  if (!v.success) fail('/admin?tab=holidays', 'Give a date and a name')
+  const supabase = await createClient()
+  const { error } = await supabase.from('holidays').upsert(v.data)
+  if (error) fail('/admin?tab=holidays', error.message)
+  revalidatePath('/', 'layout')
+  redirect(withMessage('/admin?tab=holidays', 'ok', `${v.data.name} added`))
+}
+
+export async function removeHoliday(formData: FormData) {
+  const me = await getMe()
+  if (me.role !== 'lead') fail('/admin?tab=holidays', 'Only the lead edits holidays')
+  const day = z.iso.date().safeParse(formData.get('day'))
+  if (!day.success) fail('/admin?tab=holidays', 'Unknown holiday')
+  const supabase = await createClient()
+  const { error } = await supabase.from('holidays').delete().eq('day', day.data)
+  if (error) fail('/admin?tab=holidays', error.message)
+  revalidatePath('/', 'layout')
+  redirect('/admin?tab=holidays')
+}
+
 /** Lead only: delete rows for good. The database checks the role too. */
 export async function deleteRows(table: 'plan_tasks' | 'tickets' | 'test_cases', ids: string[]): Promise<{ error?: string }> {
   const me = await getMe()

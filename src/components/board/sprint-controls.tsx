@@ -21,7 +21,9 @@ export function EditSprintButton({ children }: { children: React.ReactNode }) {
 }
 
 /** Extend by working days, with a live preview of what else moves (later sprints, the release). */
-export function ExtendSprintButton({ sprintId, sprints, release }: {
+export function ExtendSprintButton({ sprintId, sprints, release, holidays = [] }: {
+  /** Office holidays, skipped like weekends. */
+  holidays?: string[]
   sprintId: string
   sprints: SprintDates[]
   release: { release_on: string; go_no_go_on: string }
@@ -32,7 +34,7 @@ export function ExtendSprintButton({ sprintId, sprints, release }: {
   const [cascade, setCascade] = useState(true)
   const [reason, setReason] = useState('')
   const [pending, start] = useTransition()
-  const plan = useMemo(() => planExtension(sprints, sprintId, Math.max(1, days || 1), cascade, release), [sprints, sprintId, days, cascade, release])
+  const plan = useMemo(() => planExtension(sprints, sprintId, Math.max(1, days || 1), cascade, release, new Set(holidays)), [sprints, sprintId, days, cascade, release, holidays])
   const self = plan.sprints[0]
   const later = plan.sprints.slice(1)
   const releaseMoves = plan.release.release_on !== release.release_on

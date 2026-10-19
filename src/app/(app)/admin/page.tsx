@@ -9,11 +9,12 @@ import { Tabs } from '@/components/tabs'
 import { PageHeader } from '@/components/ui'
 import { getMe } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { fmtDate, loadPeople } from '@/lib/data'
-import { createCiToken, revokeCiToken, savePerson } from '../actions'
+import { fmtDate, loadHolidays, loadPeople } from '@/lib/data'
+import { createCiToken, removeHoliday, revokeCiToken, saveHoliday, savePerson } from '../actions'
 
 const TABS = [
   { key: 'team', href: '/admin', label: 'Team' },
+  { key: 'holidays', href: '/admin?tab=holidays', label: 'Holidays' },
   { key: 'ci', href: '/admin?tab=ci', label: 'CI tokens' },
 ]
 
@@ -21,10 +22,10 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const me = await getMe()
   if (me.role !== 'lead') redirect('/')
   const sp = await searchParams
-  const tab = sp.tab === 'ci' ? 'ci' : 'team'
+  const tab = sp.tab === 'ci' || sp.tab === 'holidays' ? sp.tab : 'team'
   const supabase = await createClient()
-  const [people, { data: tokens }] = await Promise.all([
-    loadPeople(),
+  const [people, holidays, { data: tokens }] = await Promise.all([
+    loadPeople(), loadHolidays(),
     supabase.from('ci_tokens').select('id, label, created_at, last_used_at, revoked_at').order('created_at', { ascending: false }),
   ])
   const newToken = (await cookies()).get('new_ci_token')?.value
@@ -51,6 +52,31 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
           )}
           <TeamGrid rows={people.map((p) => ({ id: p.id, name: p.name, email: p.email, role: p.role, active: p.active }))} />
           <TempPasswordPanel people={people.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name, email: p.email }))} />
+        </>
+      ) : tab === 'holidays' ? (
+        <>
+          <PageHeader sub="Skipped like weekends when sprint dates move" />
+          <form action={saveHoliday} className="mb-4 flex flex-wrap items-end gap-3">
+            <label><span className="label">Date</span><input name="day" type="date" required className="input mt-1 block w-44" /></label>
+            <label><span className="label">Name</span><input name="name" required placeholder="e.g. Bhai Dooj" className="input mt-1 block w-64" /></label>
+            <SubmitButton primary pendingText="Adding…">Add holiday</SubmitButton>
+          </form>
+          <div className="border border-[var(--line)] bg-white">
+            <table className="table grid-table">
+              <thead><tr><th>Date</th><th>Day</th><th>Holiday</th><th></th></tr></thead>
+              <tbody>
+                {holidays.map((h) => (
+                  <tr key={h.day}>
+                    <td className="mono text-[12px]">{h.day}</td>
+                    <td>{new Date(`${h.day}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' })}</td>
+                    <td>{h.name}</td>
+                    <td className="text-right"><form action={removeHoliday}><input type="hidden" name="day" value={h.day} /><SubmitButton small pendingText="Removing…">Remove</SubmitButton></form></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!holidays.length && <p className="p-6 text-center text-[13px] text-[var(--muted)]">No holidays.</p>}
+          </div>
         </>
       ) : (
         <>

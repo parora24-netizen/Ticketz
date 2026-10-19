@@ -4,7 +4,8 @@ import { CaseLink, Chip, PageHeader, StateChip } from '@/components/ui'
 import { Flash } from '@/components/flash'
 import { getMe } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { fmtDate, loadPeople, loadSprints } from '@/lib/data'
+import { fmtDate, loadPeople, loadSprints, loadTickets } from '@/lib/data'
+import { TicketNav } from '@/components/ticket-nav'
 import { STATE_LABEL, allowedMoves, type TicketState } from '@/lib/workflow/ticket-machine'
 import { addComment, assignToMe } from '../../actions'
 import { TicketActions, TicketField } from '@/components/ticket-controls'
@@ -18,13 +19,14 @@ export default async function TicketPage({
   const supabase = await createClient()
   const { data: t } = await supabase.from('ticket_list').select('*').eq('key', decodeURIComponent(key)).maybeSingle()
   if (!t) notFound()
-  const [{ data: events }, { data: comments }, { data: tc }, { data: lastFail }, people, sprints] = await Promise.all([
+  const [{ data: events }, { data: comments }, { data: tc }, { data: lastFail }, people, sprints, allTickets] = await Promise.all([
     supabase.from('ticket_events').select('*, people(name)').eq('ticket_id', t.id).order('at', { ascending: false }),
     supabase.from('ticket_comments').select('id, body, created_at, people(name)').eq('ticket_id', t.id).order('created_at', { ascending: false }),
     t.case_id ? supabase.from('test_cases').select('preconditions, steps, test_data, expected').eq('id', t.case_id).maybeSingle() : Promise.resolve({ data: null }),
     t.case_id ? supabase.from('test_runs').select('result, note, build, recorded_at, kind').eq('case_id', t.case_id).in('result', ['failed', 'known_defect', 'blocked']).order('recorded_at', { ascending: false }).limit(1).maybeSingle() : Promise.resolve({ data: null }),
     loadPeople(),
     loadSprints(),
+    loadTickets(),
   ])
   const sprintName = new Map(sprints.map((s) => [s.id, s.name]))
   const moves = allowedMoves(t.state as TicketState, me.role)
@@ -35,8 +37,15 @@ export default async function TicketPage({
   const ownerOptions = [{ value: '', label: 'Unassigned' }, ...people.filter((p) => p.active).map((p) => ({ value: p.id, label: p.name }))]
   const resolved = ['closed', 'deferred', 'duplicate'].includes(t.state)
 
+  // When the ticket was not opened from a list: step through open tickets, most severe first.
+  const SEV = ['Critical', 'High', 'Medium', 'Low']
+  const fallback = allTickets.filter((x) => !['closed', 'deferred', 'duplicate'].includes(x.state))
+    .sort((a, b) => SEV.indexOf(a.severity) - SEV.indexOf(b.severity) || b.logged_on.localeCompare(a.logged_on))
+    .map((x) => x.key)
+
   return (
     <>
+      <TicketNav current={t.key} fallback={fallback.includes(t.key) ? fallback : [t.key, ...fallback]} />
       <PageHeader title={t.title} sub={<><span className="mono">{t.key}</span>{t.tc_id && <> · <CaseLink tcId={t.tc_id} /></>}{t.zone && ` · ${t.zone} · ${t.page}`}</>}>
         {t.owner_id !== me.id && !resolved && (
           <form action={assignToMe}>

@@ -6,6 +6,7 @@ import { PriorityChip, StateChip } from '@/components/ui'
 import { STATE_LABEL } from '@/lib/workflow/ticket-machine'
 import type { BoardTicket } from '@/components/board/ticket-board'
 import { deleteRows, updateTickets } from '../actions'
+import { rememberTicketList } from '@/components/ticket-nav'
 
 type Row = BoardTicket & { kind: 'defect' | 'test_mismatch'; logged_on: string }
 const SEVERITY = ['Critical', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: p }))
@@ -31,6 +32,7 @@ export function TicketsGrid({ rows, people, canTriage, isLead, state, remember =
       columns={columns}
       csvName="tickets"
       remember={remember}
+      onView={(shown) => rememberTicketList(shown.map((r) => r.key), shown.length === rows.length ? 'all tickets' : 'your filtered tickets')}
       charts={[
         { key: 'state', title: 'By state', order: Object.values(STATE_LABEL) },
         { key: 'severity', title: 'By severity', order: ['Critical', 'High', 'Medium', 'Low'] },

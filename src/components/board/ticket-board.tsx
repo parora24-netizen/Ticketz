@@ -8,6 +8,7 @@ import { STATE_LABEL, canMove, requiredFor, type Role, type TicketState } from '
 import { moveTicketFromBoard } from '@/app/(app)/actions'
 import { CaseDrawer } from './case-drawer'
 import { useRemembered } from '@/components/remember'
+import { rememberTicketList } from '@/components/ticket-nav'
 
 export type BoardTicket = {
   id: string
@@ -63,6 +64,12 @@ export function TicketBoard({ tickets, role, meId, zones, people = [], sprints =
       && (!q || `${t.key} ${t.title} ${t.tc_id ?? ''}`.toLowerCase().includes(q.toLowerCase()))),
     [tickets, owner, high, zone, q],
   )
+  // Previous / Next on a ticket page walks the board as shown: column by column, most severe first.
+  useEffect(() => {
+    const order = COLUMNS.flatMap((col) => visible.filter((t) => t.state === col)
+      .sort((a, b) => SEVERITIES.indexOf(a.severity) - SEVERITIES.indexOf(b.severity) || b.updated_at.localeCompare(a.updated_at)))
+    rememberTicketList(order.map((t) => t.key), 'the ticket board')
+  }, [visible])
   // Open tickets per owner, for the owner filter and the ‹ › walk at standup.
   const load = useMemo(() => {
     const m = new Map<string, { name: string; n: number }>()

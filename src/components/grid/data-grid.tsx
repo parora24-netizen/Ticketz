@@ -49,6 +49,8 @@ type Props<T extends { id: string }> = {
   charts?: ChartSpec[]
   /** Keep this person's search, filters and sort for next time (off when a link opened the grid with filters of its own). */
   remember?: boolean
+  /** Told the rows on show, in order, whenever they change (e.g. for Previous / Next on a detail page). */
+  onView?: (rows: T[]) => void
 }
 
 type Sort = { key: string; dir: 1 | -1 }
@@ -64,7 +66,7 @@ const EMPTY = '(blank)'
  */
 export function DataGrid<T extends { id: string }>({
   rows, columns, onSave, bulkFields = [], bulkActions = [], csvName = 'export', toolbar, actions,
-  defaultSort = [], defaultFilters, searchPlaceholder = 'Search', emptyText = 'No rows.', selectable = true, footerNote, charts, remember = true,
+  defaultSort = [], defaultFilters, searchPlaceholder = 'Search', emptyText = 'No rows.', selectable = true, footerNote, charts, remember = true, onView,
 }: Props<T>) {
   const [overrides, setOverrides] = useState<Record<string, Record<string, string | null>>>({})
   const [filters, setFilters] = useState<Record<string, Filter>>(() =>
@@ -195,6 +197,9 @@ export function DataGrid<T extends { id: string }>({
   }, [rows, columns, sorts, cellValue, matches])
 
   const shown = view.slice(0, limit)
+  const onViewRef = useRef(onView)
+  onViewRef.current = onView
+  useEffect(() => { onViewRef.current?.(view) }, [view])
 
   async function save(ids: string[], patch: Record<string, string | null>, label: string) {
     if (!onSave) return

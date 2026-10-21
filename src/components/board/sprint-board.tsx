@@ -350,6 +350,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
       {tasks.length > 0 && <TaskBoard tasks={tasks} owner={owner} today={today} sprintId={sprintId} people={people} sprints={sprints} isLead={role === 'lead'} />}
 
       {(cards.length > 0 || emptyAreas.length > 0) && <>
+      {tasks.length > 0 && <h3 className="mb-2 text-[14px] font-semibold text-[var(--navy-ink)]">Test cases and tickets · {shown.length}</h3>}
 
       {/* One page scroll: no column scrolls, the headings stick. Narrow screens scroll sideways instead. */}
       <div className="max-lg:overflow-x-auto">

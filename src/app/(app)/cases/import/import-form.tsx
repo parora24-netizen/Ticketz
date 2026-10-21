@@ -49,7 +49,7 @@ export function ImportForm() {
               <li key={c} className="chip px-1.5 font-normal text-[var(--ink-2)]"><span className="mono mr-1 text-[var(--faint)]">{i + 1}</span>{c}</li>
             ))}
           </ol>
-          <p className="mt-1.5 text-[11.5px] text-[var(--muted)]">Select Test Case ID through Test Type in Excel and copy. For new cases, start from Zone and leave the ID out: the next free ID is given on save.</p>
+          <p className="mt-1.5 text-[11.5px] text-[var(--muted)]">Select Test Case ID through Test Type in Excel and copy. Test Case ID is optional: an ID you give is used (an ID that already exists updates that case), and a blank one gets the next free ID on save.</p>
         </div>
         <div className="flex items-center gap-3 lg:col-span-2">
           <SubmitButton primary pendingText="Reading…">Preview import</SubmitButton>

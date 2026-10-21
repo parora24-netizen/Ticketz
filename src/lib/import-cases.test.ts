@@ -64,6 +64,10 @@ describe('case import', () => {
     const noId = parseTsv('Engine\tSign-On\tLogin\t\t\t\tHome page\tLow\tFunctional\n')
     expect(noId[0]).toMatchObject({ Zone: 'Engine', 'Test Case Title': 'Login', Priority: 'Low', 'Test Type': 'Functional' })
     expect(noId[0]['Test Case ID']).toBeUndefined()
+    // The ID column copied with some IDs blank: given IDs are kept, blank ones get the next free id.
+    const mixed = parseTsv('TC_FN_070\tEngine\tSign-On\tLogin\t\t\t\t\tHigh\t\n\tEngine\tSign-On\tLogout\t\t\t\t\tLow\t\n')
+    const parsed = parseCases(mixed, [{ id: 'a1', zone: 'Engine', page: 'Sign-On' }])
+    expect(parsed.cases.map((c) => c.tc_id)).toEqual(['TC_FN_070', null])
   })
 
   it('tells new, updated and unchanged cases apart', () => {

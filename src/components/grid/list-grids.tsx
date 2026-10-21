@@ -7,7 +7,10 @@ import { deleteRows, updatePeople, updateTasks } from '@/app/(app)/actions'
 
 // ---- Sprints ---------------------------------------------------------------------------------
 
-export type SprintRow = { id: string; name: string; kind: string; tickets: number; dates: string; starts_on: string; days: number; zones: string; pages: string; cases: number; tested: number; status: string; current: boolean }
+/** `done` of `of`: cases with a result (test sprints), tickets resolved (fix sprints). `empty` says why a sprint has no zone. */
+export type SprintRow = { id: string; name: string; kind: string; tickets: number; dates: string; starts_on: string; days: number; zones: string; pages: string; cases: number; done: number; of: number; empty: string; status: string; current: boolean }
+
+const none = <span className="text-[var(--faint)]">—</span>
 
 export function SprintsGrid({ rows }: { rows: SprintRow[] }) {
   const cols: Column<SprintRow>[] = [
@@ -18,19 +21,23 @@ export function SprintsGrid({ rows }: { rows: SprintRow[] }) {
       render: (r) => <Chip tone={r.status === 'Running' ? 'accent' : r.status === 'Closed' ? 'good' : 'muted'}>{r.status}</Chip> },
     { key: 'dates', header: 'Dates', width: 150, value: (r) => r.dates, sortValue: (r) => r.starts_on },
     { key: 'days', header: 'Days', width: 70, align: 'right', value: (r) => r.days },
-    { key: 'zones', header: 'Zone', width: 220, value: (r) => r.zones, filter: 'text' },
-    { key: 'pages', header: 'Page', width: 420, value: (r) => r.pages, filter: 'text' },
-    { key: 'cases', header: 'Cases', width: 80, align: 'right', value: (r) => r.cases || null,
-      render: (r) => (r.cases ? <Link href={`/cases?sprint=${r.id}`} className="text-[var(--accent)] hover:underline">{r.cases}</Link> : null) },
-    { key: 'tickets', header: 'Open tickets', width: 110, align: 'right', value: (r) => r.tickets || null,
-      render: (r) => (r.tickets ? <Link href={`/tickets?view=grid&sprint=${r.id}`} className="text-[var(--accent)] hover:underline">{r.tickets}</Link> : null) },
-    { key: 'tested', header: 'Tested', width: 150, value: (r) => (r.cases ? Math.round((r.tested / r.cases) * 100) : 0), sortValue: (r) => (r.cases ? r.tested / r.cases : 0),
-      render: (r) => (
-        <Link href={`/cases?sprint=${r.id}`} className="flex items-center gap-2 hover:underline">
-          <span className="h-1.5 w-16 bg-[var(--surface-2)]"><span className="block h-1.5 bg-[#2b57c4]" style={{ width: `${r.cases ? (r.tested / r.cases) * 100 : 0}%` }} /></span>
-          <span className="mono text-[11.5px]">{r.cases ? Math.round((r.tested / r.cases) * 100) : 0}%</span>
+    { key: 'zones', header: 'Zone', width: 220, value: (r) => r.zones, filter: 'text',
+      render: (r) => r.zones || <span className="text-[var(--faint)]">{r.empty}</span> },
+    { key: 'pages', header: 'Page', width: 420, value: (r) => r.pages, filter: 'text',
+      render: (r) => (r.pages ? <span className="whitespace-normal">{r.pages}</span> : none) },
+    { key: 'cases', header: 'Cases', width: 80, align: 'right', value: (r) => r.cases,
+      render: (r) => (r.cases ? <Link href={r.kind === 'Fix' ? `/sprints/${r.id}` : `/cases?sprint=${r.id}`} className="text-[var(--accent)] hover:underline">{r.cases}</Link> : none) },
+    { key: 'tickets', header: 'Open tickets', width: 110, align: 'right', value: (r) => r.tickets,
+      render: (r) => (r.tickets ? <Link href={`/tickets?view=grid&sprint=${r.id}`} className="text-[var(--accent)] hover:underline">{r.tickets}</Link> : <span className="text-[var(--faint)]">0</span>) },
+    { key: 'progress', header: 'Progress', width: 170, value: (r) => (r.of ? Math.round((r.done / r.of) * 100) : 0), sortValue: (r) => (r.of ? r.done / r.of : 0),
+      render: (r) => r.of ? (
+        <Link href={r.kind === 'Fix' ? `/tickets?view=grid&sprint=${r.id}` : `/cases?sprint=${r.id}`} className="flex items-center gap-2 hover:underline"
+          title={r.kind === 'Fix' ? `${r.done} of ${r.of} tickets resolved` : `${r.done} of ${r.of} cases have a result`}>
+          <span className="h-1.5 w-16 bg-[var(--surface-2)]"><span className="block h-1.5 bg-[#2b57c4]" style={{ width: `${(r.done / r.of) * 100}%` }} /></span>
+          <span className="mono text-[11.5px]">{Math.round((r.done / r.of) * 100)}%</span>
+          <span className="text-[11px] text-[var(--muted)]">{r.kind === 'Fix' ? 'resolved' : 'tested'}</span>
         </Link>
-      ) },
+      ) : none },
   ]
   return <DataGrid rows={rows} columns={cols} csvName="sprints" selectable={false} charts={[{ key: 'kind', title: 'By type', order: ['Triage', 'Test', 'Fix', 'Regression'] }, { key: 'status', title: 'By status', order: ['Running', 'Planned', 'Closed'] }]} defaultSort={[{ key: 'dates', dir: 1 }]} searchPlaceholder="Search sprints" />
 }

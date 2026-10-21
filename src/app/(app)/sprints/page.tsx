@@ -24,17 +24,21 @@ export default async function SprintsPage({ searchParams }: { searchParams: Prom
   }
   const rows = sprints.map((s) => {
     const ids = sprintAreas.filter((x) => x.sprint_id === s.id).map((x) => x.area_id)
-    const open = tickets.filter((t) => t.current_sprint_id === s.id && !['closed', 'deferred', 'duplicate'].includes(t.state))
-    // Test sprints cover their areas; fix sprints cover wherever their tickets are.
+    const own = tickets.filter((t) => t.current_sprint_id === s.id)
+    const open = own.filter((t) => !['closed', 'deferred', 'duplicate'].includes(t.state))
+    // Test sprints cover their areas; fix sprints cover wherever their tickets are (closed ones too).
     const spots = s.kind === 'fix'
-      ? open.filter((t) => t.zone).map((t) => ({ zone: t.zone!, page: t.page! }))
+      ? own.filter((t) => t.zone).map((t) => ({ zone: t.zone!, page: t.page! }))
       : ids.map((id) => areaById.get(id)).filter((a) => !!a).map((a) => ({ zone: a!.zone, page: a!.page }))
     const zones = [...new Set(spots.map((x) => x.zone))]
+    // Pages are always named; a zone covered in full says so after them.
     const pageText = zones.map((z) => {
       const pages = [...new Set(spots.filter((x) => x.zone === z).map((x) => x.page))]
-      if (s.kind !== 'fix' && pages.length === pagesInZone(z)) return `${z}: all`
-      return zones.length > 1 ? `${z}: ${pages.join(', ')}` : pages.join(', ')
+      const list = pages.join(', ') + (s.kind !== 'fix' && pages.length > 1 && pages.length === pagesInZone(z) ? ` (all ${pages.length})` : '')
+      return zones.length > 1 ? `${z}: ${list}` : list
     }).join(' · ')
+    // A fix sprint's cases are the ones behind its tickets; its progress is tickets resolved.
+    const fixCases = new Set(own.map((t) => t.case_id).filter(Boolean)).size
     return {
       id: s.id,
       name: s.name,
@@ -45,8 +49,10 @@ export default async function SprintsPage({ searchParams }: { searchParams: Prom
       days: workingDaysBetween(s.starts_on, s.ends_on, off),
       zones: zones.join(', '),
       pages: pageText,
-      cases: ids.reduce((sum, id) => sum + (casesByArea.get(id) ?? 0), 0),
-      tested: ids.reduce((sum, id) => sum + (testedByArea.get(id) ?? 0), 0),
+      cases: s.kind === 'fix' ? fixCases : ids.reduce((sum, id) => sum + (casesByArea.get(id) ?? 0), 0),
+      done: s.kind === 'fix' ? own.length - open.length : ids.reduce((sum, id) => sum + (testedByArea.get(id) ?? 0), 0),
+      of: s.kind === 'fix' ? own.length : ids.reduce((sum, id) => sum + (casesByArea.get(id) ?? 0), 0),
+      empty: s.kind === 'fix' ? 'No tickets yet' : s.kind === 'triage' ? 'Ticket triage' : 'No areas yet',
       status: s.status === 'active' ? 'Running' : s.status === 'closed' ? 'Closed' : 'Planned',
       current: running.some((r) => r.id === s.id),
     }

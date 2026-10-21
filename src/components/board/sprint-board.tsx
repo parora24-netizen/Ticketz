@@ -14,6 +14,7 @@ import type { StandupCard } from '@/lib/standup'
 import { StandupPersonCard } from '@/app/(app)/standup/standup-deck'
 import { CaseDrawer } from './case-drawer'
 import { useRemembered } from '@/components/remember'
+import { SearchInput } from '@/components/search-input'
 import { TaskBoard, type SprintTask } from './task-board'
 
 export type SprintCard = {
@@ -82,8 +83,8 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
   const [text, setText] = useState('')
   const [build, setBuild] = useState('')
   const [open, setOpen] = useState<string | null>(null)
-  // Filters are remembered per sprint for this person until they clear them.
-  const [q, setQ] = useRemembered(`sprint-board:${sprintId}:q`, '')
+  // Filters are remembered per sprint for this person until they clear them; the search box starts empty.
+  const [q, setQ] = useState('')
   const [onlyHigh, setOnlyHigh] = useRemembered(`sprint-board:${sprintId}:high`, false)
   const [area, setArea] = useRemembered(`sprint-board:${sprintId}:area`, '')
   const [owner, setOwner] = useRemembered(`sprint-board:${sprintId}:owner`, '') // '' everyone, '__none' nobody, else a person id
@@ -314,7 +315,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
           ? <button type="button" onClick={startStandup} className="btn btn-primary">Run standup</button>
           : <button type="button" onClick={endStandup} className="btn">End standup</button>}
         {cards.length > 0 && <>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search cases or tickets" aria-label="Search the board" className="input w-56" />
+        <SearchInput value={q} onChange={setQ} placeholder="Search cases or tickets" label="Search the board" />
         <button type="button" onClick={() => setOnlyHigh((v) => !v)} className={`btn ${onlyHigh ? 'btn-primary' : ''}`}>Critical &amp; High</button>
         </>}
         {areas.length > 1 && (

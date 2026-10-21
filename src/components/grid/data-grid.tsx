@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { readRemembered, useRememberKey, writeRemembered } from '@/components/remember'
+import { SearchInput } from '@/components/search-input'
 import { toast } from '@/components/toast'
 import { GridCharts, type ChartData, type ChartSpec } from './grid-charts'
 import { exportCsv, exportXlsx } from './export'
@@ -73,21 +74,21 @@ export function DataGrid<T extends { id: string }>({
     Object.fromEntries(Object.entries(defaultFilters ?? {}).map(([k, values]) => [k, { kind: 'values' as const, values }])))
   const [query, setQuery] = useState('')
   const [sorts, setSorts] = useState<Sort[]>(defaultSort)
-  // Each person's search, filters and sort come back next visit, until they clear them.
+  // Each person's filters and sort come back next visit, until they clear them. The search box
+  // starts empty: a remembered search left people looking at one row with no idea why.
   const keep = remember && !defaultFilters
   const rememberKey = useRememberKey(`grid:${csvName}`)
   const restored = useRef(false)
   useEffect(() => {
     if (!keep) return
-    const saved = readRemembered<{ filters?: Record<string, Filter>; query?: string; sorts?: Sort[] }>(rememberKey)
+    const saved = readRemembered<{ filters?: Record<string, Filter>; sorts?: Sort[] }>(rememberKey)
     if (saved?.filters) setFilters(saved.filters)
-    if (typeof saved?.query === 'string') setQuery(saved.query)
     if (saved?.sorts?.length) setSorts(saved.sorts)
     restored.current = true
   }, [keep, rememberKey])
   useEffect(() => {
-    if (keep && restored.current) writeRemembered(rememberKey, { filters, query, sorts })
-  }, [keep, rememberKey, filters, query, sorts])
+    if (keep && restored.current) writeRemembered(rememberKey, { filters, sorts })
+  }, [keep, rememberKey, filters, sorts])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [anchor, setAnchor] = useState<number | null>(null)
   const [active, setActive] = useState<{ r: number; c: number } | null>(null)
@@ -308,7 +309,7 @@ export function DataGrid<T extends { id: string }>({
     <div className="flex min-h-0 flex-col">
       {/* Toolbar: search and scope on the left, the page's buttons on the right. */}
       <div className="flex flex-wrap items-center gap-2 pb-3">
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={searchPlaceholder} className="input w-64" aria-label="Search" />
+        <SearchInput value={query} onChange={setQuery} placeholder={searchPlaceholder} label="Search" className="w-64" />
         {toolbar}
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {actions}
@@ -498,6 +499,10 @@ export function DataGrid<T extends { id: string }>({
       </div>
       <p className="pt-2 text-[11.5px] text-[var(--muted)]">
         Showing {Math.min(view.length, limit)} of {rows.length}
+        {(query || activeFilters > 0) && view.length < rows.length && <>
+          {' · '}
+          <button type="button" onClick={() => { setQuery(''); setFilters({}) }} className="font-semibold text-[var(--accent)] hover:underline">Clear search and filters</button>
+        </>}
         {footerNote ? ` · ${footerNote}` : ''}
         {onSave ? ' · Click a cell, arrow keys to move, Enter to edit ✎ columns, Esc to cancel. Shift-click a header to sort by more than one column.' : ''}
       </p>

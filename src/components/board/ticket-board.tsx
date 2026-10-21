@@ -8,6 +8,7 @@ import { STATE_LABEL, canMove, requiredFor, type Role, type TicketState } from '
 import { moveTicketFromBoard } from '@/app/(app)/actions'
 import { CaseDrawer } from './case-drawer'
 import { useRemembered } from '@/components/remember'
+import { SearchInput } from '@/components/search-input'
 import { rememberTicketList } from '@/components/ticket-nav'
 
 export type BoardTicket = {
@@ -49,12 +50,12 @@ export function TicketBoard({ tickets, role, meId, zones, people = [], sprints =
   const [pending, setPending] = useState<{ t: BoardTicket; to: TicketState } | null>(null)
   const [input, setInput] = useState('')
   const setMsg = (m: { tone: 'ok' | 'error'; text: string }) => toast(m.text, m.tone)
-  // Filters are remembered for this person until they clear them.
+  // Filters are remembered for this person until they clear them; the search box starts empty.
   const [owner, setOwner] = useRemembered('ticket-board:owner', '') // '' everyone, '__none' nobody, else a person id
   const [high, setHigh] = useRemembered('ticket-board:high', false)
   const [zone, setZone] = useRemembered('ticket-board:zone', '')
   const [lane, setLane] = useRemembered<Lane>('ticket-board:lane', 'none')
-  const [q, setQ] = useRemembered('ticket-board:q', '')
+  const [q, setQ] = useState('')
 
   useEffect(() => setLocal({}), [tickets])
 
@@ -129,7 +130,7 @@ export function TicketBoard({ tickets, role, meId, zones, people = [], sprints =
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center gap-2">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search tickets" aria-label="Search tickets" className="input w-56" />
+        <SearchInput value={q} onChange={setQ} placeholder="Search tickets" label="Search tickets" />
         <div className="flex items-center">
           <button type="button" onClick={() => step(-1)} aria-label="Previous person" className="btn px-2">‹</button>
           <select value={owner} onChange={(e) => setOwner(e.target.value)} aria-label="Owner" className="select -ml-px min-w-44">

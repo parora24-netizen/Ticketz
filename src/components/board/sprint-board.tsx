@@ -44,6 +44,8 @@ const PRIORITY = ['Critical', 'High', 'Medium', 'Low']
 /** A column on either board: the case board (To test, Fix, Retest, Done) or a test sprint's. */
 type Col = Stage | TestStage | FixStage
 const isDone = (s: Col) => s === 'done' || s === 'passed'
+// The case passes again: its manual test passed and the automated run, if any, is not failing.
+const passesNow = (c: SprintCard) => c.manual_result === 'passed' && c.auto_result !== 'failed' && c.auto_result !== 'known_defect'
 
 /** Whose move a card is: the dev on the ticket while it is in Fix, otherwise the case's tester. */
 function ownerOf(c: SprintCard, stage: Col): { id: string | null; name: string | null; role: string } {
@@ -109,7 +111,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
   const shown = cards.filter((c) => (!onlyHigh || c.priority === 'Critical' || c.priority === 'High') && (!area || areaOf(c) === area)
     && matchesOwner(c) && (!q || `${c.tc_id} ${c.title} ${c.ticket?.key ?? ''}`.toLowerCase().includes(q.toLowerCase())))
   // Fix sprints: a ticket whose case passes again can be closed in one click (lead and QA).
-  const closable = (c: SprintCard) => mode === 'fix' && !!c.ticket && c.manual_result === 'passed' && !isDone(stageOf(c)) && !('error' in moveOf(c, 'done'))
+  const closable = (c: SprintCard) => mode === 'fix' && !!c.ticket && passesNow(c) && !isDone(stageOf(c)) && !('error' in moveOf(c, 'done'))
   const passing = shown.filter(closable)
   const [closing, setClosing] = useState(false)
   async function closePassing() {
@@ -252,7 +254,8 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
         {mode === 'fix' && (s === 'triage' || s === 'fix') && (c.ticket?.kind === 'test_mismatch' || c.manual_result === 'passed') && (
           <div className="mt-1 flex flex-wrap gap-1">
             {c.ticket?.kind === 'test_mismatch' && <span className="chip px-1.5 text-[10.5px]">Test issue</span>}
-            {c.manual_result === 'passed' && (closable(c)
+            {c.manual_result === 'passed' && !passesNow(c) && <span className="chip border-[var(--warn-line)] bg-[var(--warn-soft)] px-1.5 text-[10.5px] text-[var(--warn)]">Manual passes, auto fails</span>}
+            {passesNow(c) && (closable(c)
               ? <button type="button" onClick={(e) => { e.stopPropagation(); void perform(c, 'done') }} onKeyDown={(e) => e.stopPropagation()}
                   className="chip border-[var(--good-line)] bg-[var(--good-soft)] px-1.5 text-[10.5px] text-[var(--good)] hover:border-[var(--good)]">Passes now · Close ticket</button>
               : <span className="chip border-[var(--good-line)] bg-[var(--good-soft)] px-1.5 text-[10.5px] text-[var(--good)]">Passes now</span>)}

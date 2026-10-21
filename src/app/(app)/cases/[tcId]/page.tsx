@@ -4,7 +4,10 @@ import { Chip, PageHeader, PriorityChip, ResultChip, StateChip, TicketLink } fro
 import { Flash } from '@/components/flash'
 import { getMe } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { fmtDate, loadSprints } from '@/lib/data'
+import { loadAreas, loadPeople, loadSprints } from '@/lib/data'
+import { MARKERS, Timeline, type TimelineItem } from '@/components/timeline'
+import { editItems, ticketEventItems } from '@/components/ticket-timeline'
+import { changeEntries, type ChangeRow } from '@/lib/activity'
 import { mismatch } from '@/lib/workflow/case-stage'
 import { raiseTicket } from '../../actions'
 import { CaseAutomationField, CaseResultActions, UndoResultButton } from '@/components/case-controls'
@@ -18,12 +21,24 @@ export default async function CasePage({
   const supabase = await createClient()
   const { data: c } = await supabase.from('test_cases').select('*, areas(zone, page)').eq('tc_id', decodeURIComponent(tcId)).maybeSingle()
   if (!c) notFound()
-  const [{ data: runs }, { data: tickets }, sprints] = await Promise.all([
+  const [{ data: runs }, { data: tickets }, sprints, { data: edits }, people, areas] = await Promise.all([
     supabase.from('test_runs').select('*, people(name)').eq('case_id', c.id).order('recorded_at', { ascending: false }),
-    supabase.from('tickets').select('key, title, state, severity').eq('case_id', c.id).order('logged_on', { ascending: false }),
+    supabase.from('tickets').select('id, key, title, state, severity').eq('case_id', c.id).order('logged_on', { ascending: false }),
     loadSprints(),
+    // Field edits; the change log is readable by the lead only.
+    supabase.from('change_log').select('*').eq('row_id', c.id).eq('action', 'update').order('at', { ascending: false }).limit(200),
+    loadPeople(),
+    loadAreas(),
   ])
+  const { data: ticketEvents } = tickets?.length
+    ? await supabase.from('ticket_events').select('id, ticket_id, from_state, to_state, note, at, people(name)').in('ticket_id', tickets.map((t) => t.id))
+    : { data: [] }
   const sprintName = new Map(sprints.map((s) => [s.id, s.name]))
+  const names = new Map<string, string>([
+    ...people.map((p) => [p.id, p.name] as [string, string]),
+    ...areas.map((a) => [a.id, `${a.zone} · ${a.page}`] as [string, string]),
+    ...sprintName,
+  ])
   // Screenshots attached to results: short-lived links, the files stay private.
   const paths = (runs ?? []).flatMap((r) => (r.attachments as string[] | null) ?? [])
   const signed = new Map<string, string>()
@@ -100,32 +115,51 @@ export default async function CasePage({
         </aside>
       </div>
 
-      <section className="card mt-4 overflow-x-auto">
-        <h2 className="px-4 pt-4 font-semibold">Result history</h2>
-        <table className="table mt-2">
-          <thead><tr><th>When</th><th>Kind</th><th>Result</th><th>Sprint</th><th>Build</th><th>By</th><th>Note</th><th>Files</th>{canTest && <th />}</tr></thead>
-          <tbody>
-            {(runs ?? []).map((r) => (
-              <tr key={r.id}>
-                <td className="whitespace-nowrap">{fmtDate(r.recorded_at)}</td>
-                <td>{r.kind === 'auto' ? 'Automated' : 'Manual'}</td>
-                <td><ResultChip r={r.result} /></td>
-                <td>{r.sprint_id ? sprintName.get(r.sprint_id) : 'Before sprints'}</td>
-                <td className="font-mono text-xs">{r.build ?? ''}</td>
-                <td>{r.people?.name ?? (r.kind === 'auto' ? 'CI' : '')}</td>
-                <td className="max-w-sm whitespace-pre-wrap text-xs">{r.note ?? ''}{r.url && <> <a href={r.url} className="text-[var(--accent)] hover:underline" target="_blank" rel="noreferrer">report</a></>}</td>
-                <td className="whitespace-nowrap text-xs">
-                  {((r.attachments as string[] | null) ?? []).map((path, i) => signed.get(path) && (
-                    <a key={path} href={signed.get(path)} target="_blank" rel="noreferrer" className="mr-2 text-[var(--accent)] hover:underline">
-                      {path.split('/').pop()!.replace(/^[0-9a-f-]{36}-/, '') || `file ${i + 1}`}
-                    </a>
-                  ))}
-                </td>
-                {canTest && <td>{r.id === lastManualRun?.id && <UndoResultButton runId={r.id} back={back} result={r.result} />}</td>}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <section className="card mt-4 p-5">
+        <h2 className="font-semibold">History</h2>
+        <p className="mt-0.5 text-[12px] text-[var(--muted)]">Results, its tickets and edits, newest first.</p>
+        <Timeline empty="No results yet." items={[
+          ...(runs ?? []).map((r): TimelineItem => {
+            const files = ((r.attachments as string[] | null) ?? []).filter((p) => signed.get(p))
+            const meta = [r.sprint_id ? `Sprint ${sprintName.get(r.sprint_id) ?? ''}` : 'Before sprints', r.build && `build ${r.build}`].filter(Boolean).join(' · ')
+            return {
+              id: `r${r.id}`, at: r.recorded_at,
+              marker: r.result === 'passed' ? MARKERS.passed : r.result === 'failed' ? MARKERS.failed : MARKERS.other,
+              body: (
+                <>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <b className="font-semibold text-[var(--ink)]">{r.people?.name ?? (r.kind === 'auto' ? 'CI' : 'Workbook')}</b>
+                    <span>{r.kind === 'auto' ? 'automated run' : 'manual test'}</span>
+                    <ResultChip r={r.result} />
+                    <span className="text-[12px] text-[var(--muted)]">{meta}</span>
+                    {canTest && r.id === lastManualRun?.id && <UndoResultButton runId={r.id} back={back} result={r.result} />}
+                  </div>
+                  {(r.note || r.url) && (
+                    <p className="mt-1 whitespace-pre-wrap text-[12.5px] text-[var(--muted)]">
+                      {r.note}{r.url && <> <a href={r.url} className="text-[var(--accent)] hover:underline" target="_blank" rel="noreferrer">report</a></>}
+                    </p>
+                  )}
+                  {files.length > 0 && (
+                    <p className="mt-1 flex flex-wrap gap-x-3 text-[12px]">
+                      {files.map((path, i) => (
+                        <a key={path} href={signed.get(path)} target="_blank" rel="noreferrer" className="text-[var(--accent)] hover:underline">
+                          {path.split('/').pop()!.replace(/^[0-9a-f-]{36}-/, '') || `file ${i + 1}`}
+                        </a>
+                      ))}
+                    </p>
+                  )}
+                </>
+              ),
+            }
+          }),
+          ...(tickets ?? []).flatMap((t) => ticketEventItems(
+            (ticketEvents ?? []).filter((e) => e.ticket_id === t.id).map((e) => ({
+              id: `t${e.id}`, at: e.at as string, who: (e.people as unknown as { name: string } | null)?.name ?? null, from_state: e.from_state, to_state: e.to_state, note: e.note,
+            })),
+            <TicketLink k={t.key} />,
+          )),
+          ...editItems(changeEntries((edits ?? []) as ChangeRow[], names).map((x) => ({ id: x.key, at: x.at, who: x.actor_id ? names.get(x.actor_id) ?? 'Someone' : null, fields: x.fields ?? [] }))),
+        ]} />
       </section>
     </>
   )

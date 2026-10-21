@@ -59,7 +59,7 @@ function ownerOf(c: SprintCard, stage: Col): { id: string | null; name: string |
  */
 export function SprintBoard({ cards, role, meId, people, sprints, active, areas = [], standup = [], tasks = [], today, sprintId, mode = 'cases', emptyAreas = [] }: {
   cards: SprintCard[]
-  /** 'test' for a test sprint (No cases … Failed); 'fix' for a fix sprint (To triage, Fix, Retest, Done). */
+  /** 'test' for a test sprint (No cases … Failed); 'fix' for a fix sprint (Not started, In progress, Retest, Done). */
   mode?: 'cases' | 'test' | 'fix'
   /** Test sprints: areas with no cases yet, shown in To write. */
   emptyAreas?: { id: string; label: string }[]

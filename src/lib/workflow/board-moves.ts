@@ -66,12 +66,13 @@ export function droppableStages(from: Stage, role: Role, ticketState: TicketStat
 }
 
 /**
- * Fix sprints: the board follows each ticket. New tickets wait in To triage, where they are
- * given to a developer, or closed straight away when the case already passes.
+ * Fix sprints: the board follows each ticket. New tickets wait in Not started (to triage), where they are
+ * given to a developer, or closed straight away when the case already passes. The column names
+ * follow Jira; In progress holds Triaged, In fix and Reopened.
  */
 export const FIX_STAGES = ['triage', 'fix', 'retest', 'done'] as const
 export type FixStage = (typeof FIX_STAGES)[number]
-export const FIX_STAGE_LABEL: Record<FixStage, string> = { triage: 'To triage', fix: 'Fix', retest: 'Retest', done: 'Done' }
+export const FIX_STAGE_LABEL: Record<FixStage, string> = { triage: 'Not started', fix: 'In progress', retest: 'Retest', done: 'Done' }
 
 export function fixStage(state: TicketState): FixStage {
   if (state === 'new') return 'triage'

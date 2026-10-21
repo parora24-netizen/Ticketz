@@ -108,6 +108,25 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
   }
   const shown = cards.filter((c) => (!onlyHigh || c.priority === 'Critical' || c.priority === 'High') && (!area || areaOf(c) === area)
     && matchesOwner(c) && (!q || `${c.tc_id} ${c.title} ${c.ticket?.key ?? ''}`.toLowerCase().includes(q.toLowerCase())))
+  // Fix sprints: a ticket whose case passes again can be closed in one click (lead and QA).
+  const closable = (c: SprintCard) => mode === 'fix' && !!c.ticket && c.manual_result === 'passed' && !isDone(stageOf(c)) && !('error' in moveOf(c, 'done'))
+  const passing = shown.filter(closable)
+  const [closing, setClosing] = useState(false)
+  async function closePassing() {
+    const list = passing
+    if (!window.confirm(`Close ${list.length} tickets whose case passes now? Each is recorded as "Closed: the case already passes".`)) return
+    setClosing(true)
+    setLocal((l) => ({ ...l, ...Object.fromEntries(list.map((c) => [c.id, 'done' as Col])) }))
+    const failed: string[] = []
+    for (const c of list) {
+      const res = await moveTicketFromBoard({ ticket_id: c.ticket!.id, to: 'closed' } as Parameters<typeof moveTicketFromBoard>[0])
+      if (res.error) { failed.push(c.tc_id); setLocal((l) => { const n = { ...l }; delete n[c.id]; return n }) }
+    }
+    setClosing(false)
+    if (failed.length) toast(`${list.length - failed.length} closed; ${failed.length} could not be: ${failed.join(', ')}`, 'error')
+    else toast(`${list.length} tickets closed`)
+    router.refresh()
+  }
   const targets: Col[] = !dragging ? [] : mode === 'test'
     ? droppableTestStages(stageOf(dragging) as TestStage, role)
     : mode === 'fix'
@@ -233,7 +252,10 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
         {mode === 'fix' && (s === 'triage' || s === 'fix') && (c.ticket?.kind === 'test_mismatch' || c.manual_result === 'passed') && (
           <div className="mt-1 flex flex-wrap gap-1">
             {c.ticket?.kind === 'test_mismatch' && <span className="chip px-1.5 text-[10.5px]">Test issue</span>}
-            {c.manual_result === 'passed' && <span className="chip border-[var(--good-line)] bg-[var(--good-soft)] px-1.5 text-[10.5px] text-[var(--good)]">Passes now: close?</span>}
+            {c.manual_result === 'passed' && (closable(c)
+              ? <button type="button" onClick={(e) => { e.stopPropagation(); void perform(c, 'done') }} onKeyDown={(e) => e.stopPropagation()}
+                  className="chip border-[var(--good-line)] bg-[var(--good-soft)] px-1.5 text-[10.5px] text-[var(--good)] hover:border-[var(--good)]">Passes now · Close ticket</button>
+              : <span className="chip border-[var(--good-line)] bg-[var(--good-soft)] px-1.5 text-[10.5px] text-[var(--good)]">Passes now</span>)}
           </div>
         )}
         {!isDone(s) && (
@@ -342,6 +364,12 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
 
       {(cards.length > 0 || emptyAreas.length > 0) && <>
 
+      {passing.length > 0 && (
+        <div className="mb-2 flex flex-wrap items-center gap-3 border border-[var(--good-line)] bg-[var(--good-soft)] px-3 py-2 text-[12.5px]">
+          <span><b className="font-semibold">{passing.length}</b> {passing.length === 1 ? 'ticket’s case passes' : 'tickets’ cases pass'} now, so {passing.length === 1 ? 'it' : 'they'} can be closed without a fix.</span>
+          <button type="button" disabled={closing} onClick={() => void closePassing()} className="btn btn-sm ml-auto">{closing ? 'Closing…' : `Close ${passing.length}`}</button>
+        </div>
+      )}
       {/* One page scroll: no column scrolls, the headings stick. Narrow screens scroll sideways instead. */}
       <div className="max-lg:overflow-x-auto">
         <div className="max-lg:min-w-[760px]">

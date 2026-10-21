@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { byDay, changeEntries, fmtDuration, moveEntries, sessionMinutes, type ChangeRow } from './activity'
+import { byDay, changeEntries, fmtDuration, minutesSince, moveEntries, sessionMinutes, type ChangeRow } from './activity'
 
 const names = new Map([['p1', 'Uday'], ['a1', 'Engine · Admin']])
 const row = (r: Partial<ChangeRow>): ChangeRow => ({ id: 1, table_name: 'test_cases', row_id: 'r', label: 'TC_FN_070', action: 'update', changes: {}, actor_id: 'p1', at: '2026-10-21T05:00:00Z', ...r })
@@ -41,5 +41,14 @@ describe('activity', () => {
     expect(moves.map((m) => m.what)).toEqual(['opened ticket', 'NEW → TRIAGED'])
     expect(byDay(moves).map((d) => d.entries.length)).toEqual([1, 1])
     expect(byDay(moves)[0].entries[0].key).toBe('m2')
+  })
+})
+
+describe('time in a window', () => {
+  it('counts only the part of a session inside the window', () => {
+    const s = { started_at: '2026-10-21T18:00:00Z', last_at: '2026-10-21T18:59:00Z' }
+    expect(minutesSince(s, new Date('2026-10-21T00:00:00Z'))).toBe(60)
+    expect(minutesSince(s, new Date('2026-10-21T18:30:00Z'))).toBe(30)
+    expect(minutesSince(s, new Date('2026-10-21T19:30:00Z'))).toBe(0)
   })
 })

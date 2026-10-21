@@ -5,7 +5,7 @@ import { PageHeader } from '@/components/ui'
 import { getMe } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { loadPeople } from '@/lib/data'
-import { fmtDuration, sessionMinutes, type Session } from '@/lib/activity'
+import { fmtDuration, minutesSince, sessionMinutes, type Session } from '@/lib/activity'
 
 const ROLE = { lead: 'Lead', dev: 'Developer', qa: 'QA' } as const
 const IST = 'Asia/Kolkata'
@@ -27,8 +27,9 @@ export default async function ActivityPage() {
   ])
   const list = (sessions ?? []) as Session[]
   const signInOf = new Map(((signIns ?? []) as { person_id: string; last_sign_in_at: string | null }[]).map((s) => [s.person_id, s.last_sign_in_at]))
-  const todayIst = new Date().toLocaleDateString('en-CA', { timeZone: IST })
-  const isToday = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: IST }) === todayIst
+  // A rolling 24 hours rather than "today", so the column means the same wherever the reader is.
+  const dayAgo = new Date(Date.now() - 86_400_000)
+  const weekStart = new Date(weekAgo)
   const name = new Map(people.map((p) => [p.id, p.name]))
 
   const rows = people.filter((p) => p.active).map((p) => {
@@ -37,8 +38,8 @@ export default async function ActivityPage() {
       ...p,
       signIn: signInOf.get(p.id) ?? null,
       lastSeen: mine.reduce<string | null>((m, s) => (!m || s.last_at > m ? s.last_at : m), null),
-      today: mine.filter((s) => isToday(s.started_at)).reduce((n, s) => n + sessionMinutes(s), 0),
-      week: mine.reduce((n, s) => n + sessionMinutes(s), 0),
+      today: mine.reduce((n, s) => n + minutesSince(s, dayAgo), 0),
+      week: mine.reduce((n, s) => n + minutesSince(s, weekStart), 0),
       sessions: mine.length,
     }
   }).sort((a, b) => (b.lastSeen ?? '').localeCompare(a.lastSeen ?? ''))
@@ -46,10 +47,10 @@ export default async function ActivityPage() {
   return (
     <>
       <Tabs items={ADMIN_TABS} active="activity" />
-      <PageHeader sub="Time in the app counts while Launchpad is open in a visible tab. A break of 30 minutes starts a new session." />
+      <PageHeader sub="Time in the app counts while Launchpad is open in a visible tab; a break of 30 minutes starts a new session. Times are India time (IST)." />
       <section className="card overflow-x-auto">
         <table className="table">
-          <thead><tr><th>Person</th><th>Role</th><th>Last sign-in</th><th>Last seen</th><th className="text-right">Today</th><th className="text-right">Last 7 days</th><th className="text-right">Sessions</th><th /></tr></thead>
+          <thead><tr><th>Person</th><th>Role</th><th>Last sign-in (IST)</th><th>Last seen (IST)</th><th className="text-right">Last 24 hours</th><th className="text-right">Last 7 days</th><th className="text-right">Sessions</th><th /></tr></thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.id}>

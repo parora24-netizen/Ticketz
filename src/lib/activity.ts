@@ -10,6 +10,16 @@ export function sessionMinutes(s: Pick<Session, 'started_at' | 'last_at'>): numb
   return Math.max(1, Math.round((Date.parse(s.last_at) - Date.parse(s.started_at)) / 60_000) + 1)
 }
 
+/**
+ * The part of a session inside a window that ends now, e.g. the last 24 hours: a session that
+ * began before the window counts only from the window's start.
+ */
+export function minutesSince(s: Pick<Session, 'started_at' | 'last_at'>, since: Date): number {
+  const end = Date.parse(s.last_at) + 60_000
+  const start = Math.max(Date.parse(s.started_at), since.getTime())
+  return end <= start ? 0 : Math.round((end - start) / 60_000)
+}
+
 export function fmtDuration(minutes: number): string {
   if (minutes < 60) return `${minutes} m`
   const h = Math.floor(minutes / 60)

@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { DataGrid, type Column } from '@/components/grid/data-grid'
 import { Chip } from '@/components/ui'
+import { sprintHref } from '@/lib/links'
 import { deleteRows, updatePeople, updateTasks } from '@/app/(app)/actions'
 
 // ---- Sprints ---------------------------------------------------------------------------------
@@ -15,7 +16,7 @@ const none = <span className="text-[var(--faint)]">—</span>
 export function SprintsGrid({ rows }: { rows: SprintRow[] }) {
   const cols: Column<SprintRow>[] = [
     { key: 'name', header: 'Sprint', width: 90, value: (r) => r.name,
-      render: (r) => <Link href={`/sprints/${r.id}`} className="font-semibold text-[var(--accent)] hover:underline">{r.name}{r.current ? ' · now' : ''}</Link> },
+      render: (r) => <Link href={sprintHref(r)} className="font-semibold text-[var(--accent)] hover:underline">{r.name}{r.current ? ' · now' : ''}</Link> },
     { key: 'kind', header: 'Type', width: 100, value: (r) => r.kind },
     { key: 'status', header: 'Status', width: 110, value: (r) => r.status,
       render: (r) => <Chip tone={r.status === 'Running' ? 'accent' : r.status === 'Closed' ? 'good' : 'muted'}>{r.status}</Chip> },
@@ -26,7 +27,7 @@ export function SprintsGrid({ rows }: { rows: SprintRow[] }) {
     { key: 'pages', header: 'Page', width: 420, value: (r) => r.pages, filter: 'text',
       render: (r) => (r.pages ? <span className="whitespace-normal">{r.pages}</span> : none) },
     { key: 'cases', header: 'Cases', width: 80, align: 'right', value: (r) => r.cases,
-      render: (r) => (r.cases ? <Link href={r.kind === 'Fix' ? `/sprints/${r.id}` : `/cases?sprint=${r.id}`} className="text-[var(--accent)] hover:underline">{r.cases}</Link> : none) },
+      render: (r) => (r.cases ? <Link href={r.kind === 'Fix' ? sprintHref(r) : `/cases?sprint=${r.id}`} className="text-[var(--accent)] hover:underline">{r.cases}</Link> : none) },
     { key: 'tickets', header: 'Open tickets', width: 110, align: 'right', value: (r) => r.tickets,
       render: (r) => (r.tickets ? <Link href={`/tickets?view=grid&sprint=${r.id}`} className="text-[var(--accent)] hover:underline">{r.tickets}</Link> : <span className="text-[var(--faint)]">0</span>) },
     { key: 'progress', header: 'Progress', width: 170, value: (r) => (r.of ? Math.round((r.done / r.of) * 100) : 0), sortValue: (r) => (r.of ? r.done / r.of : 0),
@@ -59,7 +60,7 @@ export function PlanGrid({ rows, sprints, isLead }: { rows: TaskRow[]; sprints: 
     { key: 'num', header: '#', width: 50, align: 'right', value: (r) => r.num },
     { key: 'phase', header: 'Phase', width: 110, value: (r) => r.phase },
     { key: 'sprint', header: 'Sprint', width: 90, value: (r) => sprintName(r.sprint_id),
-      render: (r) => r.sprint_id ? <Link href={`/sprints/${r.sprint_id}`} className="font-semibold text-[var(--accent)] hover:underline">{sprintName(r.sprint_id)}</Link> : <span className="text-[var(--faint)]">—</span>,
+      render: (r) => r.sprint_id ? <Link href={sprintHref({ name: sprintName(r.sprint_id) })} className="font-semibold text-[var(--accent)] hover:underline">{sprintName(r.sprint_id)}</Link> : <span className="text-[var(--faint)]">—</span>,
       edit: { field: 'sprint_id', kind: 'select', options: sprintOptions } },
     { key: 'title', header: 'Task', width: 460, value: (r) => r.title },
     { key: 'owner', header: 'Owner', width: 170, value: (r) => r.owner },

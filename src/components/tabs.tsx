@@ -1,3 +1,4 @@
+import { sprintHref } from '@/lib/links'
 import Link from 'next/link'
 
 /** Page-level tabs: views of one place, rather than separate screens. */
@@ -28,7 +29,7 @@ const KIND: Record<string, string> = { triage: 'Triage', test: 'Test', fix: 'Fix
 /** One tab per track (Test and Fix run side by side), then the list. */
 export function sprintTabs(now: NowSprint[]) {
   return [
-    ...now.map((n) => ({ key: n.id, href: `/sprints/${n.id}`, label: `${KIND[n.kind] ?? 'Sprint'} · ${n.running ? n.name : `next ${n.name}`}` })),
+    ...now.map((n) => ({ key: n.id, href: sprintHref(n), label: `${KIND[n.kind] ?? 'Sprint'} · ${n.running ? n.name : `next ${n.name}`}` })),
     { key: 'all', href: '/sprints', label: 'All sprints' },
   ]
 }

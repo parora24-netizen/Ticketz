@@ -1,3 +1,4 @@
+import { sprintHref } from '@/lib/links'
 import Link from 'next/link'
 import { CaseLink, PriorityChip, Stat, TicketLink } from '@/components/ui'
 import { SubmitButton } from '@/components/submit-button'
@@ -98,7 +99,7 @@ export default async function Home() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/sprint" className="btn">Run standup</Link>
-          {sprint && me.role !== 'dev' && <Link href={`/sprints/${sprint.id}`} className="btn">Record results</Link>}
+          {sprint && me.role !== 'dev' && <Link href={sprintHref(sprint)} className="btn">Record results</Link>}
           <Link href="/tickets/new" data-create className="btn btn-primary">+ New ticket</Link>
         </div>
       </div>
@@ -115,7 +116,7 @@ export default async function Home() {
       )}
 
       {sprint && gate ? (
-        <Link href={`/sprints/${sprint.id}`} className="card mb-4 flex flex-wrap items-center gap-x-8 gap-y-2 px-4 py-3 hover:border-[var(--navy)]">
+        <Link href={sprintHref(sprint)} className="card mb-4 flex flex-wrap items-center gap-x-8 gap-y-2 px-4 py-3 hover:border-[var(--navy)]">
           <div>
             <div className="label">Current sprint</div>
             <div className="mt-0.5 text-[15px] font-semibold text-[var(--navy-ink)]">{sprint.name} · {fmtDate(sprint.starts_on)} to {fmtDate(sprint.ends_on)}</div>
@@ -136,7 +137,7 @@ export default async function Home() {
           <div>
             <div className="label">Next sprint</div>
             <div className="mt-0.5 text-[15px] font-semibold text-[var(--navy-ink)]">
-              <Link href={`/sprints/${nextSprint.id}`} className="hover:underline">{nextSprint.name}</Link> · starts {fmtDate(nextSprint.starts_on)}, ends {fmtDate(nextSprint.ends_on)}
+              <Link href={sprintHref(nextSprint)} className="hover:underline">{nextSprint.name}</Link> · starts {fmtDate(nextSprint.starts_on)}, ends {fmtDate(nextSprint.ends_on)}
             </div>
             {nextSprint.goal && <div className="text-[12.5px] text-[var(--muted)]">{nextSprint.goal}</div>}
           </div>

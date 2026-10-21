@@ -1,3 +1,4 @@
+import { sprintHref } from '@/lib/links'
 import Link from 'next/link'
 import { LineChart } from '@/components/charts/line-chart'
 import { ReleaseDateButton } from '@/components/release-controls'
@@ -190,7 +191,7 @@ export default async function ReleasePage() {
           <div className="px-4 py-4">
             <div className="relative h-14">
               {sprints.map((s) => (
-                <Link key={s.id} href={`/sprints/${s.id}`} title={`${s.name}: ${fmtDate(s.starts_on)} to ${fmtDate(s.ends_on)}${s.goal ? ` · ${s.goal}` : ''}`}
+                <Link key={s.id} href={sprintHref(s)} title={`${s.name}: ${fmtDate(s.starts_on)} to ${fmtDate(s.ends_on)}${s.goal ? ` · ${s.goal}` : ''}`}
                   className={`absolute top-0 flex h-8 items-center justify-center border text-[11px] font-semibold ${
                     s.status === 'closed' ? 'border-[var(--navy)] bg-[var(--navy)] text-white'
                     : s.status === 'active' ? 'border-[var(--navy)] bg-[var(--accent-soft)] text-[var(--navy)]'

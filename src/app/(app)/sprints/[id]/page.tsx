@@ -1,3 +1,4 @@
+import { sprintHref } from '@/lib/links'
 import { notFound } from 'next/navigation'
 import { SprintBoard } from '@/components/board/sprint-board'
 import { EditSprintButton, ExtendSprintButton, FinishSprintButton } from '@/components/board/sprint-controls'
@@ -23,13 +24,16 @@ import { SprintForm } from '../sprint-form'
 export default async function SprintPage({
   params, searchParams,
 }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | undefined>> }) {
-  const { id } = await params
+  const { id: param } = await params
   const sp = await searchParams
   const [me, sprints, areas, sprintAreas, people, release, holidays] = await Promise.all([
     getMe(), loadSprints(), loadAreas(), loadSprintAreas(), loadPeople(), loadRelease(), loadHolidays(),
   ])
-  const sprint = sprints.find((s) => s.id === id)
+  // Opened by name (/sprints/T1) or, for older links, by id.
+  const wanted = decodeURIComponent(param).toLowerCase()
+  const sprint = sprints.find((s) => s.id === param || s.name.toLowerCase() === wanted)
   if (!sprint) notFound()
+  const id = sprint.id
   const nowS = nowSprints(sprints, runningSprints(sprints))
   const areaIds = sprintAreas.filter((x) => x.sprint_id === id).map((x) => x.area_id)
   const now = new Date()
@@ -83,7 +87,7 @@ export default async function SprintPage({
 
   return (
     <>
-      <Tabs items={[...sprintTabs(nowS), ...(nowS.some((n) => n.id === id) ? [] : [{ key: id, href: `/sprints/${id}`, label: `Sprint ${sprint.name}` }])]} active={id} />
+      <Tabs items={[...sprintTabs(nowS), ...(nowS.some((n) => n.id === id) ? [] : [{ key: id, href: sprintHref(sprint), label: `Sprint ${sprint.name}` }])]} active={id} />
       <PageHeader
         title={`Sprint ${sprint.name}`}
         sub={[`${fmtDate(sprint.starts_on)} to ${fmtDate(sprint.ends_on)}`, areaIds.length && `${areaIds.length} areas · ${cases.length} cases`, sprint.goal].filter(Boolean).join(' · ')}>

@@ -28,6 +28,10 @@ export default async function TicketPage({
     loadSprints(),
     loadTickets(),
   ])
+  // Screenshots raised with the ticket, through short-lived signed links (the bucket is private).
+  const attachments = ((t.attachments as string[] | null) ?? [])
+  const { data: links } = attachments.length ? await supabase.storage.from('evidence').createSignedUrls(attachments, 3600) : { data: [] }
+  const shots = (links ?? []).filter((l) => l.signedUrl && l.path).map((l) => ({ url: l.signedUrl as string, name: l.path!.split('/').pop()!.replace(/^[0-9a-f-]{36}-/, '') }))
   const sprintName = new Map(sprints.map((s) => [s.id, s.name]))
   const moves = allowedMoves(t.state as TicketState, me.role)
   const back = `/tickets/${encodeURIComponent(t.key)}`
@@ -63,6 +67,23 @@ export default async function TicketPage({
           <h3 className="label">Description</h3>
           <p className="mt-1.5 whitespace-pre-wrap text-[13px] text-[var(--ink-2)]">{t.description || 'No description.'}</p>
           {t.defer_reason && <p className="mt-3 border border-[var(--line-soft)] bg-[var(--surface-3)] p-2.5 text-[13px]"><b>Deferred:</b> {t.defer_reason}</p>}
+          {shots.length > 0 && (
+            <div className="mt-4">
+              <h3 className="label">Screenshots</h3>
+              <ul className="mt-1.5 flex flex-wrap gap-2">
+                {shots.map((s) => (
+                  <li key={s.url}>
+                    <a href={s.url} target="_blank" rel="noreferrer" className="block border border-[var(--line)] bg-white hover:border-[var(--navy)]">
+                      {/\.pdf$/i.test(s.name)
+                        ? <span className="flex h-24 w-36 items-center justify-center px-2 text-center text-[11.5px] text-[var(--accent)]">{s.name}</span>
+                        // eslint-disable-next-line @next/next/no-img-element -- a signed link to a private file, not a static asset
+                        : <img src={s.url} alt={s.name} className="h-24 w-36 object-cover" />}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {tc && (tc.steps || tc.expected) && (
             <div className="mt-5 border border-[var(--line-soft)] bg-[var(--surface-3)] p-3.5">

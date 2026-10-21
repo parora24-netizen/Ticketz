@@ -127,13 +127,18 @@ const NewTicket = z.object({
   description: z.string().trim().max(5000).optional(),
   severity: z.enum(['Critical', 'High', 'Medium', 'Low']),
   kind: z.enum(['defect', 'test_mismatch']).default('defect'),
+  area_id: z.uuid().optional().or(z.literal('')),
 })
+/** Screenshots uploaded by the new-ticket form, under the folder it made for itself. */
+const TicketFiles = z.array(z.string().regex(/^tickets\/[0-9a-f-]{36}\/[\w.-]{1,120}$/)).max(10)
 
 export async function raiseTicket(formData: FormData) {
   const path = back(formData, '/tickets')
   const me = await getMe()
   const parsed = NewTicket.safeParse(Object.fromEntries(formData))
   if (!parsed.success) fail(path, 'A ticket needs a title and a severity')
+  const files = TicketFiles.safeParse(formData.getAll('attachments'))
+  if (!files.success) fail(path, 'Those screenshots could not be attached')
   const v = parsed.data
   const supabase = await createClient()
   let tcId: string | null = null
@@ -153,6 +158,8 @@ export async function raiseTicket(formData: FormData) {
     found_in_sprint_id: sprintId,
     current_sprint_id: await fixSprintId(),
     created_by: me.id,
+    ...(v.area_id ? { area_id: v.area_id } : {}),
+    ...(files.data.length ? { attachments: files.data } : {}),
   })
   if (error) fail(path, error.message)
   revalidatePath('/', 'layout')

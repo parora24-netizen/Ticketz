@@ -425,6 +425,29 @@ export async function addComment(formData: FormData) {
   redirect(withMessage(path, 'ok', 'Comment added'))
 }
 
+/**
+ * Takes back a manual result recorded by mistake: only the case's latest manual result, so the
+ * one before it (or "not tested") shows again. Tickets it raised are left for the lead to close.
+ */
+export async function undoResult(formData: FormData) {
+  const path = back(formData, '/cases')
+  const me = await getMe()
+  if (me.role === 'dev') fail(path, 'Only QA or the lead can undo a result')
+  const runId = z.uuid().safeParse(formData.get('run_id'))
+  if (!runId.success) fail(path, 'That result was not found')
+  const supabase = await createClient()
+  const { data: run } = await supabase.from('test_runs').select('id, case_id, kind').eq('id', runId.data).maybeSingle()
+  if (!run || run.kind !== 'manual') fail(path, 'Only a manual result can be undone')
+  const { data: latest } = await supabase.from('test_runs').select('id').eq('case_id', run.case_id).eq('kind', 'manual')
+    .order('recorded_at', { ascending: false }).limit(1).single()
+  if (latest?.id !== run.id) fail(path, 'Only the latest manual result can be undone')
+  const { error, count } = await supabase.from('test_runs').delete({ count: 'exact' }).eq('id', run.id)
+  if (error) fail(path, error.message)
+  if (!count) fail(path, 'The result could not be removed')
+  revalidatePath('/', 'layout')
+  redirect(withMessage(path, 'ok', 'Result undone'))
+}
+
 export async function assignToMe(formData: FormData) {
   const path = back(formData, '/tickets')
   const me = await getMe()

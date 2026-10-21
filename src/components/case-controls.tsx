@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { Dialog } from '@/components/dialog'
 import { toast } from '@/components/toast'
-import { recordCaseResult, updateCases } from '@/app/(app)/actions'
+import { recordCaseResult, undoResult, updateCases } from '@/app/(app)/actions'
 import { EvidenceField, useEvidence } from '@/components/evidence'
 
 type Result = 'passed' | 'failed' | 'blocked'
@@ -125,5 +125,18 @@ export function CaseAutomationField({ caseId, value, disabled, onDone }: { caseI
       <option value="automated">Automated</option>
       <option value="manual_only">Manual only</option>
     </select>
+  )
+}
+
+/** Undo on a case's latest manual result, after a confirm: for a result recorded by mistake. */
+export function UndoResultButton({ runId, back, result }: { runId: string; back: string; result: string }) {
+  return (
+    <form action={undoResult} onSubmit={(e) => {
+      if (!window.confirm(`Undo this ${result} result? The case goes back to its previous manual result, or to not tested. Any ticket it raised stays open.`)) e.preventDefault()
+    }}>
+      <input type="hidden" name="run_id" value={runId} />
+      <input type="hidden" name="back" value={back} />
+      <button className="text-[12px] text-[var(--accent)] hover:underline">Undo</button>
+    </form>
   )
 }

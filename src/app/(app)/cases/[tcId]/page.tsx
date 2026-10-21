@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { fmtDate, loadSprints } from '@/lib/data'
 import { mismatch } from '@/lib/workflow/case-stage'
 import { raiseTicket } from '../../actions'
-import { CaseAutomationField, CaseResultActions } from '@/components/case-controls'
+import { CaseAutomationField, CaseResultActions, UndoResultButton } from '@/components/case-controls'
 
 export default async function CasePage({
   params, searchParams,
@@ -32,7 +32,8 @@ export default async function CasePage({
     for (const l of links ?? []) if (l.signedUrl && l.path) signed.set(l.path, l.signedUrl)
   }
   const lastAuto = runs?.find((r) => r.kind === 'auto')?.result ?? null
-  const lastManual = runs?.find((r) => r.kind === 'manual')?.result ?? null
+  const lastManualRun = runs?.find((r) => r.kind === 'manual')
+  const lastManual = lastManualRun?.result ?? null
   const mm = mismatch(lastAuto, lastManual)
   const back = `/cases/${encodeURIComponent(c.tc_id)}`
   const canTest = me.role !== 'dev'
@@ -102,7 +103,7 @@ export default async function CasePage({
       <section className="card mt-4 overflow-x-auto">
         <h2 className="px-4 pt-4 font-semibold">Result history</h2>
         <table className="table mt-2">
-          <thead><tr><th>When</th><th>Kind</th><th>Result</th><th>Sprint</th><th>Build</th><th>By</th><th>Note</th><th>Files</th></tr></thead>
+          <thead><tr><th>When</th><th>Kind</th><th>Result</th><th>Sprint</th><th>Build</th><th>By</th><th>Note</th><th>Files</th>{canTest && <th />}</tr></thead>
           <tbody>
             {(runs ?? []).map((r) => (
               <tr key={r.id}>
@@ -120,6 +121,7 @@ export default async function CasePage({
                     </a>
                   ))}
                 </td>
+                {canTest && <td>{r.id === lastManualRun?.id && <UndoResultButton runId={r.id} back={back} result={r.result} />}</td>}
               </tr>
             ))}
           </tbody>

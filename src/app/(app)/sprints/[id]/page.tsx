@@ -42,12 +42,11 @@ export default async function SprintPage({
   const ticketCases = new Set(tickets.map((t) => t.case_id).filter(Boolean))
   const cases = sprint.kind === 'fix' ? loaded.filter((c) => ticketCases.has(c.id)) : loaded
   const caseIds = new Set(cases.map((c) => c.id))
-  const sprintTasks = tasks.filter((t) => t.sprint_id === id)
   const kind = sprint.kind
   const testMode = kind === 'test'
   const casesWithArea = new Set(cases.map((c) => c.area_id))
   const emptyAreaIds = testMode ? areaIds.filter((a) => !casesWithArea.has(a)) : []
-  const gate = gateFor(kind, { cases: cases.map((c) => toStageInput(c, runs)), tickets, tasks: sprintTasks, emptyAreas: emptyAreaIds.length })
+  const gate = gateFor(kind, { cases: cases.map((c) => toStageInput(c, runs)), tickets, emptyAreas: emptyAreaIds.length })
   const lead = me.role === 'lead'
 
   // Standup goes round the whole team in this order: blocked first, then the busiest.
@@ -87,7 +86,7 @@ export default async function SprintPage({
       <Tabs items={[...sprintTabs(nowS), ...(nowS.some((n) => n.id === id) ? [] : [{ key: id, href: `/sprints/${id}`, label: `Sprint ${sprint.name}` }])]} active={id} />
       <PageHeader
         title={`Sprint ${sprint.name}`}
-        sub={[`${fmtDate(sprint.starts_on)} to ${fmtDate(sprint.ends_on)}`, sprintTasks.length && `${sprintTasks.length} tasks`, areaIds.length && `${areaIds.length} areas · ${cases.length} cases`, sprint.goal].filter(Boolean).join(' · ')}>
+        sub={[`${fmtDate(sprint.starts_on)} to ${fmtDate(sprint.ends_on)}`, areaIds.length && `${areaIds.length} areas · ${cases.length} cases`, sprint.goal].filter(Boolean).join(' · ')}>
         <Chip tone={sprint.status === 'active' ? 'accent' : sprint.status === 'closed' ? 'good' : 'muted'}>
           {sprint.status === 'active' ? `Running · ${daysLeft(sprint.ends_on)}` : sprint.status === 'closed' ? 'Closed' : `Planned · starts in ${Math.max(daysUntil(sprint.starts_on), 0)} days`}
         </Chip>
@@ -133,7 +132,6 @@ export default async function SprintPage({
         standup={standup}
         sprintId={id}
         today={today}
-        tasks={sprintTasks.map((t) => ({ id: t.id, num: t.num, phase: t.phase, title: t.title, owner: t.owner_label, owner_id: t.owner_id, due_on: t.due_on, status: t.status as 'not_started', note: t.note }))}
         sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ id: s.id, name: s.name }))}
         areas={areaIds.map((a) => areaName.get(a) ?? '').sort()}
         cards={cases.map((c) => {

@@ -105,7 +105,7 @@ export default async function Home() {
 
       {me.role === 'lead' && (
         <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <Stat label="To triage" value={toTriage.length} tone={toTriage.length ? 'warn' : 'good'} sub="new, no decision yet" />
+          <Stat label="Not started" value={toTriage.length} tone={toTriage.length ? 'warn' : 'good'} sub="new tickets, to triage" />
           <Stat label="Open Critical" value={openCrit} tone={openCrit ? 'crit' : 'good'} />
           <Stat label="Open High" value={openHigh} tone={openHigh ? 'warn' : 'good'} />
           <Stat label="Unowned Crit/High" value={unownedHigh.length} tone={unownedHigh.length ? 'crit' : 'good'} sub="need an owner" />
@@ -171,9 +171,9 @@ export default async function Home() {
           {me.role !== 'dev' && (
             <>
               {me.role === 'lead' && (
-                <Panel title="To triage" count={toTriage.length} href="/tickets?view=grid&state=new" empty="Nothing new to triage.">
+                <Panel title="Not started" count={toTriage.length} href="/tickets?view=grid&state=new" empty="No new tickets waiting to start.">
                   <TicketRows rows={toTriage} limit={8} note={(t) => (t.owner_name ? t.owner_name : 'unowned')}
-                    all={{ href: '/tickets?view=grid&state=new', label: `Triage all ${toTriage.length} in the grid` }} />
+                    all={{ href: '/tickets?view=grid&state=new', label: `All ${toTriage.length} not started, in the grid` }} />
                 </Panel>
               )}
               <Panel title="Retest queue" count={retests.length} href="/tickets?view=grid&state=ready_for_retest" empty="Nothing ready for retest.">

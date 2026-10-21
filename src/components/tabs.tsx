@@ -16,6 +16,14 @@ export function Tabs({ items, active }: { items: { href: string; label: string; 
   )
 }
 
+export const ADMIN_TABS = [
+  { key: 'team', href: '/admin', label: 'Team' },
+  { key: 'activity', href: '/admin/activity', label: 'Activity' },
+  { key: 'timeline', href: '/admin/timeline', label: 'Timeline' },
+  { key: 'holidays', href: '/admin?tab=holidays', label: 'Holidays' },
+  { key: 'ci', href: '/admin?tab=ci', label: 'CI tokens' },
+]
+
 export const RELEASE_TABS = [
   { key: 'overview', href: '/release', label: 'Overview' },
   { key: 'plan', href: '/plan', label: 'Plan' },

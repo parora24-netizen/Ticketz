@@ -4,6 +4,7 @@ import { SearchIcon } from '@/components/icons'
 import { DensityInit, PageTitle, ProfileMenu, Shortcuts } from '@/components/shell'
 import { RememberProvider } from '@/components/remember'
 import { Toaster } from '@/components/toast'
+import { Presence } from '@/components/presence'
 import { getMe } from '@/lib/auth'
 import { runningSprints, daysLeft, fmtDate, loadSprints } from '@/lib/data'
 import { BottomBar, Sidebar } from './nav-links'
@@ -23,6 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <DensityInit />
       <Shortcuts />
       <Toaster />
+      <Presence />
       <Sidebar isLead={me.role === 'lead'} sprintLabel={sprintLabel} />
       <div className="md:pl-[216px]">
         <header className="sticky top-0 z-20 flex h-14 items-center gap-4 border-b border-[var(--line)] bg-white px-4 sm:px-6">

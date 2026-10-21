@@ -5,18 +5,13 @@ import { PayloadExample, TokenCell } from '@/components/ci-controls'
 import { Flash } from '@/components/flash'
 import { TeamGrid } from '@/components/grid/list-grids'
 import { SubmitButton } from '@/components/submit-button'
-import { Tabs } from '@/components/tabs'
+import { ADMIN_TABS, Tabs } from '@/components/tabs'
 import { PageHeader } from '@/components/ui'
 import { getMe } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { fmtDate, loadHolidays, loadPeople } from '@/lib/data'
 import { createCiToken, removeHoliday, revokeCiToken, saveHoliday, savePerson } from '../actions'
 
-const TABS = [
-  { key: 'team', href: '/admin', label: 'Team' },
-  { key: 'holidays', href: '/admin?tab=holidays', label: 'Holidays' },
-  { key: 'ci', href: '/admin?tab=ci', label: 'CI tokens' },
-]
 
 export default async function AdminPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const me = await getMe()
@@ -32,7 +27,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
 
   return (
     <>
-      <Tabs items={TABS} active={tab} />
+      <Tabs items={ADMIN_TABS} active={tab} />
       <Flash error={sp.error} ok={sp.ok} />
       {tab === 'team' ? (
         <>

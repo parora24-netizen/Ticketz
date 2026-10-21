@@ -1,3 +1,5 @@
+import { TicketTimeline } from '@/components/ticket-timeline'
+import { changeEntries, type ChangeRow } from '@/lib/activity'
 import { SubmitButton } from '@/components/submit-button'
 import { notFound } from 'next/navigation'
 import { CaseLink, Chip, PageHeader, StateChip } from '@/components/ui'
@@ -6,7 +8,7 @@ import { getMe } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { fmtDate, loadPeople, loadSprints, loadTickets } from '@/lib/data'
 import { TicketNav } from '@/components/ticket-nav'
-import { STATE_LABEL, allowedMoves, type TicketState } from '@/lib/workflow/ticket-machine'
+import { allowedMoves, type TicketState } from '@/lib/workflow/ticket-machine'
 import { addComment, assignToMe } from '../../actions'
 import { TicketActions, TicketField } from '@/components/ticket-controls'
 
@@ -19,7 +21,9 @@ export default async function TicketPage({
   const supabase = await createClient()
   const { data: t } = await supabase.from('ticket_list').select('*').eq('key', decodeURIComponent(key)).maybeSingle()
   if (!t) notFound()
-  const [{ data: events }, { data: comments }, { data: tc }, { data: lastFail }, people, sprints, allTickets] = await Promise.all([
+  const [{ data: edits }, { data: events }, { data: comments }, { data: tc }, { data: lastFail }, people, sprints, allTickets] = await Promise.all([
+    // Field edits (severity, title, description…); the change log is readable by the lead only.
+    supabase.from('change_log').select('*').eq('row_id', t.id).eq('action', 'update').order('at', { ascending: false }).limit(200),
     supabase.from('ticket_events').select('*, people(name)').eq('ticket_id', t.id).order('at', { ascending: false }),
     supabase.from('ticket_comments').select('id, body, created_at, people(name)').eq('ticket_id', t.id).order('created_at', { ascending: false }),
     t.case_id ? supabase.from('test_cases').select('preconditions, steps, test_data, expected').eq('id', t.case_id).maybeSingle() : Promise.resolve({ data: null }),
@@ -33,6 +37,7 @@ export default async function TicketPage({
   const { data: links } = attachments.length ? await supabase.storage.from('evidence').createSignedUrls(attachments, 3600) : { data: [] }
   const shots = (links ?? []).filter((l) => l.signedUrl && l.path).map((l) => ({ url: l.signedUrl as string, name: l.path!.split('/').pop()!.replace(/^[0-9a-f-]{36}-/, '') }))
   const sprintName = new Map(sprints.map((s) => [s.id, s.name]))
+  const names = new Map<string, string>([...people.map((p) => [p.id, p.name] as [string, string]), ...sprintName])
   const moves = allowedMoves(t.state as TicketState, me.role)
   const back = `/tickets/${encodeURIComponent(t.key)}`
   const canEdit = me.role !== 'dev'
@@ -106,26 +111,11 @@ export default async function TicketPage({
             <textarea name="body" required rows={3} placeholder="Add a comment: what you found, what you tried, what is blocking" className="input w-full" />
             <SubmitButton primary pendingText="Posting…">Comment</SubmitButton>
           </form>
-          <ol className="mt-4 space-y-3 border-l border-[var(--line)] pl-4">
-            {[
-              ...(comments ?? []).map((c) => ({ id: `c-${c.id}`, at: c.created_at as string, who: (c.people as unknown as { name: string } | null)?.name ?? 'Someone', comment: c.body as string, text: '' })),
-              ...(events ?? []).map((e) => ({
-                id: `e-${e.id}`, at: e.at as string, who: e.people?.name ?? 'System', comment: '',
-                text: !e.from_state ? 'Opened the ticket' : e.from_state !== e.to_state
-                  ? `${STATE_LABEL[e.from_state as TicketState]} → ${STATE_LABEL[e.to_state as TicketState]}${e.note ? ` · ${e.note}` : ''}`
-                  : e.note ?? '',
-              })),
-            ]
-              .sort((a, b) => b.at.localeCompare(a.at))
-              .map((x) => (
-                <li key={x.id} className="text-[13px]">
-                  <span className="text-[12px] text-[var(--muted)]"><b className="font-semibold text-[var(--ink-2)]">{x.who}</b> · {fmtDate(x.at)}</span>
-                  {x.comment
-                    ? <p className="mt-1 whitespace-pre-wrap border border-[var(--line-soft)] bg-[var(--surface-3)] p-2.5">{x.comment}</p>
-                    : <div className="text-[var(--ink-2)]">{x.text}</div>}
-                </li>
-              ))}
-          </ol>
+          <TicketTimeline
+            events={(events ?? []).map((e) => ({ id: `e-${e.id}`, at: e.at as string, who: e.people?.name ?? null, from_state: e.from_state, to_state: e.to_state, note: e.note }))}
+            comments={(comments ?? []).map((c) => ({ id: `c-${c.id}`, at: c.created_at as string, who: (c.people as unknown as { name: string } | null)?.name ?? 'Someone', body: c.body as string }))}
+            edits={changeEntries((edits ?? []) as ChangeRow[], names).map((x) => ({ id: x.key, at: x.at, who: x.actor_id ? names.get(x.actor_id) ?? 'Someone' : null, fields: x.fields ?? [] }))}
+          />
         </section>
 
         <aside className="card h-fit">

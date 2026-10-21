@@ -58,6 +58,14 @@ describe('case import', () => {
     expect(parseDelimited('a\t"say ""hi"""', '\t')).toEqual([['a', 'say "hi"']])
   })
 
+  it('reads rows pasted from the Test Cases sheet without their header row', () => {
+    const withId = parseTsv('TC_FN_070\tEngine\tSign-On\tLogin\tSigned out\t"1. Open\n2. Sign in"\tuser@x\tHome page\tHigh\tFunctional\n')
+    expect(withId[0]).toMatchObject({ 'Test Case ID': 'TC_FN_070', Zone: 'Engine', 'Test Steps': '1. Open\n2. Sign in', Priority: 'High', 'Test Type': 'Functional' })
+    const noId = parseTsv('Engine\tSign-On\tLogin\t\t\t\tHome page\tLow\tFunctional\n')
+    expect(noId[0]).toMatchObject({ Zone: 'Engine', 'Test Case Title': 'Login', Priority: 'Low', 'Test Type': 'Functional' })
+    expect(noId[0]['Test Case ID']).toBeUndefined()
+  })
+
   it('tells new, updated and unchanged cases apart', () => {
     const { cases } = parseCases(
       [

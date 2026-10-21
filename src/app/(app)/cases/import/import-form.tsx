@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useActionState, useState } from 'react'
 import { SubmitButton } from '@/components/submit-button'
+import { WORKBOOK_COLUMNS } from '@/lib/import-cases'
 import { commitImport, previewImport, type ImportState } from './actions'
 
 const STATUS_TONE = {
@@ -42,12 +43,18 @@ export function ImportForm() {
         </div>
         <div>
           <h2 className="text-[15px] font-semibold">Or paste from Excel</h2>
-          <textarea name="pasted" rows={4} className="input mono mt-3 w-full text-[11.5px]" placeholder={'Zone\tPage\tTest Case Title\tPriority\tTest Steps\tExpected Result'} />
+          <textarea name="pasted" rows={4} className="input mono mt-3 w-full text-[11.5px]" placeholder={'Paste rows copied from the Test Cases sheet, in the column order below.\nThe header row is optional.'} />
+          <ol className="mt-2 flex flex-wrap gap-1 text-[11px]">
+            {WORKBOOK_COLUMNS.map((c, i) => (
+              <li key={c} className="chip px-1.5 font-normal text-[var(--ink-2)]"><span className="mono mr-1 text-[var(--faint)]">{i + 1}</span>{c}</li>
+            ))}
+          </ol>
+          <p className="mt-1.5 text-[11.5px] text-[var(--muted)]">Select Test Case ID through Test Type in Excel and copy. For new cases, start from Zone and leave the ID out: the next free ID is given on save.</p>
         </div>
         <div className="flex items-center gap-3 lg:col-span-2">
           <SubmitButton primary pendingText="Reading…">Preview import</SubmitButton>
           <span className="text-[12px] text-[var(--muted)]">
-            Needed columns: Zone, Page, Test Case Title, Priority. Optional: Test Case ID (blank = next free id), Pre-Conditions, Test Steps, Test Data, Expected Result, Test Type.
+            Needed: Zone, Page, Test Case Title, Priority. The rest are optional; a column left out keeps what is stored.
           </span>
         </div>
         {preview.error && <p className="text-[12.5px] text-[var(--crit)] lg:col-span-2">{preview.error}</p>}

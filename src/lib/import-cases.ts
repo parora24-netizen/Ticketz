@@ -122,10 +122,20 @@ export function parseCases(rows: Record<string, string>[], areas: AreaRef[], fir
   return { cases, errors, present }
 }
 
-/** Rows pasted from Excel arrive as tab-separated lines; the first line holds the headers. */
+/** The Test Cases sheet's columns, Test Case ID through Test Type, in the workbook's order. */
+export const WORKBOOK_COLUMNS = ['Test Case ID', 'Zone', 'Page', 'Test Case Title', 'Pre-Conditions', 'Test Steps', 'Test Data', 'Expected Result', 'Priority', 'Test Type']
+
+/**
+ * Rows pasted from Excel arrive as tab-separated lines. With a header row, columns can be in any
+ * order. Without one, the cells are read in the workbook's order: from Test Case ID, or from Zone
+ * when the ID column was left out, through Test Type.
+ */
 export function parseTsv(text: string): Record<string, string>[] {
   const lines = parseDelimited(text, '\t')
-  return toRecords(lines)
+  if (!lines.length || mapHeaders(lines[0].map((h) => h.trim())).missing.length < 4) return toRecords(lines)
+  const withId = lines.some((cells) => /^\s*TC_/i.test(cells[0] ?? '')) || Math.max(...lines.map((c) => c.length)) >= WORKBOOK_COLUMNS.length
+  const headers = withId ? WORKBOOK_COLUMNS : WORKBOOK_COLUMNS.slice(1)
+  return lines.map((cells) => Object.fromEntries(headers.map((h, i) => [h, cells[i] ?? ''])))
 }
 
 export function parseCsv(text: string): Record<string, string>[] {

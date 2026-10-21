@@ -65,7 +65,7 @@ export default async function SprintPage({
   }
   const fixMode = kind === 'fix'
   const stageOf = new Map<string, string>(cases.map((c) => [c.id,
-    fixMode ? fixStage(sprintTicketOf(c.id)!.state) : testMode ? testStage(toStageInput(c, runs)) : caseStage(toStageInput(c, runs))]))
+    fixMode ? fixStage(sprintTicketOf(c.id)!.state, !!sprintTicketOf(c.id)!.blocked_reason) : testMode ? testStage(toStageInput(c, runs)) : caseStage(toStageInput(c, runs))]))
   const counts: Record<string, number> = Object.fromEntries((fixMode ? FIX_STAGES : testMode ? TEST_STAGES : STAGES).map((s) => [s, 0]))
   for (const s of stageOf.values()) counts[s]++
   if (testMode) counts.write = emptyAreaIds.length
@@ -145,7 +145,7 @@ export default async function SprintPage({
             stage: stageOf.get(c.id)! as 'test', test_by: testBy(toStageInput(c)), tester_id: c.tester_id, tester_name: c.tester_name,
             auto_result: c.auto_result, manual_result: c.manual_result,
             needs_ticket: needsTicket(toStageInput(c, runs)),
-            ticket: t ? { id: t.id, key: t.key, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name, kind: t.kind } : null,
+            ticket: t ? { id: t.id, key: t.key, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name, kind: t.kind, blocked_reason: t.blocked_reason } : null,
           }
         })}
       />

@@ -58,6 +58,8 @@ export type TicketRow = {
   zone: string | null
   page: string | null
   area_id: string | null
+  blocked_reason: string | null
+  blocked_at: string | null
 }
 export type Person = { id: string; name: string; email: string | null; role: 'lead' | 'dev' | 'qa'; active: boolean }
 

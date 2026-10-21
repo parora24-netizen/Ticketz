@@ -6,6 +6,8 @@ import { canMove, type Role, type TicketState } from './ticket-machine'
 export type BoardMove =
   | { kind: 'result'; result: 'passed' | 'failed'; ask: boolean; label: string }
   | { kind: 'ticket'; to: TicketState; ask: 'build' | 'note' | null; label: string }
+  /** Blocked is a flag on an open ticket, not a state: setting it asks what is blocking. */
+  | { kind: 'block'; on: boolean; ask: 'block' | null; label: string }
 
 /**
  * The step a drop stands for, or why it can't happen. `ticketState` is the case's open ticket,
@@ -74,11 +76,12 @@ export function droppableStages(from: Stage, role: Role, ticketState: TicketStat
  * given to a developer, or closed straight away when the case already passes. The column names
  * follow Jira; In progress holds Triaged, In fix and Reopened.
  */
-export const FIX_STAGES = ['triage', 'fix', 'retest', 'done'] as const
+export const FIX_STAGES = ['triage', 'fix', 'blocked', 'retest', 'done'] as const
 export type FixStage = (typeof FIX_STAGES)[number]
-export const FIX_STAGE_LABEL: Record<FixStage, string> = { triage: 'Not started', fix: 'In progress', retest: 'Retest', done: 'Done' }
+export const FIX_STAGE_LABEL: Record<FixStage, string> = { triage: 'Not started', fix: 'In progress', blocked: 'Blocked', retest: 'Retest', done: 'Done' }
 
-export function fixStage(state: TicketState): FixStage {
+export function fixStage(state: TicketState, blocked = false): FixStage {
+  if (blocked && ['new', 'triaged', 'in_fix', 'reopened'].includes(state)) return 'blocked'
   if (state === 'new') return 'triage'
   if (state === 'ready_for_retest') return 'retest'
   if (state === 'closed' || state === 'deferred' || state === 'duplicate') return 'done'
@@ -88,6 +91,13 @@ export function fixStage(state: TicketState): FixStage {
 export function fixBoardMove(from: FixStage, to: FixStage, role: Role, state: TicketState): BoardMove | { error: string } {
   const go = (next: TicketState, label: string, ask: 'build' | 'note' | null = null): BoardMove | { error: string } =>
     canMove(state, next, role) ? { kind: 'ticket', to: next, ask, label } : { error: `A ${role === 'qa' ? 'QA' : role} cannot do that step` }
+  // Anyone on the team can flag a ticket blocked, or clear it; it goes back where it was.
+  if (to === 'blocked') return from === 'triage' || from === 'fix'
+    ? { kind: 'block', on: true, ask: 'block', label: 'Marked blocked' }
+    : { error: 'Only a ticket not yet fixed can be blocked' }
+  if (from === 'blocked') return to === fixStage(state)
+    ? { kind: 'block', on: false, ask: null, label: 'Unblocked' }
+    : { error: `Unblock it first: drag it back to ${FIX_STAGE_LABEL[fixStage(state)]}` }
   switch (`${from}>${to}`) {
     // QA and the lead triage; a developer picking a ticket up starts the fix.
     case 'triage>fix': return role === 'dev' ? go('in_fix', 'Fix started') : go('triaged', 'Triaged')

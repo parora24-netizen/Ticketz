@@ -5,7 +5,7 @@ import { useState, useTransition } from 'react'
 import { Dialog } from '@/components/dialog'
 import { toast } from '@/components/toast'
 import { ACTION_LABEL, STATE_LABEL, requiredFor, type TicketState } from '@/lib/workflow/ticket-machine'
-import { moveTicketFromBoard, updateTickets } from '@/app/(app)/actions'
+import { moveTicketFromBoard, setTicketBlocked, updateTickets } from '@/app/(app)/actions'
 
 const ASK = {
   fixed_in_build: { title: 'Which build has the fix?', placeholder: 'e.g. b39a5eab1', field: 'fixed_in_build', required: true },
@@ -70,6 +70,37 @@ export function TicketActions({ ticketId, moves, onDone }: { ticketId: string; m
 }
 
 /** Owner and severity in the side panel: change and it saves. */
+/** Flag an open ticket blocked with what is blocking it, or clear the flag. */
+export function TicketBlock({ ticketId, reason, onDone }: { ticketId: string; reason: string | null; onDone?: () => void }) {
+  const router = useRouter()
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState('')
+  const [pending, start] = useTransition()
+  const save = (value: string | null) => start(async () => {
+    const res = await setTicketBlocked(ticketId, value)
+    if (res.error) toast(res.error, 'error')
+    else { toast(value ? 'Marked blocked' : 'Unblocked'); setOpen(false); setText(''); router.refresh(); onDone?.() }
+  })
+  if (reason) {
+    return (
+      <div className="flex items-start gap-2 border border-[var(--crit-line)] bg-[var(--crit-soft)] px-2.5 py-2 text-[12.5px]">
+        <span className="min-w-0 flex-1"><b className="text-[var(--crit)]">Blocked:</b> <span className="whitespace-pre-wrap">{reason}</span></span>
+        <button type="button" disabled={pending} onClick={() => save(null)} className="btn btn-sm">Unblock</button>
+      </div>
+    )
+  }
+  if (!open) return <button type="button" onClick={() => setOpen(true)} className="btn">Mark blocked</button>
+  return (
+    <form className="w-full space-y-2" onSubmit={(e) => { e.preventDefault(); save(text.trim()) }}>
+      <textarea autoFocus required minLength={3} rows={2} value={text} onChange={(e) => setText(e.target.value)} placeholder="What is blocking it?" className="input w-full" />
+      <div className="flex gap-2">
+        <button disabled={pending} className="btn btn-primary">{pending ? 'Saving…' : 'Mark blocked'}</button>
+        <button type="button" onClick={() => setOpen(false)} className="btn">Cancel</button>
+      </div>
+    </form>
+  )
+}
+
 export function TicketField({ ticketId, field, value, options, disabled, onDone }: {
   ticketId: string
   field: 'owner_id' | 'severity' | 'current_sprint_id'

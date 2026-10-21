@@ -644,6 +644,20 @@ export async function removeHoliday(formData: FormData) {
   redirect('/admin?tab=holidays')
 }
 
+/** Flag a ticket blocked (with what is blocking it), or clear the flag. Anyone on the team. */
+export async function setTicketBlocked(ticketId: string, reason: string | null): Promise<{ error?: string }> {
+  await getMe()
+  const v = z.object({ id: z.uuid(), reason: z.string().trim().min(3).max(2000).nullable() }).safeParse({ id: ticketId, reason })
+  if (!v.success) return { error: reason === null ? 'Unknown ticket' : 'Say what is blocking it' }
+  const supabase = await createClient()
+  const { error } = await supabase.from('tickets')
+    .update({ blocked_reason: v.data.reason, blocked_at: v.data.reason ? new Date().toISOString() : null })
+    .eq('id', v.data.id).not('state', 'in', '(closed,deferred,duplicate,ready_for_retest)')
+  if (error) return { error: error.message }
+  revalidatePath('/', 'layout')
+  return {}
+}
+
 /** Lead only: delete rows for good. The database checks the role too. */
 export async function deleteRows(table: 'plan_tasks' | 'tickets' | 'test_cases', ids: string[]): Promise<{ error?: string }> {
   const me = await getMe()
@@ -738,7 +752,7 @@ export async function recordCaseResult(input: {
 
 export type CaseDetail = {
   case: { id: string; tc_id: string; title: string; priority: string; automation: string; tester_id: string | null; preconditions: string | null; steps: string | null; test_data: string | null; expected: string | null; zone: string; page: string }
-  ticket: { id: string; key: string; title: string; state: string; severity: string; owner_id: string | null; current_sprint_id: string | null; fixed_in_build: string | null } | null
+  ticket: { id: string; key: string; title: string; state: string; severity: string; owner_id: string | null; current_sprint_id: string | null; fixed_in_build: string | null; blocked_reason: string | null } | null
   runs: { kind: string; result: string; recorded_at: string; note: string | null; who: string | null; files: { name: string; url: string }[] }[]
   comments: { body: string; created_at: string; who: string | null }[]
 }
@@ -750,8 +764,8 @@ export async function getCaseDetail(caseId: string, ticketId?: string | null): P
   const pick = ticketId && z.uuid().safeParse(ticketId).success ? ticketId : null
   const supabase = await createClient()
   const ticketQuery = pick
-    ? supabase.from('tickets').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build').eq('id', pick).eq('case_id', caseId).maybeSingle()
-    : supabase.from('tickets').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build')
+    ? supabase.from('tickets').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build, blocked_reason').eq('id', pick).eq('case_id', caseId).maybeSingle()
+    : supabase.from('tickets').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build, blocked_reason')
       .eq('case_id', caseId).in('state', ['new', 'triaged', 'in_fix', 'reopened', 'ready_for_retest']).order('logged_on', { ascending: false }).limit(1).maybeSingle()
   const [{ data: c }, { data: t }, { data: runs }] = await Promise.all([
     supabase.from('test_cases').select('id, tc_id, title, priority, automation, tester_id, preconditions, steps, test_data, expected, areas(zone, page)').eq('id', caseId).single(),

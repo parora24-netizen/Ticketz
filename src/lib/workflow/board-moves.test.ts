@@ -49,4 +49,13 @@ describe('sprint board drops', () => {
     expect(fixBoardMove('fix', 'retest', 'dev', 'triaged')).toEqual({ error: 'Start the fix first (open the card)' })
     expect(droppableFixStages('retest', 'qa', 'ready_for_retest')).toEqual(['fix', 'done'])
   })
+
+  it('fix sprints: a not-yet-fixed ticket can be flagged blocked and back', () => {
+    expect(fixStage('in_fix', true)).toBe('blocked')
+    expect(fixStage('ready_for_retest', true)).toBe('retest')
+    expect(fixBoardMove('fix', 'blocked', 'dev', 'in_fix')).toMatchObject({ kind: 'block', on: true, ask: 'block' })
+    expect(fixBoardMove('blocked', 'fix', 'qa', 'in_fix')).toMatchObject({ kind: 'block', on: false })
+    expect(fixBoardMove('blocked', 'retest', 'dev', 'in_fix')).toHaveProperty('error')
+    expect(fixBoardMove('retest', 'blocked', 'qa', 'ready_for_retest')).toHaveProperty('error')
+  })
 })

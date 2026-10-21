@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useState, useTransition } from 'react'
 import { CaseAutomationField, CaseResultActions, CaseTesterField } from '@/components/case-controls'
-import { TicketActions, TicketField } from '@/components/ticket-controls'
+import { TicketActions, TicketBlock, TicketField } from '@/components/ticket-controls'
 import { toast } from '@/components/toast'
 import { PriorityChip, ResultChip, StateChip } from '@/components/ui'
 import type { RunResult } from '@/lib/workflow/case-stage'
@@ -93,6 +93,7 @@ export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, spr
                   </div>
                   <div className="space-y-3 p-3">
                     <div className="flex flex-wrap gap-2"><TicketActions ticketId={t.id} moves={allowedMoves(t.state as TicketState, role)} onDone={reload} /></div>
+                    {['new', 'triaged', 'in_fix', 'reopened'].includes(t.state) && <TicketBlock ticketId={t.id} reason={t.blocked_reason} onDone={reload} />}
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                       <label><span className="label">Owner</span>
                         <TicketField ticketId={t.id} field="owner_id" value={t.owner_id ?? ''} disabled={!tester} onDone={reload}

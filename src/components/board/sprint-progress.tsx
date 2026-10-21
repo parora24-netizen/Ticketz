@@ -4,7 +4,7 @@ import { STAGES, STAGE_LABEL, TEST_STAGES, TEST_STAGE_LABEL } from '@/lib/workfl
 // One hue, light to dark as work moves along; red marks failures.
 const FILL: Record<string, string> = {
   test: '#c3d0ee', fix: '#d03b3b', retest: '#6f8bd0', done: '#16327a',
-  triage: '#c3d0ee', write: '#e3e9f6', automate: '#c3d0ee', auto: '#9db1e0', manual: '#6f8bd0', passed: '#16327a', failed: '#d03b3b',
+  triage: '#c3d0ee', blocked: '#e7a33e', write: '#e3e9f6', automate: '#c3d0ee', auto: '#9db1e0', manual: '#6f8bd0', passed: '#16327a', failed: '#d03b3b',
 }
 
 /** Where the sprint's work is, as one bar in process order, with counts. Test sprints count areas still to write too. */

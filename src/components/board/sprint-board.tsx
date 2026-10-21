@@ -9,7 +9,7 @@ import Link from 'next/link'
 import { STAGES, STAGE_LABEL, TEST_STAGES, TEST_STAGE_LABEL, type Stage, type TestStage } from '@/lib/workflow/case-stage'
 import { FIX_STAGES, FIX_STAGE_LABEL, boardMove, droppableFixStages, droppableStages, droppableTestStages, fixBoardMove, testBoardMove, type FixStage } from '@/lib/workflow/board-moves'
 import { STATE_LABEL, type Role, type TicketState } from '@/lib/workflow/ticket-machine'
-import { moveTicketFromBoard, recordCaseResult, updateCases } from '@/app/(app)/actions'
+import { moveTicketFromBoard, recordCaseResult, setTicketBlocked, updateCases } from '@/app/(app)/actions'
 import type { StandupCard } from '@/lib/standup'
 import { StandupPersonCard } from '@/app/(app)/standup/standup-deck'
 import { CaseDrawer } from './case-drawer'
@@ -30,7 +30,7 @@ export type SprintCard = {
   auto_result: string | null
   manual_result: string | null
   needs_ticket: boolean
-  ticket: { id: string; key: string; state: TicketState; owner_id: string | null; owner_name: string | null; kind?: 'defect' | 'test_mismatch' } | null
+  ticket: { id: string; key: string; state: TicketState; owner_id: string | null; owner_name: string | null; kind?: 'defect' | 'test_mismatch'; blocked_reason?: string | null } | null
 }
 
 const RESULT: Record<string, [string, string]> = {
@@ -49,7 +49,7 @@ const passesNow = (c: SprintCard) => c.manual_result === 'passed' && c.auto_resu
 
 /** Whose move a card is: the dev on the ticket while it is in Fix, otherwise the case's tester. */
 function ownerOf(c: SprintCard, stage: Col): { id: string | null; name: string | null; role: string } {
-  if (stage === 'fix' || stage === 'failed' || stage === 'triage') return { id: c.ticket?.owner_id ?? null, name: c.ticket?.owner_name ?? null, role: stage === 'triage' ? 'Owner' : 'Fix' }
+  if (stage === 'fix' || stage === 'failed' || stage === 'triage' || stage === 'blocked') return { id: c.ticket?.owner_id ?? null, name: c.ticket?.owner_name ?? null, role: stage === 'triage' ? 'Owner' : 'Fix' }
   return { id: c.tester_id, name: c.tester_name, role: stage === 'retest' ? 'Retest' : 'Test' }
 }
 
@@ -78,7 +78,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
   const router = useRouter()
   const [local, setLocal] = useState<Record<string, Col>>({})
   const [dragging, setDragging] = useState<SprintCard | null>(null)
-  const [ask, setAsk] = useState<{ card: SprintCard; to: Col; kind: 'fail' | 'build' | 'note' } | null>(null)
+  const [ask, setAsk] = useState<{ card: SprintCard; to: Col; kind: 'fail' | 'build' | 'note' | 'block' } | null>(null)
   const [text, setText] = useState('')
   const [build, setBuild] = useState('')
   const [open, setOpen] = useState<string | null>(null)
@@ -106,7 +106,10 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
   const matchesOwner = (c: SprintCard) => {
     if (!owner) return true
     const o = ownerOf(c, stageOf(c))
-    return owner === '__none' ? !o.id && !isDone(stageOf(c)) : o.id === owner
+    if (owner === '__none') return !o.id && !isDone(stageOf(c))
+    // On a fix board a person sees every card they are on, as the fixer or as the tester, so a
+    // ticket they handed to Retest stays in their view.
+    return o.id === owner || (mode === 'fix' && (c.ticket?.owner_id === owner || c.tester_id === owner))
   }
   const shown = cards.filter((c) => (!onlyHigh || c.priority === 'Critical' || c.priority === 'High') && (!area || areaOf(c) === area)
     && matchesOwner(c) && (!q || `${c.tc_id} ${c.title} ${c.ticket?.key ?? ''}`.toLowerCase().includes(q.toLowerCase())))
@@ -197,6 +200,8 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
       ? await recordCaseResult({ case_id: card.id, result: move.result, note: extra.note, build: extra.build, raise_ticket: move.result === 'failed' })
       : move.kind === 'automation'
       ? await updateCases([card.id], { automation: move.value })
+      : move.kind === 'block'
+      ? await setTicketBlocked(card.ticket!.id, move.on ? (extra.note ?? '') : null)
       : await moveTicketFromBoard({ ticket_id: card.ticket!.id, to: move.to, fixed_in_build: extra.build, note: extra.note } as Parameters<typeof moveTicketFromBoard>[0])
     if (res.error) {
       setLocal((l) => ({ ...l, [card.id]: from }))
@@ -216,6 +221,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
     if (move.kind === 'result' && !active) return toast('Start the sprint before recording results, so they count toward it.', 'error')
     if (move.kind === 'result' && move.ask) { setText(''); setBuild(''); setAsk({ card, to, kind: 'fail' }); return }
     if (move.kind === 'ticket' && move.ask) { setText(''); setBuild(''); setAsk({ card, to, kind: move.ask }); return }
+    if (move.kind === 'block' && move.ask) { setText(''); setAsk({ card, to, kind: 'block' }); return }
     void perform(card, to)
   }
 
@@ -251,6 +257,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
           </div>
         )}
         {c.needs_ticket && !c.ticket && <div className="mt-1 text-[11px] font-semibold text-[var(--crit)]">Needs a ticket</div>}
+        {c.ticket?.blocked_reason && <div className="mt-1 line-clamp-2 text-[11px] font-semibold text-[var(--crit)]" title={c.ticket.blocked_reason}>Blocked: <span className="font-normal">{c.ticket.blocked_reason}</span></div>}
         {mode === 'fix' && (s === 'triage' || s === 'fix') && (c.ticket?.kind === 'test_mismatch' || c.manual_result === 'passed') && (
           <div className="mt-1 flex flex-wrap gap-1">
             {c.ticket?.kind === 'test_mismatch' && <span className="chip px-1.5 text-[10.5px]">Test issue</span>}
@@ -414,7 +421,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
       </>}
 
       <Dialog open={!!ask} onClose={() => setAsk(null)}
-        title={ask?.kind === 'fail' ? `Record a failure · ${ask.card.tc_id}` : ask?.kind === 'build' ? 'Which build has the fix?' : 'What did the retest show?'}>
+        title={ask?.kind === 'fail' ? `Record a failure · ${ask.card.tc_id}` : ask?.kind === 'build' ? 'Which build has the fix?' : ask?.kind === 'block' ? `What is blocking ${ask.card.ticket?.key ?? 'it'}?` : 'What did the retest show?'}>
         {ask && (
           <form className="space-y-3" onSubmit={(e) => {
             e.preventDefault()
@@ -423,11 +430,11 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
             void perform(a.card, a.to, a.kind === 'build' ? { build: build.trim() } : { note: text.trim() || undefined, build: build.trim() || undefined })
           }}>
             {ask.kind !== 'build' && (
-              <label className="block"><span className="label">{ask.kind === 'fail' ? 'What happened' : 'Note for the developer'}</span>
-                <textarea autoFocus rows={3} value={text} onChange={(e) => setText(e.target.value)} className="input mt-1 w-full" />
+              <label className="block"><span className="label">{ask.kind === 'fail' ? 'What happened' : ask.kind === 'block' ? 'What is blocking it' : 'Note for the developer'}</span>
+                <textarea autoFocus required={ask.kind === 'block'} minLength={ask.kind === 'block' ? 3 : undefined} rows={3} value={text} onChange={(e) => setText(e.target.value)} className="input mt-1 w-full" />
               </label>
             )}
-            {ask.kind !== 'note' && (
+            {ask.kind !== 'note' && ask.kind !== 'block' && (
               <label className="block"><span className="label">{ask.kind === 'build' ? 'Build' : 'Build tested (optional)'}</span>
                 <input autoFocus={ask.kind === 'build'} required={ask.kind === 'build'} value={build} onChange={(e) => setBuild(e.target.value)} placeholder="e.g. b39a5eab1" className="input mono mt-1 w-full" />
               </label>
@@ -435,7 +442,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
             {ask.kind === 'fail' && <p className="text-[12px] text-[var(--muted)]">A ticket is raised for it, unless one is already open.</p>}
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setAsk(null)} className="btn">Cancel</button>
-              <button className="btn btn-primary">{ask.kind === 'fail' ? 'Record fail' : ask.kind === 'build' ? 'Ready for retest' : 'Reopen ticket'}</button>
+              <button className="btn btn-primary">{ask.kind === 'fail' ? 'Record fail' : ask.kind === 'build' ? 'Ready for retest' : ask.kind === 'block' ? 'Mark blocked' : 'Reopen ticket'}</button>
             </div>
           </form>
         )}

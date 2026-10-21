@@ -52,7 +52,11 @@ export function testBoardMove(from: TestStage, to: TestStage, role: Role): TestB
     case 'manual>passed': return { kind: 'result', result: 'passed', ask: false, label: 'Pass recorded' }
     case 'auto>failed':
     case 'manual>failed': return { kind: 'result', result: 'failed', ask: true, label: 'Fail recorded' }
-    default: return { error: from === 'failed' ? 'Failures are fixed in a fix sprint' : 'That step does not follow from here' }
+    // Correcting a result, e.g. a case marked Failed that passes when tested again. A ticket
+    // already raised stays open: the fix board offers to close it once the case passes.
+    case 'failed>passed': return { kind: 'result', result: 'passed', ask: false, label: 'Pass recorded' }
+    case 'passed>failed': return { kind: 'result', result: 'failed', ask: true, label: 'Fail recorded' }
+    default: return { error: 'That step does not follow from here' }
   }
 }
 

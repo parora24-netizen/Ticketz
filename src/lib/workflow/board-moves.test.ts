@@ -27,13 +27,16 @@ describe('sprint board drops', () => {
     expect(droppableStages('test', 'dev', null)).toEqual([])
   })
 
-  it('test sprints: automate, then pass or fail; devs and failures stay put', () => {
+  it('test sprints: automate, then pass or fail; a result can be corrected; devs stay put', () => {
     expect(testBoardMove('automate', 'auto', 'qa')).toMatchObject({ kind: 'automation', value: 'automated' })
     expect(testBoardMove('automate', 'manual', 'qa')).toMatchObject({ kind: 'automation', value: 'manual_only' })
     expect(testBoardMove('manual', 'failed', 'qa')).toMatchObject({ kind: 'result', result: 'failed', ask: true })
     expect(droppableTestStages('auto', 'qa')).toEqual(['passed', 'failed'])
     expect(testBoardMove('manual', 'passed', 'dev')).toHaveProperty('error')
-    expect(testBoardMove('failed', 'passed', 'lead')).toEqual({ error: 'Failures are fixed in a fix sprint' })
+    expect(testBoardMove('failed', 'passed', 'qa')).toMatchObject({ kind: 'result', result: 'passed', ask: false })
+    expect(testBoardMove('passed', 'failed', 'lead')).toMatchObject({ kind: 'result', result: 'failed', ask: true })
+    expect(droppableTestStages('failed', 'qa')).toEqual(['passed'])
+    expect(testBoardMove('failed', 'passed', 'dev')).toHaveProperty('error')
   })
 
   it('fix sprints: triage, fix, retest, close; passing cases close from triage', () => {

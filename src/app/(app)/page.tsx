@@ -4,6 +4,7 @@ import { CaseLink, PriorityChip, Stat, TicketLink } from '@/components/ui'
 import { SubmitButton } from '@/components/submit-button'
 import { startSprint } from './actions'
 import { getMe } from '@/lib/auth'
+import { createClient } from '@/lib/supabase/server'
 import {
   currentSprint, loadRelease, daysUntil, fmtDate, loadActivity, loadCases, loadSprintAreas, loadSprintRuns, loadSprints, loadTasks, loadTickets,
   timeAgo, toStageInput, type TicketRow,
@@ -74,7 +75,16 @@ export default async function Home() {
 
   const mine = tickets.filter((t) => t.owner_id === me.id)
   const myTasks = tasks.filter((k) => k.owner_id === me.id && k.status !== 'done')
-  const retests = tickets.filter((t) => t.state === 'ready_for_retest').sort(bySeverity)
+  // Retests go to the case's tester. QA see theirs and any with no tester yet; the lead sees all.
+  const readyForRetest = tickets.filter((t) => t.state === 'ready_for_retest')
+  const retestCaseIds = [...new Set(readyForRetest.map((t) => t.case_id).filter((id): id is string => !!id))]
+  const { data: testerRows } = retestCaseIds.length
+    ? await (await createClient()).from('test_cases').select('id, tester_id, people:tester_id(name)').in('id', retestCaseIds)
+    : { data: [] }
+  const testerOf = new Map((testerRows ?? []).map((r) => [r.id as string, { id: r.tester_id as string | null, name: (r.people as unknown as { name: string } | null)?.name ?? null }]))
+  const retests = readyForRetest
+    .filter((t) => me.role === 'lead' || !t.case_id || !testerOf.get(t.case_id)?.id || testerOf.get(t.case_id)?.id === me.id)
+    .sort(bySeverity)
   // Manual tests that are mine, or that nobody has taken yet.
   const manualDue = cases.filter((c, i) => stages[i] === 'test' && testBy(toStageInput(c)) === 'manual' && (c.tester_id === me.id || !c.tester_id)).sort((a, b) => SEV.indexOf(a.priority) - SEV.indexOf(b.priority))
   const untracked = cases.filter((c) => needsTicket(toStageInput(c, runs)))
@@ -178,7 +188,11 @@ export default async function Home() {
                 </Panel>
               )}
               <Panel title="Retest queue" count={retests.length} href="/tickets?view=grid&state=ready_for_retest" empty="Nothing ready for retest.">
-                <TicketRows rows={retests} limit={8} all={{ href: '/tickets?view=grid&state=ready_for_retest', label: `All ${retests.length} retests` }} note={(t) => [t.owner_name, t.fixed_in_build && `build ${t.fixed_in_build}`].filter(Boolean).join(' · ')} />
+                <TicketRows rows={retests} limit={8} all={{ href: '/tickets?view=grid&state=ready_for_retest', label: `All ${retests.length} retests` }} note={(t) => {
+                  const tester = t.case_id ? testerOf.get(t.case_id) : undefined
+                  return [t.owner_name && `fixed by ${t.owner_name}`, t.fixed_in_build && `build ${t.fixed_in_build}`,
+                    tester?.id === me.id ? null : tester?.name ? `${tester.name} retests` : 'no tester'].filter(Boolean).join(' · ')
+                }} />
               </Panel>
               {sprint && (
                 <Panel title={`Manual tests due in ${sprint.name}`} count={manualDue.length} href={`/cases?sprint=${sprint.id}&stage=test`} empty="No manual tests waiting.">

@@ -103,6 +103,17 @@ export function AssistantButton() {
   useEffect(() => { try { sessionStorage.setItem(KEY, JSON.stringify(msgs)) } catch {} }, [msgs])
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }) }, [msgs, status])
   useEffect(() => { if (open) input.current?.focus() }, [open])
+  // Ctrl+J (⌘J on a Mac) opens or closes Ask from anywhere, even while typing elsewhere.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'j') { e.preventDefault(); setOpen((v) => !v) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+  const [mac, setMac] = useState(false)
+  useEffect(() => setMac(/Mac|iPhone|iPad/.test(navigator.platform)), [])
+  const shortcut = mac ? '⌘J' : 'Ctrl+J'
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
@@ -161,8 +172,11 @@ export function AssistantButton() {
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="btn h-8" title="Ask about the release">
-        <span aria-hidden>✦</span> Ask
+      <button type="button" onClick={() => setOpen(true)} className="btn h-8 gap-1.5" title={`Ask about the release (${shortcut})`} aria-keyshortcuts="Control+J Meta+J">
+        <span aria-hidden className="text-[var(--accent)]">✦</span>
+        <span className="sm:hidden">Ask</span>
+        <span className="hidden sm:inline">Ask Launchpad</span>
+        <kbd className="mono ml-1 hidden border border-[var(--line)] bg-[var(--surface-3)] px-1 text-[10px] font-normal text-[var(--muted)] lg:inline">{shortcut}</kbd>
       </button>
       {open && (
         <div className="fixed inset-0 z-40 flex justify-end">
@@ -193,7 +207,7 @@ export function AssistantButton() {
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void ask(draft) } }}
                 placeholder="Ask a question (Enter to send, Shift+Enter for a new line)" className="input w-full" />
               <div className="mt-2 flex items-center justify-between text-[11px] text-[var(--faint)]">
-                <span>Read-only · Claude Opus 5.5</span>
+                <span>Read-only · Claude Opus 5.5 · {shortcut} to open or close</span>
                 <button disabled={busy || !draft.trim()} className="btn btn-primary btn-sm">{busy ? 'Answering…' : 'Ask'}</button>
               </div>
             </form>

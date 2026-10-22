@@ -33,21 +33,56 @@ function Inline({ text }: { text: string }) {
   return <>{parts}</>
 }
 
+// Answers are read line by line: tables (| a | b |), headings, bullet and numbered lists, and
+// paragraphs, so a list right under a heading line still renders as a list.
+type Block = { kind: 'p'; text: string } | { kind: 'h'; text: string } | { kind: 'ul'; items: string[] } | { kind: 'ol'; items: string[] } | { kind: 'table'; rows: string[][] }
+const BULLET = /^\s*([-*•]|\d+\.)\s+/
+const cells = (l: string) => l.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim())
+
+function blocks(text: string): Block[] {
+  const out: Block[] = []
+  for (const raw of text.split('\n')) {
+    const l = raw.trimEnd()
+    const last = out.at(-1)
+    if (!l.trim()) { out.push({ kind: 'p', text: '' }); continue }
+    if (/^\s*\|.*\|\s*$/.test(l)) {
+      if (/^\s*\|?\s*:?-{2,}/.test(l)) continue // the |---|---| line under the header
+      if (last?.kind === 'table') last.rows.push(cells(l))
+      else out.push({ kind: 'table', rows: [cells(l)] })
+      continue
+    }
+    if (BULLET.test(l)) {
+      const kind = /^\s*\d+\./.test(l) ? 'ol' : 'ul'
+      if (last?.kind === kind) last.items.push(l.replace(BULLET, ''))
+      else out.push({ kind, items: [l.replace(BULLET, '')] })
+      continue
+    }
+    if (/^#{1,4}\s/.test(l)) { out.push({ kind: 'h', text: l.replace(/^#{1,4}\s/, '') }); continue }
+    if (last?.kind === 'p' && last.text) last.text += '\n' + l
+    else out.push({ kind: 'p', text: l })
+  }
+  return out.filter((b) => !(b.kind === 'p' && !b.text))
+}
+
 function Answer({ text }: { text: string }) {
-  const blocks = text.split(/\n{2,}/)
   return (
     <div className="space-y-2">
-      {blocks.map((b, i) => {
-        const lines = b.split('\n').filter((l) => l.trim())
-        if (lines.length && lines.every((l) => /^\s*([-*•]|\d+\.)\s+/.test(l))) {
-          const numbered = /^\s*\d+\./.test(lines[0])
-          const items = lines.map((l) => l.replace(/^\s*([-*•]|\d+\.)\s+/, ''))
-          return numbered
-            ? <ol key={i} className="list-decimal space-y-1 pl-5">{items.map((it, j) => <li key={j}><Inline text={it} /></li>)}</ol>
-            : <ul key={i} className="list-disc space-y-1 pl-5">{items.map((it, j) => <li key={j}><Inline text={it} /></li>)}</ul>
+      {blocks(text).map((b, i) => {
+        if (b.kind === 'ul') return <ul key={i} className="list-disc space-y-1 pl-5">{b.items.map((it, j) => <li key={j}><Inline text={it} /></li>)}</ul>
+        if (b.kind === 'ol') return <ol key={i} className="list-decimal space-y-1 pl-5">{b.items.map((it, j) => <li key={j}><Inline text={it} /></li>)}</ol>
+        if (b.kind === 'h') return <p key={i} className="pt-1 font-semibold text-[var(--navy-ink)]"><Inline text={b.text} /></p>
+        if (b.kind === 'table') {
+          const [head, ...body] = b.rows
+          return (
+            <div key={i} className="overflow-x-auto">
+              <table className="w-full border-collapse text-[12px]">
+                <thead><tr>{head.map((c, j) => <th key={j} className="border-b border-[var(--line)] bg-[var(--surface-3)] px-2 py-1 text-left font-semibold whitespace-nowrap"><Inline text={c} /></th>)}</tr></thead>
+                <tbody>{body.map((r, k) => <tr key={k}>{r.map((c, j) => <td key={j} className={`border-b border-[var(--line-soft)] px-2 py-1 ${/^[\d.,%—-]+$/.test(c) ? 'mono text-right' : ''}`}><Inline text={c} /></td>)}</tr>)}</tbody>
+              </table>
+            </div>
+          )
         }
-        if (/^#{1,4}\s/.test(b)) return <p key={i} className="font-semibold text-[var(--navy-ink)]"><Inline text={b.replace(/^#{1,4}\s/, '')} /></p>
-        return <p key={i} className="whitespace-pre-wrap"><Inline text={b} /></p>
+        return <p key={i} className="whitespace-pre-wrap"><Inline text={b.text} /></p>
       })}
     </div>
   )

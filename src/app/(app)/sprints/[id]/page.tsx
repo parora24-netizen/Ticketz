@@ -117,9 +117,13 @@ export default async function SprintPage({
           <SprintProgress counts={counts} mode={fixMode ? 'fix' : testMode ? 'test' : 'cases'} />
         </div>
         <div>
-          <h3 className="text-[13px] font-semibold text-[var(--navy-ink)]">Cases with a result this sprint</h3>
+          {/* Cases given a result (pass, fail or blocked; by hand or by the suite) since the sprint began,
+              against all of the sprint's cases. Older results, e.g. from the workbook, don't count here. */}
+          <h3 className="text-[13px] font-semibold text-[var(--navy-ink)]" title="Cases given a result since the sprint began. Results from before it, like the workbook's, are not counted here.">
+            Tested this sprint · {new Set(runTimes.map((r) => r.case_id)).size} of {cases.length}
+          </h3>
           {daily.length > 1
-            ? <LineChart points={daily} label="Cases with a result this sprint" unit="cases" target={{ value: cases.length, label: 'all' }} height={140} />
+            ? <LineChart points={daily} label="Cases tested this sprint" unit="cases tested" lineLabel="tested" target={{ value: cases.length, label: `all ${cases.length} cases` }} height={140} />
             : <p className="mt-2 text-[12.5px] text-[var(--muted)]">{new Set(runTimes.map((r) => r.case_id)).size} of {cases.length}</p>}
         </div>
         </>

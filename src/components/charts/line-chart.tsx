@@ -10,16 +10,18 @@ const fmt = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-GB'
  * One series over time: 2px line, faint gridlines, a crosshair and tooltip on hover, the last value
  * labelled at the line's end. `target` draws a dashed reference line (e.g. zero open Criticals).
  */
-export function LineChart({ points, label, unit, target, height = 180 }: {
+export function LineChart({ points, label, unit, target, height = 180, lineLabel }: {
   points: Point[]
   label: string
+  /** Word after the line's last value, e.g. "tested" gives "178 tested". */
+  lineLabel?: string
   unit: string
   target?: { value: number; label: string }
   height?: number
 }) {
   const ref = useRef<SVGSVGElement>(null)
   const [hover, setHover] = useState<number | null>(null)
-  const W = 640, H = height, L = 36, R = 56, T = 12, B = 26
+  const W = 640, H = height, L = 36, R = lineLabel || (target?.label.length ?? 0) > 6 ? 96 : 56, T = 12, B = 26
   const max = useMemo(() => {
     const m = Math.max(1, target?.value ?? 0, ...points.map((p) => p.value))
     const step = m <= 10 ? 2 : m <= 50 ? 10 : m <= 200 ? 50 : m <= 1000 ? 200 : 500
@@ -65,7 +67,7 @@ export function LineChart({ points, label, unit, target, height = 180 }: {
         {last && (
           <g>
             <circle cx={x(points.length - 1)} cy={y(last.value)} r="4" fill="#2b57c4" stroke="#fff" strokeWidth="2" />
-            <text x={x(points.length - 1) + 8} y={y(last.value) + 4} fontSize="12" fontWeight="600" fill="#1b1f26">{last.value}</text>
+            <text x={x(points.length - 1) + 8} y={y(last.value) + 4} fontSize="12" fontWeight="600" fill="#1b1f26">{last.value}{lineLabel ? ` ${lineLabel}` : ''}</text>
           </g>
         )}
         {hp && hover !== null && (

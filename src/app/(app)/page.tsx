@@ -82,11 +82,13 @@ export default async function Home() {
     ? await (await createClient()).from('test_cases').select('id, tester_id, people:tester_id(name)').in('id', retestCaseIds)
     : { data: [] }
   const testerOf = new Map((testerRows ?? []).map((r) => [r.id as string, { id: r.tester_id as string | null, name: (r.people as unknown as { name: string } | null)?.name ?? null }]))
-  const retests = readyForRetest
-    .filter((t) => me.role === 'lead' || !t.case_id || !testerOf.get(t.case_id)?.id || testerOf.get(t.case_id)?.id === me.id)
-    .sort(bySeverity)
-  // Manual tests that are mine, or that nobody has taken yet.
-  const manualDue = cases.filter((c, i) => stages[i] === 'test' && testBy(toStageInput(c)) === 'manual' && (c.tester_id === me.id || !c.tester_id)).sort((a, b) => SEV.indexOf(a.priority) - SEV.indexOf(b.priority))
+  // QA see their own work; work with no tester shows as a count to pick up from, not in their list.
+  const testerIdOf = (t: { case_id: string | null }) => (t.case_id ? testerOf.get(t.case_id)?.id ?? null : null)
+  const retests = readyForRetest.filter((t) => me.role === 'lead' || testerIdOf(t) === me.id).sort(bySeverity)
+  const unclaimedRetests = me.role === 'lead' ? 0 : readyForRetest.filter((t) => !testerIdOf(t)).length
+  const manualAll = cases.filter((c, i) => stages[i] === 'test' && testBy(toStageInput(c)) === 'manual')
+  const manualDue = manualAll.filter((c) => me.role === 'lead' || c.tester_id === me.id).sort((a, b) => SEV.indexOf(a.priority) - SEV.indexOf(b.priority))
+  const unclaimedManual = me.role === 'lead' ? 0 : manualAll.filter((c) => !c.tester_id).length
   const untracked = cases.filter((c) => needsTicket(toStageInput(c, runs)))
   const toTriage = tickets.filter((t) => t.state === 'new').sort(bySeverity)
   const unownedHigh = tickets.filter((t) => !t.owner_id && ['Critical', 'High'].includes(t.severity) && !['closed', 'deferred', 'duplicate'].includes(t.state))
@@ -187,15 +189,21 @@ export default async function Home() {
                     all={{ href: '/tickets?view=grid&state=new', label: `All ${toTriage.length} not started, in the grid` }} />
                 </Panel>
               )}
-              <Panel title="Retest queue" count={retests.length} href="/tickets?view=grid&state=ready_for_retest" empty="Nothing ready for retest.">
+              <Panel title={me.role === 'lead' ? 'Retest queue' : 'Your retests'} count={retests.length} href="/tickets?view=grid&state=ready_for_retest" empty={unclaimedRetests ? undefined : 'Nothing ready for you to retest.'}>
                 <TicketRows rows={retests} limit={8} all={{ href: '/tickets?view=grid&state=ready_for_retest', label: `All ${retests.length} retests` }} note={(t) => {
                   const tester = t.case_id ? testerOf.get(t.case_id) : undefined
                   return [t.owner_name && `fixed by ${t.owner_name}`, t.fixed_in_build && `build ${t.fixed_in_build}`,
                     tester?.id === me.id ? null : tester?.name ? `${tester.name} retests` : 'no tester'].filter(Boolean).join(' · ')
                 }} />
+                {unclaimedRetests > 0 && (
+                  <p className="border-t border-[var(--line)] px-4 py-2.5 text-[12.5px] text-[var(--muted)]">
+                    {retests.length === 0 && 'Nothing ready for you to retest. '}
+                    <Link href="/tickets?view=grid&state=ready_for_retest" className="text-[var(--accent)] hover:underline">{unclaimedRetests} more {unclaimedRetests === 1 ? 'has' : 'have'} no tester yet</Link>
+                  </p>
+                )}
               </Panel>
               {sprint && (
-                <Panel title={`Manual tests due in ${sprint.name}`} count={manualDue.length} href={`/cases?sprint=${sprint.id}&stage=test`} empty="No manual tests waiting.">
+                <Panel title={me.role === 'lead' ? `Manual tests due in ${sprint.name}` : `Your manual tests in ${sprint.name}`} count={manualDue.length} href={`/cases?sprint=${sprint.id}&stage=test`} empty={unclaimedManual ? undefined : 'No manual tests waiting for you.'}>
                   <ul className="divide-y divide-[var(--row)]">
                     {manualDue.slice(0, 10).map((c) => (
                       <li key={c.id} className="flex items-center gap-3 px-4 py-2">
@@ -205,6 +213,12 @@ export default async function Home() {
                       </li>
                     ))}
                   </ul>
+                  {unclaimedManual > 0 && (
+                    <p className="border-t border-[var(--line)] px-4 py-2.5 text-[12.5px] text-[var(--muted)]">
+                      {manualDue.length === 0 && 'No manual tests assigned to you. '}
+                      <Link href={`/cases?sprint=${sprint.id}&stage=test`} className="text-[var(--accent)] hover:underline">{unclaimedManual} in {sprint.name} {unclaimedManual === 1 ? 'has' : 'have'} no tester yet</Link>
+                    </p>
+                  )}
                 </Panel>
               )}
               {untracked.length > 0 && (

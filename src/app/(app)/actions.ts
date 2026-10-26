@@ -7,7 +7,8 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { getMe, safeNext } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { currentSprint, loadSprints, trackOf } from '@/lib/data'
+import { currentSprint, loadSprintAreas, loadSprints, trackOf } from '@/lib/data'
+import { fixSprintForArea } from '@/lib/workflow/fix-sprint'
 import { canMove, requiredFor, retestResult, type TicketState } from '@/lib/workflow/ticket-machine'
 
 function back(formData: FormData, fallback: string): string {
@@ -32,12 +33,15 @@ async function activeSprintId(): Promise<string | null> {
 }
 
 /**
- * Where a new ticket is fixed: the next fix sprint to start, since the one running now was planned
- * from what the last test sprint found. Falls back to the running fix sprint near the end.
+ * Where a new ticket is fixed: the fix sprint after the test sprint that tests its page (T3 -> F4).
+ * A page with no open test sprint goes to the next fix sprint to start, or the running one near the end.
  */
-async function fixSprintId(): Promise<string | null> {
+async function fixSprintId(areaId?: string | null): Promise<string | null> {
+  const sprints = await loadSprints()
+  const paired = fixSprintForArea(areaId, sprints, areaId ? await loadSprintAreas() : [])
+  if (paired) return paired.id
   const today = new Date().toISOString().slice(0, 10)
-  const fix = (await loadSprints()).filter((s) => s.kind === 'fix' && s.status !== 'closed')
+  const fix = sprints.filter((s) => s.kind === 'fix' && s.status !== 'closed')
   return (fix.find((s) => s.starts_on > today && s.status === 'planned') ?? fix.find((s) => s.ends_on >= today))?.id ?? null
 }
 
@@ -84,7 +88,7 @@ export async function recordManualResult(formData: FormData) {
   if (error) fail(path, error.message)
 
   if (v.result === 'failed' && v.raise_ticket) {
-    const { data: c } = await supabase.from('test_cases').select('tc_id, title, priority').eq('id', v.case_id).single()
+    const { data: c } = await supabase.from('test_cases').select('tc_id, title, priority, area_id').eq('id', v.case_id).single()
     if (c) {
       const key = await nextTicketKey(supabase, c.tc_id)
       const { error: tErr } = await supabase.from('tickets').insert({
@@ -94,7 +98,7 @@ export async function recordManualResult(formData: FormData) {
         description: v.note || null,
         severity: v.severity ?? c.priority,
         found_in_sprint_id: sprintId,
-        current_sprint_id: await fixSprintId(),
+        current_sprint_id: await fixSprintId(c.area_id),
         created_by: me.id,
       })
       if (tErr) fail(path, tErr.message)
@@ -142,9 +146,11 @@ export async function raiseTicket(formData: FormData) {
   const v = parsed.data
   const supabase = await createClient()
   let tcId: string | null = null
+  let caseArea: string | null = null
   if (v.case_id) {
-    const { data } = await supabase.from('test_cases').select('tc_id').eq('id', v.case_id).single()
+    const { data } = await supabase.from('test_cases').select('tc_id, area_id').eq('id', v.case_id).single()
     tcId = data?.tc_id ?? null
+    caseArea = data?.area_id ?? null
   }
   const sprintId = await activeSprintId()
   const key = await nextTicketKey(supabase, tcId)
@@ -156,7 +162,7 @@ export async function raiseTicket(formData: FormData) {
     description: v.description || null,
     severity: v.severity,
     found_in_sprint_id: sprintId,
-    current_sprint_id: await fixSprintId(),
+    current_sprint_id: await fixSprintId(caseArea ?? (v.area_id || null)),
     created_by: me.id,
     ...(v.area_id ? { area_id: v.area_id } : {}),
     ...(files.data.length ? { attachments: files.data } : {}),
@@ -750,7 +756,7 @@ export async function recordCaseResult(input: {
   if (error) return { error: error.message }
   let ticketKey: string | undefined
   if (v.data.result === 'failed' && v.data.raise_ticket) {
-    const { data: c } = await supabase.from('test_cases').select('tc_id, title, priority').eq('id', v.data.case_id).single()
+    const { data: c } = await supabase.from('test_cases').select('tc_id, title, priority, area_id').eq('id', v.data.case_id).single()
     if (c) {
       const { data: open } = await supabase.from('tickets').select('key').eq('case_id', v.data.case_id)
         .in('state', ['new', 'triaged', 'in_fix', 'reopened', 'ready_for_retest']).limit(1)
@@ -759,7 +765,7 @@ export async function recordCaseResult(input: {
         ticketKey = await nextTicketKey(supabase, c.tc_id)
         const { error: tErr } = await supabase.from('tickets').insert({
           key: ticketKey, case_id: v.data.case_id, title: c.title, description: v.data.note || null, severity: c.priority,
-          found_in_sprint_id: sprintId, current_sprint_id: await fixSprintId(), created_by: me.id,
+          found_in_sprint_id: sprintId, current_sprint_id: await fixSprintId(c.area_id), created_by: me.id,
         })
         if (tErr) return { error: `Result saved, but the ticket was not: ${tErr.message}` }
       }

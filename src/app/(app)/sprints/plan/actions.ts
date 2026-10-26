@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { getMe } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { loadAreas, loadCases, loadSprints, loadTickets } from '@/lib/data'
+import { fixSprintAfter } from '@/lib/workflow/fix-sprint'
 
 const Input = z.object({
   changes: z.array(z.object({ area_id: z.uuid(), sprint_id: z.uuid().nullable() })).max(500),
@@ -56,13 +57,10 @@ export async function savePlan(input: z.infer<typeof Input>): Promise<{ error?: 
   if (v.data.route_tickets) {
     const [cases, tickets] = await Promise.all([loadCases(areaIds), loadTickets()])
     const areaOfCase = new Map(cases.map((c) => [c.id, c.area_id]))
-    const byName = new Map(sprints.map((s) => [s.name, s]))
     const target = new Map<string, string>() // area -> fix sprint id
     for (const c of v.data.changes) {
-      const test = sprints.find((s) => s.id === c.sprint_id)
-      const n = test ? Number(test.name.slice(1)) : NaN
-      const fix = Number.isFinite(n) ? byName.get(`F${n + 1}`) : undefined
-      if (fix && fix.status !== 'closed') target.set(c.area_id, fix.id)
+      const fix = fixSprintAfter(sprints.find((s) => s.id === c.sprint_id), sprints)
+      if (fix) target.set(c.area_id, fix.id)
     }
     const planned = new Set(sprints.filter((s) => s.status === 'planned').map((s) => s.id))
     const moves = new Map<string, string[]>() // fix sprint -> ticket ids

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useMemo, useState, useTransition } from 'react'
 import { toast } from '@/components/toast'
+import { fixSprintAfter } from '@/lib/workflow/fix-sprint'
 import { savePlan } from './actions'
 
 type Row = { id: string; zone: string; page: string; sprint_id: string | null; done_in: string; cases: number; tested: number }
@@ -68,6 +69,8 @@ export function PlanEditor({ rows, sprints, dated, goNoGo }: { rows: Row[]; spri
   const cols = [...sprints].sort((a, b) => (dates[a.id]?.s ?? '').localeCompare(dates[b.id]?.s ?? ''))
   const load = (sid: string) => { const mine = rows.filter((r) => (plan[r.id] || '') === sid); return { pages: mine.length, cases: mine.reduce((n, r) => n + r.cases, 0) } }
   const sname = (id: string | null) => (id ? sprints.find((s) => s.id === id)?.name ?? '?' : 'not planned')
+  // A page tested in Tn is fixed in F(n+1): its failures' tickets go there.
+  const fixOf = (testId: string) => fixSprintAfter(dated.find((d) => d.id === testId), dated)
 
   function save() {
     start(async () => {
@@ -137,7 +140,7 @@ export function PlanEditor({ rows, sprints, dated, goNoGo }: { rows: Row[]; spri
       <section className="card">
         <header className="flex items-baseline gap-3 border-b border-[var(--line)] bg-[var(--surface-3)] px-4 py-2">
           <h2 className="text-[14px] font-semibold text-[var(--navy-ink)]">Pages</h2>
-          <span className="text-[12px] text-[var(--muted)]">Click a cell to test that page in that sprint; click a zone&apos;s cell to move the whole zone.</span>
+          <span className="text-[12px] text-[var(--muted)]">Click a cell to test that page in that sprint; click a zone&apos;s cell to move the whole zone. A page tested in a sprint is fixed in the fix sprint after it.</span>
         </header>
         {/* Sideways scroll only on narrow screens: inside a scroll box the sticky headings would
             stop sticking to the page. The table is as wide as it needs, so each page's cells sit
@@ -154,6 +157,7 @@ export function PlanEditor({ rows, sprints, dated, goNoGo }: { rows: Row[]; spri
                       <div className="text-[13px] font-semibold text-[var(--navy-ink)]">{s.name}</div>
                       <div className="text-[11px] font-normal text-[var(--muted)]">{short(dates[s.id]?.s ?? '')}–{short(dates[s.id]?.e ?? '')}</div>
                       <div className="mono text-[10.5px] font-normal text-[var(--faint)]">{l.pages} pages · {l.cases} cases</div>
+                      <div className="mt-0.5 text-[11px] font-semibold text-[var(--accent)]">{fixOf(s.id) ? `fixed in ${fixOf(s.id)!.name}` : 'no fix sprint after it'}</div>
                     </th>
                   )
                 })}

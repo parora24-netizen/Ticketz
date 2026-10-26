@@ -13,6 +13,26 @@ const Input = z.object({
   route_tickets: z.boolean(),
 }).refine((x) => x.changes.length + x.dates.length > 0)
 
+/** Takes a whole zone out of this release's plan, or adds it back. Its pages and cases stay. */
+export async function setZoneInRelease(zone: string, inRelease: boolean): Promise<{ error?: string }> {
+  const me = await getMe()
+  if (me.role !== 'lead') return { error: 'Only the lead edits the plan' }
+  const supabase = await createClient()
+  if (!inRelease) {
+    // Only a zone with nothing planned: its pages would otherwise vanish from open sprints.
+    const [sprints, areas] = await Promise.all([loadSprints(), loadAreas()])
+    const open = sprints.filter((s) => s.kind === 'test' && s.status !== 'closed').map((s) => s.id)
+    const ids = areas.filter((a) => a.zone === zone).map((a) => a.id)
+    const { count } = await supabase.from('sprint_areas').select('area_id', { count: 'exact', head: true }).in('area_id', ids).in('sprint_id', open)
+    if (count) return { error: `Take ${zone}'s pages out of their test sprints first` }
+  }
+  const { error, count } = await supabase.from('areas').update({ in_release: inRelease }, { count: 'exact' }).eq('zone', zone)
+  if (error) return { error: error.message.includes('in_release') ? 'Run the areas_in_release migration first' : error.message }
+  if (!count) return { error: 'No such zone' }
+  revalidatePath('/', 'layout')
+  return {}
+}
+
 /**
  * Edit plan: which test sprint tests each page. Only test sprints that have not closed change;
  * closed sprints keep their history and regression keeps every area. With `route_tickets`, the

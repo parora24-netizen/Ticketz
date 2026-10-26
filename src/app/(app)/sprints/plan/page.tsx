@@ -16,7 +16,10 @@ export default async function EditPlanPage() {
   const closedIds = new Set(tests.filter((s) => s.status === 'closed').map((s) => s.id))
   const name = new Map(sprints.map((s) => [s.id, s.name]))
 
-  const rows = areas.map((a) => {
+  // Zones left out of this release are listed apart, to be added back.
+  const out = areas.filter((a) => a.in_release === false)
+  const outZones = [...new Set(out.map((a) => a.zone))].map((zone) => ({ zone, pages: out.filter((a) => a.zone === zone).length }))
+  const rows = areas.filter((a) => a.in_release !== false).map((a) => {
     const mine = sprintAreas.filter((x) => x.area_id === a.id)
     const inCases = cases.filter((c) => c.area_id === a.id)
     return {
@@ -32,7 +35,7 @@ export default async function EditPlanPage() {
     <>
       <Tabs items={sprintTabs(nowSprints(sprints, runningSprints(sprints)))} active="all" />
       <PageHeader title="Edit plan" sub="Set sprint dates and choose which test sprint tests each page. Each fix sprint takes what the test sprint before it found. Saved changes go in the schedule log." />
-      <PlanEditor rows={rows} goNoGo={release.go_no_go_on}
+      <PlanEditor rows={rows} outZones={outZones} goNoGo={release.go_no_go_on}
         dated={sprints.filter((s) => s.status !== 'closed').map((s) => ({ id: s.id, name: s.name, kind: s.kind, status: s.status, starts_on: s.starts_on, ends_on: s.ends_on }))}
         sprints={open.map((s) => ({ id: s.id, name: s.name, label: `${s.name} · ${fmtDate(s.starts_on)}–${fmtDate(s.ends_on)}${s.status === 'active' ? ' · running' : ''}` }))} />
     </>

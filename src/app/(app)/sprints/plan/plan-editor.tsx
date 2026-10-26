@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useMemo, useState, useTransition } from 'react'
 import { toast } from '@/components/toast'
 import { fixSprintAfter } from '@/lib/workflow/fix-sprint'
-import { savePlan } from './actions'
+import { savePlan, setZoneInRelease } from './actions'
 
 type Row = { id: string; zone: string; page: string; sprint_id: string | null; done_in: string; cases: number; tested: number }
 type SprintOpt = { id: string; name: string; label: string }
@@ -26,7 +26,7 @@ const weekdays = (s: string, e: string) => {
  * sprints; click a cell to put the page in that sprint, or a zone's cell to move the whole zone.
  * Nothing saves until Save plan.
  */
-export function PlanEditor({ rows, sprints, dated, goNoGo }: { rows: Row[]; sprints: SprintOpt[]; dated: Dated[]; goNoGo: string }) {
+export function PlanEditor({ rows, outZones = [], sprints, dated, goNoGo }: { rows: Row[]; outZones?: { zone: string; pages: number }[]; sprints: SprintOpt[]; dated: Dated[]; goNoGo: string }) {
   const router = useRouter()
   const [pending, start] = useTransition()
   const [route, setRoute] = useState(true)
@@ -81,6 +81,14 @@ export function PlanEditor({ rows, sprints, dated, goNoGo }: { rows: Row[]; spri
       })
       if (res.error) toast(res.error, 'error')
       else { toast(res.summary ?? 'Plan saved'); router.refresh() }
+    })
+  }
+  function inRelease(zone: string, on: boolean) {
+    if (!on && !window.confirm(`Leave ${zone} out of this release? It leaves the plan until you add it back; its pages and cases stay.`)) return
+    start(async () => {
+      const res = await setZoneInRelease(zone, on)
+      if (res.error) toast(res.error, 'error')
+      else { toast(on ? `${zone} is back in the plan` : `${zone} left out of this release`); router.refresh() }
     })
   }
   function undo() {
@@ -174,7 +182,11 @@ export function PlanEditor({ rows, sprints, dated, goNoGo }: { rows: Row[]; spri
                 const setZone = (sid: string) => setPlan((p) => ({ ...p, ...Object.fromEntries(inZone.map((r) => [r.id, sid])) }))
                 return [
                   <tr key={zone} className="border-t border-[var(--line)] bg-[var(--surface-3)]">
-                    <td className="sticky left-0 bg-[var(--surface-3)] px-4 py-1.5"><b className="text-[var(--navy-ink)]">{zone}</b> <span className="text-[12px] text-[var(--muted)]">{inZone.length} pages · {inZone.reduce((n, r) => n + r.cases, 0)} cases</span></td>
+                    <td className="sticky left-0 bg-[var(--surface-3)] px-4 py-1.5"><b className="text-[var(--navy-ink)]">{zone}</b> <span className="text-[12px] text-[var(--muted)]">{inZone.length} pages · {inZone.reduce((n, r) => n + r.cases, 0)} cases</span>
+                      {inZone.every((r) => !r.sprint_id && !plan[r.id]) && (
+                        <button type="button" disabled={pending} onClick={() => inRelease(zone, false)} className="ml-2 text-[11.5px] text-[var(--accent)] hover:underline">Leave out of this release</button>
+                      )}
+                    </td>
                     {[...cols.map((s) => s.id), ''].map((sid) => {
                       const n = count(sid)
                       return <td key={sid || 'none'} className="py-1.5"><Cell on={n === inZone.length} partial={n > 0 && n < inZone.length} onClick={() => setZone(sid)} label={`All of ${zone} in ${sname(sid || null)}`} /></td>
@@ -200,6 +212,17 @@ export function PlanEditor({ rows, sprints, dated, goNoGo }: { rows: Row[]; spri
             </tbody>
           </table>
         </div>
+        {outZones.length > 0 && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[var(--line)] bg-[var(--surface-3)] px-4 py-2 text-[12.5px]">
+            <span className="text-[var(--muted)]">Not in this release:</span>
+            {outZones.map((z) => (
+              <span key={z.zone}>
+                <b className="text-[var(--navy-ink)]">{z.zone}</b> <span className="text-[var(--muted)]">{z.pages} pages</span>
+                <button type="button" disabled={pending} onClick={() => inRelease(z.zone, true)} className="ml-1.5 text-[var(--accent)] hover:underline">Add back</button>
+              </span>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* Always in reach while scrolling a long plan. */}

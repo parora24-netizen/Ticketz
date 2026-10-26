@@ -2,14 +2,14 @@ import { redirect } from 'next/navigation'
 import { Tabs, nowSprints, sprintTabs } from '@/components/tabs'
 import { PageHeader } from '@/components/ui'
 import { getMe } from '@/lib/auth'
-import { fmtDate, loadAreas, loadCases, loadSprintAreas, loadSprints, runningSprints } from '@/lib/data'
+import { fmtDate, loadAreas, loadCases, loadRelease, loadSprintAreas, loadSprints, runningSprints } from '@/lib/data'
 import { PlanEditor } from './plan-editor'
 
 /** Edit plan: every zone and page, and the test sprint that tests it. Lead only. */
 export default async function EditPlanPage() {
   const me = await getMe()
   if (me.role !== 'lead') redirect('/sprints')
-  const [sprints, areas, sprintAreas, cases] = await Promise.all([loadSprints(), loadAreas(), loadSprintAreas(), loadCases()])
+  const [sprints, areas, sprintAreas, cases, release] = await Promise.all([loadSprints(), loadAreas(), loadSprintAreas(), loadCases(), loadRelease()])
   const tests = sprints.filter((s) => s.kind === 'test')
   const open = tests.filter((s) => s.status !== 'closed')
   const openIds = new Set(open.map((s) => s.id))
@@ -32,7 +32,7 @@ export default async function EditPlanPage() {
     <>
       <Tabs items={sprintTabs(nowSprints(sprints, runningSprints(sprints)))} active="all" />
       <PageHeader title="Edit plan" sub="Set sprint dates and choose which test sprint tests each page. Each fix sprint takes what the test sprint before it found. Saved changes go in the schedule log." />
-      <PlanEditor rows={rows}
+      <PlanEditor rows={rows} goNoGo={release.go_no_go_on}
         dated={sprints.filter((s) => s.status !== 'closed').map((s) => ({ id: s.id, name: s.name, kind: s.kind, status: s.status, starts_on: s.starts_on, ends_on: s.ends_on }))}
         sprints={open.map((s) => ({ id: s.id, name: s.name, label: `${s.name} · ${fmtDate(s.starts_on)}–${fmtDate(s.ends_on)}${s.status === 'active' ? ' · running' : ''}` }))} />
     </>

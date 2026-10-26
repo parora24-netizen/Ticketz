@@ -25,7 +25,7 @@ const weekdays = (s: string, e: string) => {
  * sprints; click a cell to put the page in that sprint, or a zone's cell to move the whole zone.
  * Nothing saves until Save plan.
  */
-export function PlanEditor({ rows, sprints, dated }: { rows: Row[]; sprints: SprintOpt[]; dated: Dated[] }) {
+export function PlanEditor({ rows, sprints, dated, goNoGo }: { rows: Row[]; sprints: SprintOpt[]; dated: Dated[]; goNoGo: string }) {
   const router = useRouter()
   const [pending, start] = useTransition()
   const [route, setRoute] = useState(true)
@@ -61,6 +61,8 @@ export function PlanEditor({ rows, sprints, dated }: { rows: Row[]; sprints: Spr
   const changedDates = dated.filter((d) => dates[d.id].s !== d.starts_on || dates[d.id].e !== d.ends_on)
   const badDates = changedDates.filter((d) => dates[d.id].e < dates[d.id].s)
   const dirty = changedPages.length + changedDates.length > 0
+  // Sprints now running past go/no-go: the release date would need to move too (Release page).
+  const pastGoNoGo = dated.filter((d) => dates[d.id].e > goNoGo)
 
   const zones = useMemo(() => [...new Set(rows.map((r) => r.zone))], [rows])
   const cols = [...sprints].sort((a, b) => (dates[a.id]?.s ?? '').localeCompare(dates[b.id]?.s ?? ''))
@@ -201,6 +203,7 @@ export function PlanEditor({ rows, sprints, dated }: { rows: Row[]; sprints: Spr
               ? <><b>{[changedDates.length && `${changedDates.length} sprint${changedDates.length === 1 ? '' : 's'} re-dated`, changedPages.length && `${changedPages.length} page${changedPages.length === 1 ? '' : 's'} moved`].filter(Boolean).join(' · ')}</b>
                 {changedPages.length > 0 && <span className="ml-2 text-[12px] text-[var(--muted)]">{changedPages.slice(0, 3).map((r) => `${r.page} → ${sname(plan[r.id] || null)}`).join(', ')}{changedPages.length > 3 ? ', …' : ''}</span>}</>
               : <span className="text-[var(--muted)]">No changes. Edit dates or click cells, then save.</span>}
+            {pastGoNoGo.length > 0 && <span className="ml-2 font-semibold text-[var(--warn)]">{pastGoNoGo.map((d) => d.name).join(', ')} end{pastGoNoGo.length === 1 ? 's' : ''} after go/no-go ({short(goNoGo)}); move the release on the Release page</span>}
             {badDates.length > 0 && <span className="ml-2 font-semibold text-[var(--crit)]">{badDates.map((d) => d.name).join(', ')} end{badDates.length === 1 ? 's' : ''} before {badDates.length === 1 ? 'it starts' : 'they start'}</span>}
           </span>
           <label className="ml-auto flex items-center gap-2 text-[12.5px]" title="Critical and High tickets, and work in a running sprint, stay where they are.">

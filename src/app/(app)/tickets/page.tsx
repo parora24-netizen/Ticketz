@@ -3,14 +3,15 @@ import { PageHeader } from '@/components/ui'
 import { Flash } from '@/components/flash'
 import { TicketBoard } from '@/components/board/ticket-board'
 import { getMe } from '@/lib/auth'
-import { loadAreas, loadPeople, loadTickets, loadSprints } from '@/lib/data'
+import { loadAreas, loadCases, loadPeople, loadTickets, loadSprints } from '@/lib/data'
 import { OPEN_STATES } from '@/lib/workflow/ticket-machine'
 import { TicketsGrid } from './tickets-grid'
 
 export default async function TicketsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams
   const view = sp.view === 'grid' ? 'grid' : 'board'
-  const [me, allTickets, people, areas, sprints] = await Promise.all([getMe(), loadTickets(), loadPeople(), loadAreas(), loadSprints()])
+  const [me, allTickets, people, areas, sprints, cases] = await Promise.all([getMe(), loadTickets(), loadPeople(), loadAreas(), loadSprints(), loadCases()])
+  const testerName = new Map(cases.map((c) => [c.id, c.tester_name]))
   // Opened from a sprint (e.g. its open-ticket count): just that sprint's tickets.
   const scope = sp.sprint ? sprints.find((s) => s.id === sp.sprint) : undefined
   const tickets = scope ? allTickets.filter((t) => t.current_sprint_id === scope.id && OPEN_STATES.includes(t.state)) : allTickets
@@ -20,7 +21,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
   const unowned = tickets.filter((t) => OPEN_STATES.includes(t.state) && !t.owner_id).length
   const rows = tickets.map((t) => ({
     id: t.id, key: t.key, title: t.title, severity: t.severity, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name,
-    tc_id: t.tc_id, case_id: t.case_id, zone: t.zone, page: t.page, updated_at: t.updated_at, kind: t.kind, logged_on: t.logged_on, sprint_id: t.current_sprint_id,
+    tc_id: t.tc_id, case_id: t.case_id, zone: t.zone, page: t.page, updated_at: t.updated_at, kind: t.kind, logged_on: t.logged_on, sprint_id: t.current_sprint_id, tester_name: t.case_id ? testerName.get(t.case_id) ?? null : null,
   }))
 
   return (

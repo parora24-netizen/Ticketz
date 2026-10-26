@@ -5,10 +5,10 @@ import { DataGrid, type Column } from '@/components/grid/data-grid'
 import { PriorityChip, StateChip } from '@/components/ui'
 import { STATE_LABEL } from '@/lib/workflow/ticket-machine'
 import type { BoardTicket } from '@/components/board/ticket-board'
-import { deleteRows, updateTickets } from '../actions'
+import { deleteRows, setTicketTesters, updateTickets } from '../actions'
 import { rememberTicketList } from '@/components/ticket-nav'
 
-type Row = BoardTicket & { kind: 'defect' | 'test_mismatch'; logged_on: string; sprint_id: string | null }
+type Row = BoardTicket & { kind: 'defect' | 'test_mismatch'; logged_on: string; sprint_id: string | null; tester_name: string | null }
 const SEVERITY = ['Critical', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: p }))
 
 export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, state, remember = true }: { rows: Row[]; people: { value: string; label: string }[]; sprints?: { value: string; label: string }[]; canTriage: boolean; isLead?: boolean; state?: string; remember?: boolean }) {
@@ -24,6 +24,8 @@ export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, sta
     { key: 'state', header: 'State', width: 140, value: (r) => STATE_LABEL[r.state], render: (r) => <StateChip s={r.state} /> },
     { key: 'owner', header: 'Owner', width: 140, value: (r) => r.owner_name ?? 'Unassigned',
       edit: { field: 'owner_id', kind: 'select', options: owners } },
+    { key: 'tester', header: 'Tester', width: 120, value: (r) => r.tester_name ?? (r.case_id ? 'No tester' : ''),
+      edit: canTriage ? { field: 'tester_id', kind: 'select', options: owners.map((o) => (o.value === '__none' ? { value: '__none', label: 'No tester' } : o)) } : undefined },
     { key: 'sprint', header: 'Sprint', width: 90, value: (r) => (r.sprint_id ? sprintName.get(r.sprint_id) ?? 'Closed sprint' : 'No sprint'),
       edit: canTriage ? { field: 'current_sprint_id', kind: 'select', options: sprintOptions } : undefined },
     { key: 'kind', header: 'Kind', width: 100, value: (r) => (r.kind === 'defect' ? 'Defect' : 'Test issue') },
@@ -50,12 +52,15 @@ export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, sta
         const p: Record<string, string | null> = { ...patch }
         if (p.owner_id === '__none') p.owner_id = null
         if (p.current_sprint_id === '__none') p.current_sprint_id = null
+        // The tester belongs to the ticket's test case, so it is saved there.
+        if ('tester_id' in p) return setTicketTesters(ids, p.tester_id === '__none' ? null : p.tester_id)
         return updateTickets(ids, p as Parameters<typeof updateTickets>[1])
       }}
       bulkFields={canTriage ? [
         { field: 'owner_id', label: 'Assign to', options: owners },
         { field: 'severity', label: 'Set severity', options: SEVERITY },
         { field: 'current_sprint_id', label: 'Move to sprint', options: sprintOptions },
+        { field: 'tester_id', label: 'Assign tester', options: owners.map((o) => (o.value === '__none' ? { value: '__none', label: 'No tester' } : o)) },
       ] : []}
       bulkActions={isLead ? [{ label: 'Delete', run: (ids) => deleteRows('tickets', ids), confirm: 'Delete {n} tickets for good, with their history and comments? This cannot be undone.' }] : []}
     />

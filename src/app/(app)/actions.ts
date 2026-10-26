@@ -466,6 +466,27 @@ const CasePatch = z.object({
   tester_id: z.uuid().nullable().optional(),
 })
 
+/**
+ * Tickets grid: set the tester on these tickets' test cases. The tester owns the Retest step, so
+ * this is how a batch of ready-for-retest tickets gets someone to retest them.
+ */
+export async function setTicketTesters(ticketIds: string[], testerId: string | null): Promise<{ error?: string }> {
+  const me = await getMe()
+  if (me.role === 'dev') return { error: 'Only QA or the lead assign testers' }
+  const ids = z.array(z.uuid()).min(1).max(2000).safeParse(ticketIds)
+  const tester = z.uuid().nullable().safeParse(testerId)
+  if (!ids.success || !tester.success) return { error: 'Nothing valid to save' }
+  const supabase = await createClient()
+  const { data: rows, error: readError } = await supabase.from('tickets').select('case_id').in('id', ids.data)
+  if (readError) return { error: readError.message }
+  const caseIds = [...new Set((rows ?? []).map((r) => r.case_id as string | null).filter((c): c is string => !!c))]
+  if (!caseIds.length) return { error: 'These tickets have no test case to give a tester' }
+  const { error } = await supabase.from('test_cases').update({ tester_id: tester.data, updated_at: new Date().toISOString() }).in('id', caseIds)
+  if (error) return { error: error.message }
+  revalidatePath('/', 'layout')
+  return {}
+}
+
 /** Inline and bulk edits from the test cases grid. */
 export async function updateCases(ids: string[], patch: z.infer<typeof CasePatch>): Promise<{ error?: string }> {
   const me = await getMe()

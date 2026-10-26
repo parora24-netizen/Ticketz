@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { DataGrid, type Column } from '@/components/grid/data-grid'
 import { PriorityChip, StateChip } from '@/components/ui'
 import { STATE_LABEL } from '@/lib/workflow/ticket-machine'
@@ -12,6 +13,7 @@ type Row = BoardTicket & { kind: 'defect' | 'test_mismatch'; logged_on: string; 
 const SEVERITY = ['Critical', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: p }))
 
 export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, state, remember = true }: { rows: Row[]; people: { value: string; label: string }[]; sprints?: { value: string; label: string }[]; canTriage: boolean; isLead?: boolean; state?: string; remember?: boolean }) {
+  const router = useRouter()
   const owners = [{ value: '__none', label: 'Unassigned' }, ...people]
   const sprintOptions = [{ value: '__none', label: 'No sprint' }, ...sprints]
   const sprintName = new Map(sprints.map((s) => [s.value, s.label]))
@@ -53,7 +55,7 @@ export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, sta
         if (p.owner_id === '__none') p.owner_id = null
         if (p.current_sprint_id === '__none') p.current_sprint_id = null
         // The tester belongs to the ticket's test case, so it is saved there.
-        if ('tester_id' in p) return setTicketTesters(ids, p.tester_id === '__none' ? null : p.tester_id)
+        if ('tester_id' in p) return setTicketTesters(ids, p.tester_id === '__none' ? null : p.tester_id).then((r) => { if (!r.error) router.refresh(); return r })
         return updateTickets(ids, p as Parameters<typeof updateTickets>[1])
       }}
       bulkFields={canTriage ? [

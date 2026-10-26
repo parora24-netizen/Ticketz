@@ -8,11 +8,13 @@ import type { BoardTicket } from '@/components/board/ticket-board'
 import { deleteRows, updateTickets } from '../actions'
 import { rememberTicketList } from '@/components/ticket-nav'
 
-type Row = BoardTicket & { kind: 'defect' | 'test_mismatch'; logged_on: string }
+type Row = BoardTicket & { kind: 'defect' | 'test_mismatch'; logged_on: string; sprint_id: string | null }
 const SEVERITY = ['Critical', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: p }))
 
-export function TicketsGrid({ rows, people, canTriage, isLead, state, remember = true }: { rows: Row[]; people: { value: string; label: string }[]; canTriage: boolean; isLead?: boolean; state?: string; remember?: boolean }) {
+export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, state, remember = true }: { rows: Row[]; people: { value: string; label: string }[]; sprints?: { value: string; label: string }[]; canTriage: boolean; isLead?: boolean; state?: string; remember?: boolean }) {
   const owners = [{ value: '__none', label: 'Unassigned' }, ...people]
+  const sprintOptions = [{ value: '__none', label: 'No sprint' }, ...sprints]
+  const sprintName = new Map(sprints.map((s) => [s.value, s.label]))
   const columns: Column<Row>[] = [
     { key: 'key', header: 'Ticket', width: 170, mono: true, value: (r) => r.key,
       render: (r) => <Link href={`/tickets/${encodeURIComponent(r.key)}`} className="font-medium text-[var(--accent)] hover:underline">{r.key}</Link> },
@@ -22,6 +24,8 @@ export function TicketsGrid({ rows, people, canTriage, isLead, state, remember =
     { key: 'state', header: 'State', width: 140, value: (r) => STATE_LABEL[r.state], render: (r) => <StateChip s={r.state} /> },
     { key: 'owner', header: 'Owner', width: 140, value: (r) => r.owner_name ?? 'Unassigned',
       edit: { field: 'owner_id', kind: 'select', options: owners } },
+    { key: 'sprint', header: 'Sprint', width: 90, value: (r) => (r.sprint_id ? sprintName.get(r.sprint_id) ?? 'Closed sprint' : 'No sprint'),
+      edit: canTriage ? { field: 'current_sprint_id', kind: 'select', options: sprintOptions } : undefined },
     { key: 'kind', header: 'Kind', width: 100, value: (r) => (r.kind === 'defect' ? 'Defect' : 'Test issue') },
     { key: 'area', header: 'Area', width: 200, value: (r) => (r.zone ? `${r.zone} · ${r.page}` : '') },
     { key: 'logged', header: 'Logged', width: 110, mono: true, value: (r) => r.logged_on },
@@ -37,7 +41,7 @@ export function TicketsGrid({ rows, people, canTriage, isLead, state, remember =
         { key: 'state', title: 'By state', order: Object.values(STATE_LABEL) },
         { key: 'severity', title: 'By severity', order: ['Critical', 'High', 'Medium', 'Low'] },
         { key: 'owner', title: 'By owner' },
-        { key: 'area', title: 'By area' },
+        { key: 'sprint', title: 'By sprint' },
       ]}
       defaultFilters={state && state in STATE_LABEL ? { state: [STATE_LABEL[state as keyof typeof STATE_LABEL]] } : undefined}
       defaultSort={[{ key: 'severity', dir: 1 }]}
@@ -45,11 +49,13 @@ export function TicketsGrid({ rows, people, canTriage, isLead, state, remember =
       onSave={(ids, patch) => {
         const p: Record<string, string | null> = { ...patch }
         if (p.owner_id === '__none') p.owner_id = null
+        if (p.current_sprint_id === '__none') p.current_sprint_id = null
         return updateTickets(ids, p as Parameters<typeof updateTickets>[1])
       }}
       bulkFields={canTriage ? [
         { field: 'owner_id', label: 'Assign to', options: owners },
         { field: 'severity', label: 'Set severity', options: SEVERITY },
+        { field: 'current_sprint_id', label: 'Move to sprint', options: sprintOptions },
       ] : []}
       bulkActions={isLead ? [{ label: 'Delete', run: (ids) => deleteRows('tickets', ids), confirm: 'Delete {n} tickets for good, with their history and comments? This cannot be undone.' }] : []}
     />

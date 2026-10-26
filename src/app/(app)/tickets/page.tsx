@@ -20,7 +20,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
   const unowned = tickets.filter((t) => OPEN_STATES.includes(t.state) && !t.owner_id).length
   const rows = tickets.map((t) => ({
     id: t.id, key: t.key, title: t.title, severity: t.severity, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name,
-    tc_id: t.tc_id, case_id: t.case_id, zone: t.zone, page: t.page, updated_at: t.updated_at, kind: t.kind, logged_on: t.logged_on,
+    tc_id: t.tc_id, case_id: t.case_id, zone: t.zone, page: t.page, updated_at: t.updated_at, kind: t.kind, logged_on: t.logged_on, sprint_id: t.current_sprint_id,
   }))
 
   return (
@@ -40,7 +40,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
       {view === 'board'
         ? <TicketBoard tickets={rows} role={me.role} meId={me.id} zones={zones}
           people={people.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name }))} sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ id: s.id, name: s.name }))} />
-        : <TicketsGrid rows={rows} state={sp.state} remember={!scope && !sp.state} canTriage={me.role !== 'dev'} isLead={me.role === 'lead'} people={people.filter((p) => p.active).map((p) => ({ value: p.id, label: p.name }))} />}
+        : <TicketsGrid rows={rows} sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ value: s.id, label: s.name }))} state={sp.state} remember={!scope && !sp.state} canTriage={me.role !== 'dev'} isLead={me.role === 'lead'} people={people.filter((p) => p.active).map((p) => ({ value: p.id, label: p.name }))} />}
     </>
   )
 }

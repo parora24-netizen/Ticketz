@@ -141,7 +141,7 @@ export function PlanEditor({ rows, sprints, dated }: { rows: Row[]; sprints: Spr
           <table className="w-full min-w-[860px] border-collapse text-[13px]">
             <thead className="sticky top-14 z-10 bg-white">
               <tr className="border-b border-[var(--line)]">
-                <th className="px-4 py-2 text-left text-[11px] font-semibold text-[var(--muted)]">Zone · page</th>
+                <th className="sticky left-0 z-10 bg-white px-4 py-2 text-left text-[11px] font-semibold text-[var(--muted)]">Zone · page</th>
                 {cols.map((s) => {
                   const l = load(s.id)
                   return (
@@ -165,7 +165,7 @@ export function PlanEditor({ rows, sprints, dated }: { rows: Row[]; sprints: Spr
                 const setZone = (sid: string) => setPlan((p) => ({ ...p, ...Object.fromEntries(inZone.map((r) => [r.id, sid])) }))
                 return [
                   <tr key={zone} className="border-t border-[var(--line)] bg-[var(--surface-3)]">
-                    <td className="px-4 py-1.5"><b className="text-[var(--navy-ink)]">{zone}</b> <span className="text-[12px] text-[var(--muted)]">{inZone.length} pages · {inZone.reduce((n, r) => n + r.cases, 0)} cases</span></td>
+                    <td className="sticky left-0 bg-[var(--surface-3)] px-4 py-1.5"><b className="text-[var(--navy-ink)]">{zone}</b> <span className="text-[12px] text-[var(--muted)]">{inZone.length} pages · {inZone.reduce((n, r) => n + r.cases, 0)} cases</span></td>
                     {[...cols.map((s) => s.id), ''].map((sid) => {
                       const n = count(sid)
                       return <td key={sid || 'none'} className="py-1.5"><Cell on={n === inZone.length} partial={n > 0 && n < inZone.length} onClick={() => setZone(sid)} label={`All of ${zone} in ${sname(sid || null)}`} /></td>
@@ -175,7 +175,7 @@ export function PlanEditor({ rows, sprints, dated }: { rows: Row[]; sprints: Spr
                     const moved = (plan[r.id] || null) !== r.sprint_id
                     return (
                       <tr key={r.id} className={`border-t border-[var(--row)] ${moved ? 'bg-[var(--accent-soft)]' : 'hover:bg-[var(--surface-3)]'}`}>
-                        <td className="py-1 pr-2 pl-8">
+                        <td className={`sticky left-0 py-1 pr-2 pl-8 ${moved ? 'bg-[var(--accent-soft)]' : 'bg-white'}`}>
                           <Link href={`/cases?area=${r.id}`} className="font-medium text-[var(--accent)] hover:underline">{r.page}</Link>
                           <span className="ml-2 text-[11.5px] text-[var(--muted)]">{r.cases ? `${r.cases} cases, ${r.tested} tested` : 'no cases yet'}{r.done_in ? ` · done in ${r.done_in}` : ''}</span>
                           {moved && <span className="ml-2 text-[11px] font-semibold text-[var(--accent)]">was {sname(r.sprint_id)}</span>}

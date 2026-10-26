@@ -31,7 +31,7 @@ export default async function EditPlanPage() {
   return (
     <>
       <Tabs items={sprintTabs(nowSprints(sprints, runningSprints(sprints)))} active="all" />
-      <PageHeader title="Edit plan" sub="Sprint dates, and which test sprint tests each page. Each fix sprint takes what the test sprint before it found." />
+      <PageHeader title="Edit plan" sub="Set sprint dates and choose which test sprint tests each page. Each fix sprint takes what the test sprint before it found. Saved changes go in the schedule log." />
       <PlanEditor rows={rows}
         dated={sprints.filter((s) => s.status !== 'closed').map((s) => ({ id: s.id, name: s.name, kind: s.kind, status: s.status, starts_on: s.starts_on, ends_on: s.ends_on }))}
         sprints={open.map((s) => ({ id: s.id, name: s.name, label: `${s.name} · ${fmtDate(s.starts_on)}–${fmtDate(s.ends_on)}${s.status === 'active' ? ' · running' : ''}` }))} />

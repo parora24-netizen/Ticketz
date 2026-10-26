@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 
 const TITLES: [string, string][] = [
   ['/standup', 'Standup'],
+  ['/sprints/plan', 'Edit plan'],
   ['/sprints', 'Sprints'],
   ['/sprint', 'Sprints'],
   ['/tickets/new', 'New ticket'],
@@ -20,7 +21,7 @@ const TITLES: [string, string][] = [
   ['/search', 'Search'],
 ]
 
-const SEGMENT: Record<string, string> = { new: 'New', import: 'Import' }
+const SEGMENT: Record<string, string> = { new: 'New', import: 'Import', plan: 'Edit plan' }
 const isId = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-/.test(s)
 
 /** Page name and a clickable trail back up, top left, on every screen. */

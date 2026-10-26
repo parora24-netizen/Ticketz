@@ -9,132 +9,208 @@ import { savePlan } from './actions'
 type Row = { id: string; zone: string; page: string; sprint_id: string | null; done_in: string; cases: number; tested: number }
 type SprintOpt = { id: string; name: string; label: string }
 type Dated = { id: string; name: string; kind: string; status: string; starts_on: string; ends_on: string }
-const KIND: Record<string, string> = { triage: 'Triage', test: 'Test', fix: 'Fix', regression: 'Regression' }
 
-/** Pages grouped by zone, each with a test-sprint picker; a zone's picker sets all its pages. Saves only what changed. */
+const DAY = 864e5
+const shift = (d: string, days: number) => new Date(Date.parse(`${d}T00:00:00Z`) + days * DAY).toISOString().slice(0, 10)
+const short = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+const weekdays = (s: string, e: string) => {
+  let n = 0
+  for (let t = Date.parse(`${s}T00:00:00Z`); t <= Date.parse(`${e}T00:00:00Z`); t += DAY) if (![0, 6].includes(new Date(t).getUTCDay())) n++
+  return n
+}
+
+/**
+ * The plan in one place. Top: dates, a row per week with the test and fix sprints side by side;
+ * "+1 week" moves that week and every week after it. Below: a grid of every page against the test
+ * sprints; click a cell to put the page in that sprint, or a zone's cell to move the whole zone.
+ * Nothing saves until Save plan.
+ */
 export function PlanEditor({ rows, sprints, dated }: { rows: Row[]; sprints: SprintOpt[]; dated: Dated[] }) {
-  const [dates, setDates] = useState<Record<string, { s: string; e: string }>>(() => Object.fromEntries(dated.map((d) => [d.id, { s: d.starts_on, e: d.ends_on }])))
-  const datesChanged = dated.filter((d) => dates[d.id].s !== d.starts_on || dates[d.id].e !== d.ends_on)
-  const badDates = datesChanged.filter((d) => dates[d.id].e < dates[d.id].s)
   const router = useRouter()
-  const [plan, setPlan] = useState<Record<string, string>>(() => Object.fromEntries(rows.map((r) => [r.id, r.sprint_id ?? ''])))
-  const [route, setRoute] = useState(true)
   const [pending, start] = useTransition()
-  const zones = useMemo(() => [...new Set(rows.map((r) => r.zone))], [rows])
-  const changed = rows.filter((r) => (plan[r.id] || null) !== r.sprint_id)
-  const name = (id: string) => sprints.find((s) => s.id === id)?.name ?? 'Not planned'
+  const [route, setRoute] = useState(true)
+  const [plan, setPlan] = useState<Record<string, string>>(() => Object.fromEntries(rows.map((r) => [r.id, r.sprint_id ?? ''])))
+  const [dates, setDates] = useState<Record<string, { s: string; e: string }>>(() => Object.fromEntries(dated.map((d) => [d.id, { s: d.starts_on, e: d.ends_on }])))
 
-  // Per sprint: pages and cases now planned, so the load is visible while editing.
-  const load = sprints.map((s) => {
-    const mine = rows.filter((r) => plan[r.id] === s.id)
-    return { ...s, pages: mine.length, cases: mine.reduce((n, r) => n + r.cases, 0) }
+  // Weeks: T1 with F1, T2 with F2, … then anything else (regression) on its own row.
+  const weeks = useMemo(() => {
+    const num = (n: string) => (/^[TF]\d+$/.test(n) ? Number(n.slice(1)) : null)
+    const m = new Map<string, { test?: Dated; fix?: Dated; other?: Dated }>()
+    for (const d of dated) {
+      const n = num(d.name)
+      const key = n === null ? `x${d.name}` : `n${String(n).padStart(3, '0')}`
+      const w = m.get(key) ?? {}
+      if (n === null) w.other = d
+      else if (d.name.startsWith('T')) w.test = d
+      else w.fix = d
+      m.set(key, w)
+    }
+    return [...m.values()].sort((a, b) => {
+      const sa = (a.test ?? a.fix ?? a.other)!, sb = (b.test ?? b.fix ?? b.other)!
+      return sa.starts_on.localeCompare(sb.starts_on) || sa.name.localeCompare(sb.name)
+    })
+  }, [dated])
+
+  const moveFrom = (i: number, days: number) => setDates((x) => {
+    const next = { ...x }
+    for (const w of weeks.slice(i)) for (const d of [w.test, w.fix, w.other]) if (d) next[d.id] = { s: shift(next[d.id].s, days), e: shift(next[d.id].e, days) }
+    return next
   })
-  const unplanned = rows.filter((r) => !plan[r.id])
 
-  const select = (value: string, onChange: (v: string) => void, label: string, mixed = false) => (
-    <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} className="select h-8 w-56">
-      {mixed && <option value="__mixed" disabled>Mixed</option>}
-      <option value="">Not planned</option>
-      {sprints.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-    </select>
+  const changedPages = rows.filter((r) => (plan[r.id] || null) !== r.sprint_id)
+  const changedDates = dated.filter((d) => dates[d.id].s !== d.starts_on || dates[d.id].e !== d.ends_on)
+  const badDates = changedDates.filter((d) => dates[d.id].e < dates[d.id].s)
+  const dirty = changedPages.length + changedDates.length > 0
+
+  const zones = useMemo(() => [...new Set(rows.map((r) => r.zone))], [rows])
+  const cols = [...sprints].sort((a, b) => (dates[a.id]?.s ?? '').localeCompare(dates[b.id]?.s ?? ''))
+  const load = (sid: string) => { const mine = rows.filter((r) => (plan[r.id] || '') === sid); return { pages: mine.length, cases: mine.reduce((n, r) => n + r.cases, 0) } }
+  const sname = (id: string | null) => (id ? sprints.find((s) => s.id === id)?.name ?? '?' : 'not planned')
+
+  function save() {
+    start(async () => {
+      const res = await savePlan({
+        changes: changedPages.map((r) => ({ area_id: r.id, sprint_id: plan[r.id] || null })),
+        dates: changedDates.map((d) => ({ sprint_id: d.id, starts_on: dates[d.id].s, ends_on: dates[d.id].e })),
+        route_tickets: route,
+      })
+      if (res.error) toast(res.error, 'error')
+      else { toast(res.summary ?? 'Plan saved'); router.refresh() }
+    })
+  }
+  function undo() {
+    setPlan(Object.fromEntries(rows.map((r) => [r.id, r.sprint_id ?? ''])))
+    setDates(Object.fromEntries(dated.map((d) => [d.id, { s: d.starts_on, e: d.ends_on }])))
+  }
+
+  const dateCell = (d: Dated | undefined) => {
+    if (!d) return <td className="px-2 py-1.5 text-[12px] text-[var(--faint)]">—</td>
+    const v = dates[d.id]
+    const moved = v.s !== d.starts_on || v.e !== d.ends_on
+    return (
+      <td className={`px-2 py-1.5 ${moved ? 'bg-[var(--accent-soft)]' : ''}`}>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="w-7 text-[13px] font-semibold text-[var(--navy-ink)]">{d.name}</span>
+          <input type="date" value={v.s} onChange={(e) => setDates((x) => ({ ...x, [d.id]: { ...x[d.id], s: e.target.value } }))} aria-label={`${d.name} starts`} className="input h-7 w-[8.5rem] px-1.5 text-[12px]" />
+          <span className="text-[11px] text-[var(--muted)]">to</span>
+          <input type="date" value={v.e} onChange={(e) => setDates((x) => ({ ...x, [d.id]: { ...x[d.id], e: e.target.value } }))} aria-label={`${d.name} ends`} className={`input h-7 w-[8.5rem] px-1.5 text-[12px] ${v.e < v.s ? 'border-[var(--crit)]' : ''}`} />
+          <span className="text-[11px] text-[var(--muted)]">{v.e < v.s ? 'ends before it starts' : `${weekdays(v.s, v.e)} days`}{d.status === 'active' ? ' · running' : ''}</span>
+        </div>
+      </td>
+    )
+  }
+
+  const Cell = ({ on, partial, onClick, label }: { on: boolean; partial?: boolean; onClick: () => void; label: string }) => (
+    <button type="button" onClick={onClick} aria-pressed={on} aria-label={label} title={label}
+      className={`mx-auto flex h-6 w-6 items-center justify-center rounded-full border transition-colors ${on ? 'border-[var(--navy)] bg-[var(--navy)] text-white' : partial ? 'border-[var(--navy)] bg-[var(--accent-soft)]' : 'border-[var(--line)] bg-white hover:border-[var(--navy)]'}`}>
+      {on ? <span className="text-[11px]">✓</span> : partial ? <span className="h-2 w-2 rounded-full bg-[var(--navy)]" /> : null}
+    </button>
   )
 
   return (
-    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
-      <div className="space-y-3">
-        <section className="card">
-          <header className="border-b border-[var(--line)] bg-[var(--surface-3)] px-4 py-2">
-            <h2 className="text-[14px] font-semibold text-[var(--navy-ink)]">Sprint dates</h2>
-          </header>
-          <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
-            {dated.map((d) => {
-              const v = dates[d.id]
-              const moved = v.s !== d.starts_on || v.e !== d.ends_on
-              return (
-                <div key={d.id} className={`flex flex-wrap items-center gap-2 border-b border-[var(--row)] px-4 py-1.5 ${moved ? 'bg-[var(--accent-soft)]' : ''}`}>
-                  <span className="w-10 text-[13px] font-semibold text-[var(--navy-ink)]">{d.name}</span>
-                  <span className="w-20 text-[11.5px] text-[var(--muted)]">{KIND[d.kind] ?? d.kind}{d.status === 'active' ? ' · running' : ''}</span>
-                  <input type="date" value={v.s} onChange={(e) => setDates((x) => ({ ...x, [d.id]: { ...x[d.id], s: e.target.value } }))} aria-label={`${d.name} starts`} className="input h-8 w-36" />
-                  <span className="text-[12px] text-[var(--muted)]">to</span>
-                  <input type="date" value={v.e} onChange={(e) => setDates((x) => ({ ...x, [d.id]: { ...x[d.id], e: e.target.value } }))} aria-label={`${d.name} ends`} className={`input h-8 w-36 ${v.e < v.s ? 'border-[var(--crit)]' : ''}`} />
-                </div>
-              )
-            })}
-          </div>
-        </section>
-        {zones.map((zone) => {
-          const inZone = rows.filter((r) => r.zone === zone)
-          const values = [...new Set(inZone.map((r) => plan[r.id]))]
-          return (
-            <section key={zone} className="card">
-              <header className="flex flex-wrap items-center gap-3 border-b border-[var(--line)] bg-[var(--surface-3)] px-4 py-2">
-                <h2 className="text-[14px] font-semibold text-[var(--navy-ink)]">{zone}</h2>
-                <span className="text-[12px] text-[var(--muted)]">{inZone.length} pages · {inZone.reduce((n, r) => n + r.cases, 0)} cases</span>
-                <span className="ml-auto flex items-center gap-2 text-[12px] text-[var(--muted)]">
-                  Whole zone
-                  {select(values.length === 1 ? values[0] : '__mixed', (v) => setPlan((p) => ({ ...p, ...Object.fromEntries(inZone.map((r) => [r.id, v])) })), `Sprint for all of ${zone}`, values.length > 1)}
-                </span>
-              </header>
-              <ul className="divide-y divide-[var(--row)]">
-                {inZone.map((r) => {
-                  const moved = (plan[r.id] || null) !== r.sprint_id
+    <div className="pb-24">
+      <section className="card mb-4">
+        <header className="flex items-baseline gap-3 border-b border-[var(--line)] bg-[var(--surface-3)] px-4 py-2">
+          <h2 className="text-[14px] font-semibold text-[var(--navy-ink)]">Dates</h2>
+          <span className="text-[12px] text-[var(--muted)]">Test and fix sprints run side by side. +1 week moves that week and every week after it.</span>
+        </header>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[860px] border-collapse">
+            <thead><tr className="text-left text-[11px] font-semibold text-[var(--muted)]"><th className="px-2 py-1.5">Test</th><th className="px-2 py-1.5">Fix</th><th className="w-36" /></tr></thead>
+            <tbody className="divide-y divide-[var(--row)]">
+              {weeks.map((w, i) => (
+                <tr key={i}>
+                  {w.other ? <>{dateCell(w.other)}<td /></> : <>{dateCell(w.test)}{dateCell(w.fix)}</>}
+                  <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                    <button type="button" onClick={() => moveFrom(i, -7)} className="btn btn-sm" title="Move this week and later ones a week earlier">−1 week</button>
+                    <button type="button" onClick={() => moveFrom(i, 7)} className="btn btn-sm ml-1" title="Move this week and later ones a week later">+1 week</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="card">
+        <header className="flex items-baseline gap-3 border-b border-[var(--line)] bg-[var(--surface-3)] px-4 py-2">
+          <h2 className="text-[14px] font-semibold text-[var(--navy-ink)]">Pages</h2>
+          <span className="text-[12px] text-[var(--muted)]">Click a cell to test that page in that sprint; click a zone&apos;s cell to move the whole zone.</span>
+        </header>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[860px] border-collapse text-[13px]">
+            <thead className="sticky top-14 z-10 bg-white">
+              <tr className="border-b border-[var(--line)]">
+                <th className="px-4 py-2 text-left text-[11px] font-semibold text-[var(--muted)]">Zone · page</th>
+                {cols.map((s) => {
+                  const l = load(s.id)
                   return (
-                    <li key={r.id} className={`flex flex-wrap items-center gap-3 px-4 py-1.5 ${moved ? 'bg-[var(--accent-soft)]' : ''}`}>
-                      <Link href={`/cases?area=${r.id}`} className="min-w-40 flex-1 text-[13px] font-medium text-[var(--accent)] hover:underline">{r.page}</Link>
-                      <span className="w-36 text-[12px] text-[var(--muted)]">{r.cases ? `${r.cases} cases · ${r.tested} tested` : 'No cases yet'}</span>
-                      <span className="w-24 text-[11.5px] text-[var(--faint)]">{r.done_in ? `Done in ${r.done_in}` : ''}</span>
-                      {select(plan[r.id], (v) => setPlan((p) => ({ ...p, [r.id]: v })), `Sprint for ${zone} · ${r.page}`)}
-                      <span className="w-20 text-right text-[11.5px] font-semibold text-[var(--accent)]">{moved ? `was ${r.sprint_id ? name(r.sprint_id) : 'none'}` : ''}</span>
-                    </li>
+                    <th key={s.id} className="w-28 px-1 py-2 text-center">
+                      <div className="text-[13px] font-semibold text-[var(--navy-ink)]">{s.name}</div>
+                      <div className="text-[11px] font-normal text-[var(--muted)]">{short(dates[s.id]?.s ?? '')}–{short(dates[s.id]?.e ?? '')}</div>
+                      <div className="mono text-[10.5px] font-normal text-[var(--faint)]">{l.pages} pages · {l.cases} cases</div>
+                    </th>
                   )
                 })}
-              </ul>
-            </section>
-          )
-        })}
-      </div>
+                <th className="w-24 px-1 py-2 text-center">
+                  <div className="text-[13px] font-semibold text-[var(--navy-ink)]">Not planned</div>
+                  <div className="mono text-[10.5px] font-normal text-[var(--faint)]">{load('').pages} pages</div>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {zones.map((zone) => {
+                const inZone = rows.filter((r) => r.zone === zone)
+                const count = (sid: string) => inZone.filter((r) => (plan[r.id] || '') === sid).length
+                const setZone = (sid: string) => setPlan((p) => ({ ...p, ...Object.fromEntries(inZone.map((r) => [r.id, sid])) }))
+                return [
+                  <tr key={zone} className="border-t border-[var(--line)] bg-[var(--surface-3)]">
+                    <td className="px-4 py-1.5"><b className="text-[var(--navy-ink)]">{zone}</b> <span className="text-[12px] text-[var(--muted)]">{inZone.length} pages · {inZone.reduce((n, r) => n + r.cases, 0)} cases</span></td>
+                    {[...cols.map((s) => s.id), ''].map((sid) => {
+                      const n = count(sid)
+                      return <td key={sid || 'none'} className="py-1.5"><Cell on={n === inZone.length} partial={n > 0 && n < inZone.length} onClick={() => setZone(sid)} label={`All of ${zone} in ${sname(sid || null)}`} /></td>
+                    })}
+                  </tr>,
+                  ...inZone.map((r) => {
+                    const moved = (plan[r.id] || null) !== r.sprint_id
+                    return (
+                      <tr key={r.id} className={`border-t border-[var(--row)] ${moved ? 'bg-[var(--accent-soft)]' : 'hover:bg-[var(--surface-3)]'}`}>
+                        <td className="py-1 pr-2 pl-8">
+                          <Link href={`/cases?area=${r.id}`} className="font-medium text-[var(--accent)] hover:underline">{r.page}</Link>
+                          <span className="ml-2 text-[11.5px] text-[var(--muted)]">{r.cases ? `${r.cases} cases, ${r.tested} tested` : 'no cases yet'}{r.done_in ? ` · done in ${r.done_in}` : ''}</span>
+                          {moved && <span className="ml-2 text-[11px] font-semibold text-[var(--accent)]">was {sname(r.sprint_id)}</span>}
+                        </td>
+                        {[...cols.map((s) => s.id), ''].map((sid) => (
+                          <td key={sid || 'none'} className="py-1"><Cell on={(plan[r.id] || '') === sid} onClick={() => setPlan((p) => ({ ...p, [r.id]: sid }))} label={`${zone} · ${r.page} in ${sname(sid || null)}`} /></td>
+                        ))}
+                      </tr>
+                    )
+                  }),
+                ]
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-      <aside className="space-y-3 xl:sticky xl:top-20 xl:self-start">
-        <section className="card p-4">
-          <h2 className="text-[14px] font-semibold text-[var(--navy-ink)]">Load per sprint</h2>
-          <ul className="mt-2 space-y-1 text-[12.5px]">
-            {load.map((s) => (
-              <li key={s.id} className="flex justify-between gap-2"><span>{s.label.split(' · ').slice(0, 2).join(' · ')}</span><span className="mono text-[var(--muted)]">{s.pages} pages · {s.cases} cases</span></li>
-            ))}
-            <li className="flex justify-between gap-2 border-t border-[var(--line-soft)] pt-1"><span>Not planned</span><span className="mono text-[var(--muted)]">{unplanned.length} pages · {unplanned.reduce((n, r) => n + r.cases, 0)} cases</span></li>
-          </ul>
-        </section>
-        <section className="card space-y-3 p-4">
-          <p className="text-[13px]">{changed.length || datesChanged.length
-            ? <>{datesChanged.length > 0 && <><b>{datesChanged.length}</b> sprint{datesChanged.length === 1 ? '' : 's'} re-dated{changed.length ? ', ' : ''}</>}{changed.length > 0 && <><b>{changed.length}</b> page{changed.length === 1 ? '' : 's'} changed</>}</>
-            : 'No changes yet'}</p>
-          {badDates.length > 0 && <p className="text-[12px] font-semibold text-[var(--crit)]">{badDates.map((d) => d.name).join(', ')} would end before {badDates.length === 1 ? 'it starts' : 'they start'}.</p>}
-          {datesChanged.length > 0 && (
-            <ul className="space-y-0.5 text-[12px] text-[var(--ink-2)]">
-              {datesChanged.map((d) => <li key={d.id}>{d.name}: <b>{dates[d.id].s} to {dates[d.id].e}</b></li>)}
-            </ul>
-          )}
-          {changed.length > 0 && (
-            <ul className="max-h-48 space-y-0.5 overflow-auto text-[12px] text-[var(--ink-2)]">
-              {changed.map((r) => <li key={r.id}>{r.zone} · {r.page}: {r.sprint_id ? name(r.sprint_id) : 'none'} → <b>{plan[r.id] ? name(plan[r.id]) : 'none'}</b></li>)}
-            </ul>
-          )}
-          <label className="flex items-start gap-2 text-[12.5px]">
-            <input type="checkbox" checked={route} onChange={(e) => setRoute(e.target.checked)} className="mt-0.5" />
-            <span>Move these pages&apos; Medium and Low tickets to the fix sprint after their new test sprint<span className="block text-[11.5px] text-[var(--muted)]">Critical and High stay where they are; so does work in a running sprint.</span></span>
+      {/* Always in reach while scrolling a long plan. */}
+      <div className="fixed right-0 bottom-0 left-0 z-30 border-t border-[var(--line)] bg-white/95 px-4 py-2.5 shadow-[0_-8px_24px_rgba(15,27,51,.08)] backdrop-blur md:left-[216px] md:px-6">
+        <div className="flex flex-wrap items-center gap-3 text-[13px]">
+          <span className="min-w-0">
+            {dirty
+              ? <><b>{[changedDates.length && `${changedDates.length} sprint${changedDates.length === 1 ? '' : 's'} re-dated`, changedPages.length && `${changedPages.length} page${changedPages.length === 1 ? '' : 's'} moved`].filter(Boolean).join(' · ')}</b>
+                {changedPages.length > 0 && <span className="ml-2 text-[12px] text-[var(--muted)]">{changedPages.slice(0, 3).map((r) => `${r.page} → ${sname(plan[r.id] || null)}`).join(', ')}{changedPages.length > 3 ? ', …' : ''}</span>}</>
+              : <span className="text-[var(--muted)]">No changes. Edit dates or click cells, then save.</span>}
+            {badDates.length > 0 && <span className="ml-2 font-semibold text-[var(--crit)]">{badDates.map((d) => d.name).join(', ')} end{badDates.length === 1 ? 's' : ''} before {badDates.length === 1 ? 'it starts' : 'they start'}</span>}
+          </span>
+          <label className="ml-auto flex items-center gap-2 text-[12.5px]" title="Critical and High tickets, and work in a running sprint, stay where they are.">
+            <input type="checkbox" checked={route} onChange={(e) => setRoute(e.target.checked)} />
+            Move moved pages&apos; Medium/Low tickets to the matching fix sprint
           </label>
-          <div className="flex gap-2">
-            <button type="button" disabled={(!changed.length && !datesChanged.length) || badDates.length > 0 || pending} className="btn btn-primary"
-              onClick={() => start(async () => {
-                const res = await savePlan({ changes: changed.map((r) => ({ area_id: r.id, sprint_id: plan[r.id] || null })), dates: datesChanged.map((d) => ({ sprint_id: d.id, starts_on: dates[d.id].s, ends_on: dates[d.id].e })), route_tickets: route })
-                if (res.error) toast(res.error, 'error')
-                else { toast(res.summary ?? 'Plan saved'); router.refresh() }
-              })}>{pending ? 'Saving…' : 'Save plan'}</button>
-            <button type="button" disabled={(!changed.length && !datesChanged.length) || pending} className="btn" onClick={() => { setPlan(Object.fromEntries(rows.map((r) => [r.id, r.sprint_id ?? '']))); setDates(Object.fromEntries(dated.map((d) => [d.id, { s: d.starts_on, e: d.ends_on }]))) }}>Undo changes</button>
-          </div>
-          <p className="text-[11.5px] text-[var(--muted)]">Recorded in the schedule log. Closed sprints and regression keep their pages.</p>
-        </section>
-      </aside>
+          <button type="button" onClick={undo} disabled={!dirty || pending} className="btn">Undo</button>
+          <button type="button" onClick={save} disabled={!dirty || badDates.length > 0 || pending} className="btn btn-primary">{pending ? 'Saving…' : 'Save plan'}</button>
+        </div>
+      </div>
     </div>
   )
 }

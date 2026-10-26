@@ -86,8 +86,10 @@ type OpenTicket = { id: string; key: string; title: string; severity: string; st
  * why and decides the spillover: which tickets go to which sprint (the rest to no sprint, for
  * triage) and whether the unfinished areas are added there to make the work up.
  */
-export function FinishSprintButton({ sprintId, sprintName, checks, tickets, laterSprints, unfinishedAreas }: {
+export function FinishSprintButton({ sprintId, sprintName, endsOn, checks, tickets, laterSprints, unfinishedAreas }: {
   sprintId: string
+  /** The sprint's last day; closing before it needs a deliberate tick. */
+  endsOn: string
   sprintName: string
   checks: Check[]
   tickets: OpenTicket[]
@@ -104,6 +106,10 @@ export function FinishSprintButton({ sprintId, sprintName, checks, tickets, late
   const [pending, start] = useTransition()
   const targetName = laterSprints.find((s) => s.id === target)?.name
   const parked = tickets.length - picked.size
+  // Closing before the end date is usually a slip of the hand: say so and ask for a tick.
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+  const early = today < endsOn
+  const [confirmEarly, setConfirmEarly] = useState(false)
 
   return (
     <>
@@ -117,6 +123,13 @@ export function FinishSprintButton({ sprintId, sprintName, checks, tickets, late
             else { toast(res.summary ?? 'Sprint closed'); setOpen(false); router.refresh() }
           })
         }}>
+          {early && (
+            <label className="flex items-start gap-2 border border-[var(--warn-line)] bg-[var(--warn-soft)] px-3 py-2.5 text-[13px]">
+              <input type="checkbox" checked={confirmEarly} onChange={(e) => setConfirmEarly(e.target.checked)} className="mt-0.5" />
+              <span><b>{sprintName} runs until {fmt(endsOn)}.</b> Closing it now ends it early and moves its open work on.
+                <span className="block font-semibold">Yes, close it early</span></span>
+            </label>
+          )}
           <ul className="space-y-1.5">
             {checks.map((c) => (
               <li key={c.label} className="flex items-start gap-2 text-[13px]">
@@ -169,7 +182,7 @@ export function FinishSprintButton({ sprintId, sprintName, checks, tickets, late
           <p className="text-[12px] text-[var(--muted)]">This is recorded in the schedule log with your name.</p>
           <div className="flex justify-end gap-2">
             <button type="button" onClick={() => setOpen(false)} className="btn">Cancel</button>
-            <button disabled={pending || (picked.size > 0 && !target)} className="btn btn-primary">{pending ? 'Closing…' : `Close ${sprintName}`}</button>
+            <button disabled={pending || (picked.size > 0 && !target) || (early && !confirmEarly)} className="btn btn-primary">{pending ? 'Closing…' : early ? `Close ${sprintName} early` : `Close ${sprintName}`}</button>
           </div>
         </form>
       </Dialog>

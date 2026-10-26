@@ -62,6 +62,7 @@ export default async function SprintsPage({ searchParams }: { searchParams: Prom
     <>
       <Tabs items={sprintTabs(nowSprints(sprints, running))} active="all" />
       <PageHeader>
+        {me.role === 'lead' && <Link href="/sprints/plan" className="btn">Edit plan</Link>}
         {me.role === 'lead' && <Link href="/sprints/new" data-create className="btn btn-primary">+ New sprint</Link>}
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />

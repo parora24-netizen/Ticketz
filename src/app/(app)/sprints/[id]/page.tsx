@@ -104,7 +104,7 @@ export default async function SprintPage({
           <form action={startSprint}><input type="hidden" name="sprint_id" value={id} /><SubmitButton primary pendingText="Starting…">Start sprint</SubmitButton></form>
         )}
         {lead && sprint.status === 'active' && (
-          <FinishSprintButton sprintId={id} sprintName={sprint.name} checks={gate.checks} laterSprints={laterSprints} unfinishedAreas={unfinishedAreas}
+          <FinishSprintButton sprintId={id} sprintName={sprint.name} endsOn={sprint.ends_on} checks={gate.checks} laterSprints={laterSprints} unfinishedAreas={unfinishedAreas}
             tickets={tickets.filter(isOpen).map((t) => ({ id: t.id, key: t.key, title: t.title, severity: t.severity, state: t.state }))} />
         )}
       </PageHeader>

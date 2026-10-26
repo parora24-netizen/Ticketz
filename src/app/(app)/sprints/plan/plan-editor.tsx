@@ -139,22 +139,25 @@ export function PlanEditor({ rows, sprints, dated, goNoGo }: { rows: Row[]; spri
           <h2 className="text-[14px] font-semibold text-[var(--navy-ink)]">Pages</h2>
           <span className="text-[12px] text-[var(--muted)]">Click a cell to test that page in that sprint; click a zone&apos;s cell to move the whole zone.</span>
         </header>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] border-collapse text-[13px]">
-            <thead className="sticky top-14 z-10 bg-white">
+        {/* Sideways scroll only on narrow screens: inside a scroll box the sticky headings would
+            stop sticking to the page. The table is as wide as it needs, so each page's cells sit
+            next to its name rather than across an empty stretch. */}
+        <div className="max-lg:overflow-x-auto">
+          <table className="w-max min-w-[760px] border-collapse text-[13px]">
+            <thead className="sticky top-14 z-10 bg-white shadow-[0_1px_0_var(--line)]">
               <tr className="border-b border-[var(--line)]">
-                <th className="sticky left-0 z-10 bg-white px-4 py-2 text-left text-[11px] font-semibold text-[var(--muted)]">Zone · page</th>
+                <th className="sticky left-0 z-10 min-w-[300px] bg-white px-4 py-2 text-left text-[11px] font-semibold text-[var(--muted)]">Zone · page</th>
                 {cols.map((s) => {
                   const l = load(s.id)
                   return (
-                    <th key={s.id} className="w-28 px-1 py-2 text-center">
+                    <th key={s.id} className="w-36 px-2 py-2 text-center whitespace-nowrap">
                       <div className="text-[13px] font-semibold text-[var(--navy-ink)]">{s.name}</div>
                       <div className="text-[11px] font-normal text-[var(--muted)]">{short(dates[s.id]?.s ?? '')}–{short(dates[s.id]?.e ?? '')}</div>
                       <div className="mono text-[10.5px] font-normal text-[var(--faint)]">{l.pages} pages · {l.cases} cases</div>
                     </th>
                   )
                 })}
-                <th className="w-24 px-1 py-2 text-center">
+                <th className="w-28 px-2 py-2 text-center whitespace-nowrap">
                   <div className="text-[13px] font-semibold text-[var(--navy-ink)]">Not planned</div>
                   <div className="mono text-[10.5px] font-normal text-[var(--faint)]">{load('').pages} pages</div>
                 </th>

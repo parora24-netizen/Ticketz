@@ -1,5 +1,6 @@
 import { FieldChanges, MARKERS, Timeline, type TimelineItem } from '@/components/timeline'
 import { StateChip } from '@/components/ui'
+import { WithMentions } from '@/components/mentions'
 import type { Field } from '@/lib/activity'
 import type { TicketState } from '@/lib/workflow/ticket-machine'
 
@@ -56,13 +57,13 @@ export function editItems(edits: TimelineEdit[], noun = ''): TimelineItem[] {
 }
 
 /** A ticket's history as a vertical timeline, newest first, with a label for each day. */
-export function TicketTimeline({ events, comments, edits = [] }: { events: TimelineEvent[]; comments: TimelineComment[]; edits?: TimelineEdit[] }) {
+export function TicketTimeline({ events, comments, edits = [], people = [] }: { events: TimelineEvent[]; comments: TimelineComment[]; edits?: TimelineEdit[]; people?: string[] }) {
   const items: TimelineItem[] = [
     ...ticketEventItems(events),
     ...comments.map((c) => ({ id: c.id, at: c.at, marker: MARKERS.comment, body: (
       <>
         <p><Who name={c.who} /> commented</p>
-        <p className="mt-1.5 whitespace-pre-wrap border border-[var(--line-soft)] bg-[var(--surface-3)] px-3 py-2 text-[13px]">{c.body}</p>
+        <p className="mt-1.5 whitespace-pre-wrap border border-[var(--line-soft)] bg-[var(--surface-3)] px-3 py-2 text-[13px]"><WithMentions text={c.body} people={people} /></p>
       </>
     ) })),
     ...editItems(edits),

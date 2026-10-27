@@ -1,3 +1,4 @@
+import { MentionTextarea } from '@/components/mentions'
 import { TicketTimeline } from '@/components/ticket-timeline'
 import { changeEntries, type ChangeRow } from '@/lib/activity'
 import { SubmitButton } from '@/components/submit-button'
@@ -37,6 +38,7 @@ export default async function TicketPage({
   const { data: links } = attachments.length ? await supabase.storage.from('evidence').createSignedUrls(attachments, 3600) : { data: [] }
   const shots = (links ?? []).filter((l) => l.signedUrl && l.path).map((l) => ({ url: l.signedUrl as string, name: l.path!.split('/').pop()!.replace(/^[0-9a-f-]{36}-/, '') }))
   const sprintName = new Map(sprints.map((s) => [s.id, s.name]))
+  const teamNames = people.filter((p) => p.active).map((p) => p.name)
   const names = new Map<string, string>([...people.map((p) => [p.id, p.name] as [string, string]), ...sprintName])
   const moves = allowedMoves(t.state as TicketState, me.role)
   const back = `/tickets/${encodeURIComponent(t.key)}`
@@ -108,12 +110,13 @@ export default async function TicketPage({
           <form action={addComment} className="mt-2 space-y-2">
             <input type="hidden" name="ticket_id" value={t.id} />
             <input type="hidden" name="back" value={back} />
-            <textarea name="body" required rows={3} placeholder="Add a comment: what you found, what you tried, what is blocking" className="input w-full" />
+            <MentionTextarea name="body" required rows={3} people={teamNames} placeholder="Add a comment: what you found, what you tried, what is blocking. Type @ to mention someone." className="input w-full" />
             <SubmitButton primary pendingText="Posting…">Comment</SubmitButton>
           </form>
           <TicketTimeline
             events={(events ?? []).map((e) => ({ id: `e-${e.id}`, at: e.at as string, who: e.people?.name ?? null, from_state: e.from_state, to_state: e.to_state, note: e.note }))}
             comments={(comments ?? []).map((c) => ({ id: `c-${c.id}`, at: c.created_at as string, who: (c.people as unknown as { name: string } | null)?.name ?? 'Someone', body: c.body as string }))}
+            people={teamNames}
             edits={changeEntries((edits ?? []) as ChangeRow[], names).map((x) => ({ id: x.key, at: x.at, who: x.actor_id ? names.get(x.actor_id) ?? 'Someone' : null, fields: x.fields ?? [] }))}
           />
         </section>
@@ -123,8 +126,8 @@ export default async function TicketPage({
           <dl className="divide-y divide-[var(--row)] text-[13px]">
             <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Status</dt><dd><StateChip s={t.state} /></dd></div>
             <div className="px-4 py-2.5"><dt className="label mb-1">Owner</dt><dd>
-              <TicketField ticketId={t.id} field="owner_id" value={t.owner_id ?? ''} options={ownerOptions} disabled={!canEdit} />
-              {!canEdit && <p className="mt-1 text-[11.5px] text-[var(--faint)]">Lead or QA assigns. Start the fix to take it.</p>}
+              <TicketField ticketId={t.id} field="owner_id" value={t.owner_id ?? ''} options={ownerOptions} />
+              {!canEdit && <p className="mt-1 text-[11.5px] text-[var(--faint)]">Hand it to whoever acts next, e.g. back to QA for a retest.</p>}
             </dd></div>
             <div className="px-4 py-2.5"><dt className="label mb-1">Severity</dt><dd>
               <TicketField ticketId={t.id} field="severity" value={t.severity} options={severityOptions} disabled={!canEdit} />

@@ -6,6 +6,7 @@ import { AssistantButton } from '@/components/assistant'
 import { RememberProvider } from '@/components/remember'
 import { Toaster } from '@/components/toast'
 import { Presence } from '@/components/presence'
+import { NotificationBell } from '@/components/notifications'
 import { getMe } from '@/lib/auth'
 import { runningSprints, daysLeft, fmtDate, loadSprints } from '@/lib/data'
 import { BottomBar, Sidebar } from './nav-links'
@@ -39,6 +40,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               <input id="global-search" name="q" placeholder="Jump to TC_FN_070, DEV-…   ( / )" aria-label="Search tickets and test cases" className="input h-8 w-72 pl-8" />
             </form>
             <AssistantButton />
+            <NotificationBell />
             <ProfileMenu name={me.name} email={me.email} role={ROLE[me.role]} initials={initials} />
           </div>
         </header>

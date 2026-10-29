@@ -44,7 +44,7 @@ export function PayloadExample({ appUrl }: { appUrl: string }) {
     "raise_tickets": true,
     "results": [
       { "tc_id": "TC_FN_070", "status": "passed", "duration_ms": 5400 },
-      { "tc_id": "TC_FN_071", "status": "failed", "error": "Expected error text not shown", "url": "https://reports.example/1234#TC_FN_071" },
+      { "tc_id": "TC_FN_071", "status": "failed", "defect_id": "DEF-12", "error": "Expected error text not shown", "url": "https://reports.example/1234#TC_FN_071" },
       { "tc_id": "TC_FN_072", "status": "skipped" },
       { "tc_id": "TC_FN_073", "status": "known_defect" }
     ]
@@ -62,7 +62,8 @@ export function PayloadExample({ appUrl }: { appUrl: string }) {
         <dt className="mono text-[var(--muted)]">build, run_id</dt><dd>optional; shown on each result</dd>
         <dt className="mono text-[var(--muted)]">limits</dt><dd>up to 5,000 results per call; a test reported twice keeps its last result</dd>
         <dt className="mono text-[var(--muted)]">lands in</dt><dd>the running test sprint; the response lists recorded, sprint and unmatched</dd>
-        <dt className="mono text-[var(--muted)]">raise_tickets</dt><dd>optional; true raises a ticket for each failed result, or adds the failure to its open ticket. The response lists the tickets</dd>
+        <dt className="mono text-[var(--muted)]">defect_id</dt><dd>optional; your id for the recorded defect behind a result. Stored on the result; with raise_tickets, all results with the same defect_id share one ticket</dd>
+        <dt className="mono text-[var(--muted)]">raise_tickets</dt><dd>optional; true raises a ticket for each failed result, or adds the failure to its open ticket. Only failed raises: known_defect, skipped and passed never do. The response lists the tickets</dd>
       </dl>
     </section>
   )
@@ -74,17 +75,17 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
   const calls: { title: string; what: string; curl: string }[] = [
     {
       title: 'List tickets',
-      what: 'Filters: state (comma list, or "open"), tc_id (comma list), sprint, severity, kind, updated_since, limit. E.g. which failing tests already have an open ticket.',
+      what: 'Filters: state (comma list, or "open"), tc_id (comma list), defect_id (comma list), sprint, severity, kind, updated_since, limit. E.g. which failing tests already have an open ticket.',
       curl: `curl "${appUrl}/api/tickets?state=open&tc_id=TC_FN_070,TC_FN_071" \\
   ${auth}`,
     },
     {
       title: 'Raise a ticket',
-      what: 'For a failing test case. If one of the same kind is open, the failure is added to it instead (200, created: false) so repeats never duplicate. New tickets go to the next fix sprint. kind: defect (DEV-) or test_mismatch (MM-).',
+      what: 'For a failing test case. If its ticket is open, the failure is added to it instead (200, created: false) so repeats never duplicate. With defect_id, the open ticket for that defect is the one, whichever case raised it: one defect failing nine cases is one ticket. New tickets go to the next fix sprint. kind: defect (DEV-) or test_mismatch (MM-).',
       curl: `curl -X POST "${appUrl}/api/tickets" \\
   ${auth} \\
   -H "Content-Type: application/json" \\
-  -d '{ "tc_id": "TC_FN_071", "build": "b39a5eab1", "run_id": "codebuild-1234",
+  -d '{ "tc_id": "TC_FN_071", "defect_id": "DEF-12", "build": "b39a5eab1", "run_id": "codebuild-1234",
         "error": "Expected error text not shown", "url": "https://reports.example/1234#TC_FN_071" }'`,
     },
     {
@@ -109,11 +110,37 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
   -H "Content-Type: application/json" \\
   -d '{ "result": "passed", "build": "b39a5eab2" }'`,
     },
+    {
+      title: 'Test cases',
+      what: 'In place of the workbook download. Filters: tc_id, zone, page, updated_since (new cases and edits), limit (max 1000), offset. Oldest change first; page with offset until you have total.',
+      curl: `curl "${appUrl}/api/cases?updated_since=2026-10-28T00:00:00Z&limit=1000" \\
+  ${auth}`,
+    },
+    {
+      title: 'Results',
+      what: 'latest=true gives each case its latest automated and manual result. Without it, every result, oldest first, filtered by tc_id, kind (auto, manual), result, sprint, run_id, defect_id, updated_since; limit and offset page through.',
+      curl: `curl "${appUrl}/api/results?latest=true&updated_since=2026-10-28T00:00:00Z" \\
+  ${auth}`,
+    },
+    {
+      title: 'Comment on a case',
+      what: 'A question or note on a test case, where the testers read it. @Name (a name from /api/team) notifies that person; the case\'s tester hears of the rest. GET the same path to read them.',
+      curl: `curl -X POST "${appUrl}/api/cases/TC_FN_071/comments" \\
+  ${auth} \\
+  -H "Content-Type: application/json" \\
+  -d '{ "body": "@Niten is step 3 still right after the new import screen?" }'`,
+    },
+    {
+      title: 'Team',
+      what: 'The active team with the exact @Name to mention each person.',
+      curl: `curl "${appUrl}/api/team" \\
+  ${auth}`,
+    },
   ]
   return (
     <section className="card mt-4">
       <header className="border-b border-[var(--line)] px-4 py-2.5">
-        <h2 className="text-[14px] font-semibold text-[var(--navy-ink)]">Tickets API</h2>
+        <h2 className="text-[14px] font-semibold text-[var(--navy-ink)]">Tickets, cases and results API</h2>
         <p className="text-[12px] text-[var(--muted)]">Same token. Acts with QA&apos;s rights: it can raise, comment and retest, never skip a step of the workflow.</p>
       </header>
       <div className="divide-y divide-[var(--line)]">

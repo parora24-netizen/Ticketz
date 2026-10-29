@@ -431,6 +431,19 @@ export async function addComment(formData: FormData) {
   redirect(withMessage(path, 'ok', 'Comment added'))
 }
 
+/** A comment on a test case; @Name notifies that person and the case's tester hears of the rest. */
+export async function addCaseComment(formData: FormData) {
+  const path = back(formData, '/cases')
+  const me = await getMe()
+  const v = z.object({ case_id: z.uuid(), body: z.string().trim().min(1).max(5000) }).safeParse(Object.fromEntries(formData))
+  if (!v.success) fail(path, 'Write something first')
+  const supabase = await createClient()
+  const { error } = await supabase.from('case_comments').insert({ case_id: v.data.case_id, body: v.data.body, author_id: me.id })
+  if (error) fail(path, error.message)
+  revalidatePath(path)
+  redirect(withMessage(`${path}#comments`, 'ok', 'Comment added'))
+}
+
 /**
  * Takes back a manual result recorded by mistake: only the case's latest manual result, so the
  * one before it (or "not tested") shows again. Tickets it raised are left for the lead to close.

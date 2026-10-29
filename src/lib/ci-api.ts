@@ -29,25 +29,37 @@ export const ticketUrl = (key: string) => `${serverEnv().appUrl || 'https://vulq
 
 /** A comment from the suite; it needs a person behind it, the token's maker. */
 export async function addComment(c: Caller, ticketId: string, body: string): Promise<string | null> {
-  if (!c.actorId) return 'This token has no owner to post comments as; make a new token on Admin'
+  if (!c.actorId) return NO_OWNER
   const { error } = await c.db.from('ticket_comments').insert({ ticket_id: ticketId, author_id: c.actorId, body: `CI: ${body}`.slice(0, 5000) })
   return error?.message ?? null
 }
 
+/** A comment on a test case; @Name mentions notify those people, as in the app. */
+export async function addCaseComment(c: Caller, caseId: string, body: string): Promise<string | null> {
+  if (!c.actorId) return NO_OWNER
+  const { error } = await c.db.from('case_comments').insert({ case_id: caseId, author_id: c.actorId, body: `CI: ${body}`.slice(0, 5000) })
+  return error?.message ?? null
+}
+
+const NO_OWNER = 'This token has no owner to post comments as; make a new token on Admin'
+
 /**
- * Raise a ticket for a failing test case, or, when one of the same kind is already open, add the
- * new failure to it as a comment so repeat failures never make duplicates. New tickets are found in
- * the running test sprint and go to the next fix sprint, like a fail recorded in the app.
+ * Raise a ticket for a failing test case, or add the new failure to the ticket already open for it
+ * as a comment, so repeat failures never make duplicates. With a defect_id, the open ticket for that
+ * defect is the one, whichever case it was raised from (one defect failing nine cases is one
+ * ticket); without, it is the case's open ticket of the same kind. New tickets are found in the
+ * running test sprint and go to the next fix sprint, like a fail recorded in the app.
  */
 export async function raiseTicket(c: Caller, p: RaisePayload): Promise<{ key: string; created: boolean; url: string } | { error: string; status: number }> {
   const { data: tc } = await c.db.from('test_cases').select('id, tc_id, title, priority').eq('tc_id', p.tc_id).maybeSingle()
   if (!tc) return { error: `No test case ${p.tc_id}`, status: 404 }
   const text = failureText(p)
 
-  const { data: open } = await c.db.from('tickets').select('id, key').eq('case_id', tc.id).eq('kind', p.kind).in('state', OPEN)
-    .order('logged_on', { ascending: false }).limit(1).maybeSingle()
+  const same = c.db.from('tickets').select('id, key, case_id').in('state', OPEN).order('logged_on', { ascending: false }).limit(1)
+  const { data: open } = await (p.defect_id ? same.eq('defect_id', p.defect_id) : same.eq('case_id', tc.id).eq('kind', p.kind)).maybeSingle()
   if (open) {
-    const err = await addComment(c, open.id, `Failed again.${text ? `\n${text}` : ''}`)
+    const where = open.case_id === tc.id ? 'Failed again' : `${tc.tc_id} failed too`
+    const err = await addComment(c, open.id, `${where}.${text ? `\n${text}` : ''}`)
     if (err) return { error: err, status: 500 }
     return { key: open.key, created: false, url: ticketUrl(open.key) }
   }
@@ -64,7 +76,7 @@ export async function raiseTicket(c: Caller, p: RaisePayload): Promise<{ key: st
   const { error } = await c.db.from('tickets').insert({
     key, case_id: tc.id, kind: p.kind, title: p.title ?? tc.title, description: text || null,
     severity: p.severity ?? tc.priority, found_in_sprint_id: currentSprint(sprints)?.id ?? null,
-    current_sprint_id: fixSprint?.id ?? null, created_by: c.actorId,
+    current_sprint_id: fixSprint?.id ?? null, created_by: c.actorId, defect_id: p.defect_id ?? null,
   })
   if (error) return { error: error.message, status: 500 }
   return { key, created: true, url: ticketUrl(key) }

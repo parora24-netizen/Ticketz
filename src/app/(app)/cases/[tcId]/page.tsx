@@ -1,4 +1,5 @@
 import { SubmitButton } from '@/components/submit-button'
+import { MentionTextarea, WithMentions } from '@/components/mentions'
 import { notFound } from 'next/navigation'
 import { Chip, PageHeader, PriorityChip, ResultChip, StateChip, TicketLink } from '@/components/ui'
 import { Flash } from '@/components/flash'
@@ -9,7 +10,7 @@ import { MARKERS, Timeline, type TimelineItem } from '@/components/timeline'
 import { editItems, ticketEventItems } from '@/components/ticket-timeline'
 import { changeEntries, type ChangeRow } from '@/lib/activity'
 import { mismatch } from '@/lib/workflow/case-stage'
-import { raiseTicket } from '../../actions'
+import { addCaseComment, raiseTicket } from '../../actions'
 import { CaseAutomationField, CaseResultActions, UndoResultButton } from '@/components/case-controls'
 
 export default async function CasePage({
@@ -21,7 +22,7 @@ export default async function CasePage({
   const supabase = await createClient()
   const { data: c } = await supabase.from('test_cases').select('*, areas(zone, page)').eq('tc_id', decodeURIComponent(tcId)).maybeSingle()
   if (!c) notFound()
-  const [{ data: runs }, { data: tickets }, sprints, { data: edits }, people, areas] = await Promise.all([
+  const [{ data: runs }, { data: tickets }, sprints, { data: edits }, people, areas, { data: comments }] = await Promise.all([
     supabase.from('test_runs').select('*, people(name)').eq('case_id', c.id).order('recorded_at', { ascending: false }),
     supabase.from('tickets').select('id, key, title, state, severity').eq('case_id', c.id).order('logged_on', { ascending: false }),
     loadSprints(),
@@ -29,7 +30,9 @@ export default async function CasePage({
     supabase.from('change_log').select('*').eq('row_id', c.id).eq('action', 'update').order('at', { ascending: false }).limit(200),
     loadPeople(),
     loadAreas(),
+    supabase.from('case_comments').select('id, body, created_at, people(name)').eq('case_id', c.id).order('created_at', { ascending: false }),
   ])
+  const teamNames = people.filter((p) => p.active).map((p) => p.name)
   const { data: ticketEvents } = tickets?.length
     ? await supabase.from('ticket_events').select('id, ticket_id, from_state, to_state, note, at, people(name)').in('ticket_id', tickets.map((t) => t.id))
     : { data: [] }
@@ -115,10 +118,24 @@ export default async function CasePage({
         </aside>
       </div>
 
-      <section className="card mt-4 p-5">
+      <section id="comments" className="card mt-4 p-5">
         <h2 className="font-semibold">History</h2>
-        <p className="mt-0.5 text-[12px] text-[var(--muted)]">Results, its tickets and edits, newest first.</p>
+        <p className="mt-0.5 text-[12px] text-[var(--muted)]">Comments, results, its tickets and edits, newest first.</p>
+        <form action={addCaseComment} className="mt-3 space-y-2">
+          <input type="hidden" name="case_id" value={c.id} />
+          <input type="hidden" name="back" value={back} />
+          <MentionTextarea name="body" required rows={2} people={teamNames} placeholder="Ask or note something about this case. Type @ to mention someone." className="input w-full" />
+          <SubmitButton primary pendingText="Posting…">Comment</SubmitButton>
+        </form>
         <Timeline empty="No results yet." items={[
+          ...(comments ?? []).map((m): TimelineItem => ({
+            id: `c${m.id}`, at: m.created_at as string, marker: MARKERS.comment, body: (
+              <>
+                <p><b className="font-semibold text-[var(--ink)]">{(m.people as unknown as { name: string } | null)?.name ?? 'Someone'}</b> commented</p>
+                <p className="mt-1.5 whitespace-pre-wrap border border-[var(--line-soft)] bg-[var(--surface-3)] px-3 py-2 text-[13px]"><WithMentions text={m.body as string} people={teamNames} /></p>
+              </>
+            ),
+          })),
           ...(runs ?? []).map((r): TimelineItem => {
             const files = ((r.attachments as string[] | null) ?? []).filter((p) => signed.get(p))
             const meta = [r.sprint_id ? `Sprint ${sprintName.get(r.sprint_id) ?? ''}` : 'Before sprints', r.build && `build ${r.build}`].filter(Boolean).join(' · ')

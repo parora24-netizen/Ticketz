@@ -16,7 +16,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const who = (p: unknown) => (p as { name: string } | null)?.name ?? null
   return NextResponse.json({
     key: t.key, title: t.title, kind: t.kind, state: t.state, severity: t.severity, owner: t.owner_name,
-    tc_id: t.tc_id, area: t.zone ? `${t.zone} · ${t.page}` : null, sprint: sprint?.name ?? null,
+    tc_id: t.tc_id, defect_id: t.defect_id, area: t.zone ? `${t.zone} · ${t.page}` : null, sprint: sprint?.name ?? null,
     description: t.description, fixed_in_build: t.fixed_in_build, blocked: t.blocked_reason, defer_reason: t.defer_reason,
     logged_on: t.logged_on, updated_at: t.updated_at, url: ticketUrl(t.key),
     history: (events ?? []).map((e) => ({ at: e.at, from: e.from_state, to: e.to_state, note: e.note, by: who(e.people) })),

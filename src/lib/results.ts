@@ -12,6 +12,8 @@ export const ResultsPayload = z.object({
         duration_ms: z.number().int().nonnegative().max(86_400_000).optional(),
         error: z.string().max(4000).optional(),
         url: z.url({ protocol: /^https?$/ }).max(1000).optional(),
+        /** The recorded defect this result belongs to; with raise_tickets, one ticket per defect. */
+        defect_id: z.string().trim().min(1).max(100).optional(),
       }),
     )
     .min(1)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ListQuery, RaisePayload, failureText, nextKey, retestMove } from './tickets-api'
+import { CasesQuery, ListQuery, RaisePayload, ResultsQuery, failureText, nextKey, retestMove } from './tickets-api'
 
 describe('tickets API', () => {
   it('names tickets like the workbook and steps past taken keys', () => {
@@ -31,5 +31,18 @@ describe('tickets API', () => {
     expect(retestMove('ready_for_retest', 'passed')).toEqual({ to: 'closed' })
     expect(retestMove('ready_for_retest', 'failed')).toEqual({ to: 'reopened' })
     expect(retestMove('in_fix', 'passed')).toEqual({ error: 'The ticket is in fix, not ready for retest' })
+  })
+
+  it('keeps a defect id as sent and filters the list by several', () => {
+    expect(RaisePayload.parse({ tc_id: 'TC_FN_070', defect_id: ' DEF-12 ' }).defect_id).toBe('DEF-12')
+    expect(ListQuery.parse({ defect_id: 'DEF-12, DEF-13' }).defect_id).toEqual(['DEF-12', 'DEF-13'])
+  })
+
+  it('pages cases and results, and reads latest=true', () => {
+    expect(CasesQuery.parse({ tc_id: 'tc_fn_1', offset: '1000' })).toMatchObject({ tc_id: ['TC_FN_1'], offset: 1000, limit: 200 })
+    expect(CasesQuery.safeParse({ updated_since: 'yesterday' }).success).toBe(false)
+    expect(ResultsQuery.parse({ latest: 'true', result: 'failed,known_defect' })).toMatchObject({ latest: true, result: ['failed', 'known_defect'], offset: 0 })
+    expect(ResultsQuery.parse({}).latest).toBe(false)
+    expect(ResultsQuery.safeParse({ kind: 'nightly' }).success).toBe(false)
   })
 })

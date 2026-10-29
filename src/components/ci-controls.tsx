@@ -118,7 +118,7 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
     },
     {
       title: 'Results',
-      what: 'latest=true gives each case its latest automated and manual result. Without it, every result, oldest first, filtered by tc_id, kind (auto, manual), result, sprint, run_id, defect_id, updated_since; limit and offset page through.',
+      what: 'latest=true gives each case its latest automated and manual result and its mismatch; add mismatch=type_i (automation failed, manual passed), type_ii or any to list just those. Without it, every result, oldest first, filtered by tc_id, kind (auto, manual), result, sprint, run_id, defect_id, updated_since; limit and offset page through.',
       curl: `curl "${appUrl}/api/results?latest=true&updated_since=2026-10-28T00:00:00Z" \\
   ${auth}`,
     },

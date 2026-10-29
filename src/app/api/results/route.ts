@@ -5,12 +5,17 @@ import { currentSprint, type Sprint } from '@/lib/data'
 import { ResultsPayload, bearer, lastPerCase } from '@/lib/results'
 import { authenticate, raiseTicket } from '@/lib/ci-api'
 import { ResultsQuery } from '@/lib/tickets-api'
+import { mismatch, type RunResult } from '@/lib/workflow/case-stage'
+
+// The mismatch kinds as PostgREST filters, matching mismatch() in case-stage.
+const TYPE_I = 'auto_result.in.(failed,known_defect),manual_result.eq.passed'
+const TYPE_II = 'auto_result.eq.passed,manual_result.eq.failed'
 
 const one = <T,>(v: unknown): T | null => ((Array.isArray(v) ? v[0] ?? null : v) as T | null)
 
 /**
  * GET /api/results: results recorded in Launchpad, automated and manual. With latest=true, each
- * case's latest automated and manual result (tc_id and updated_since filter it); otherwise every
+ * case's latest automated and manual result (tc_id, updated_since and mismatch filter it); otherwise every
  * result, oldest first, filtered by tc_id, kind, result, sprint, run_id, defect_id, updated_since.
  * limit (max 1000) and offset page through either.
  */
@@ -30,6 +35,9 @@ export async function GET(request: NextRequest) {
       .order('tc_id').range(...range)
     if (f.tc_id?.length) query = query.in('tc_id', f.tc_id)
     if (f.updated_since) query = query.or(`auto_at.gte.${f.updated_since},manual_at.gte.${f.updated_since}`)
+    if (f.mismatch === 'type_i') query = query.or(`and(${TYPE_I})`)
+    if (f.mismatch === 'type_ii') query = query.or(`and(${TYPE_II})`)
+    if (f.mismatch === 'any') query = query.or(`and(${TYPE_I}),and(${TYPE_II})`)
     const { data, error, count } = await query
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     const latest = (r: string | null, at: string | null, sprint: string | null) => (r ? { result: r, at, sprint: sprint ? sprintName.get(sprint) ?? null : null } : null)
@@ -40,6 +48,7 @@ export async function GET(request: NextRequest) {
         tc_id: c.tc_id, area: `${c.zone} · ${c.page}`, tester: c.tester_name,
         auto: latest(c.auto_result, c.auto_at, c.auto_sprint_id), manual: latest(c.manual_result, c.manual_at, c.manual_sprint_id),
         open_tickets: c.open_fix + c.awaiting_retest,
+        mismatch: mismatch(c.auto_result as RunResult | null, c.manual_result as RunResult | null),
       })),
     })
   }

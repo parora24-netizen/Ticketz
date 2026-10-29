@@ -89,6 +89,8 @@ export const ResultsQuery = z.object({
   defect_id: DefectId.optional(),
   updated_since: iso.optional(),
   latest: z.enum(['true', 'false']).optional().transform((v) => v === 'true'),
+  /** With latest=true: type_i (automation failed, manual passed), type_ii (passed, manual failed), or any. */
+  mismatch: z.enum(['type_i', 'type_ii', 'any']).optional(),
   limit,
   offset,
 })

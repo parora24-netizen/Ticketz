@@ -2,7 +2,8 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { publicEnv } from '@/lib/env'
 
-const PUBLIC_PATHS = ['/login', '/auth/', '/api/results']
+// The API routes check their own CI token instead of a session.
+const PUBLIC_PATHS = ['/login', '/auth/', '/api/results', '/api/tickets']
 
 export function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname.startsWith(p))

@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { currentSprint, type Sprint } from '@/lib/data'
 import { ResultsPayload, bearer, lastPerCase } from '@/lib/results'
+import { raiseTicket } from '@/lib/ci-api'
 
 /**
  * POST /api/results — the automated suite reports a run.
@@ -13,7 +14,7 @@ export async function POST(request: NextRequest) {
   if (!token) return NextResponse.json({ error: 'Missing bearer token' }, { status: 401 })
   const supabase = createServiceClient()
   const hash = createHash('sha256').update(token).digest('hex')
-  const { data: tok } = await supabase.from('ci_tokens').select('id').eq('token_hash', hash).is('revoked_at', null).maybeSingle()
+  const { data: tok } = await supabase.from('ci_tokens').select('id, created_by').eq('token_hash', hash).is('revoked_at', null).maybeSingle()
   if (!tok) return NextResponse.json({ error: 'Unknown or revoked token' }, { status: 401 })
 
   let body: unknown
@@ -63,9 +64,20 @@ export async function POST(request: NextRequest) {
   if (newlyAutomated.length) await supabase.from('test_cases').update({ automation: 'automated' }).in('id', newlyAutomated)
   await supabase.from('ci_tokens').update({ last_used_at: new Date().toISOString() }).eq('id', tok.id)
 
+  // With raise_tickets, each failure gets a ticket, or a comment on the one already open.
+  const tickets: { tc_id: string; key?: string; created?: boolean; error?: string }[] = []
+  if (parsed.data.raise_tickets) {
+    const caller = { db: supabase, tokenId: tok.id, actorId: tok.created_by as string | null }
+    for (const r of results.filter((x) => x.status === 'failed' && caseIds.has(x.tc_id)).slice(0, 200)) {
+      const res = await raiseTicket(caller, { tc_id: r.tc_id, kind: 'defect', build, run_id, error: r.error, url: r.url })
+      tickets.push('error' in res ? { tc_id: r.tc_id, error: res.error } : { tc_id: r.tc_id, key: res.key, created: res.created })
+    }
+  }
+
   return NextResponse.json({
     recorded: rows.length,
     sprint: sprint?.name ?? null,
     unmatched: ids.filter((id) => !caseIds.has(id)),
+    ...(parsed.data.raise_tickets ? { tickets } : {}),
   })
 }

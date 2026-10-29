@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { TempPasswordPanel } from '@/components/account-controls'
-import { PayloadExample, TokenCell } from '@/components/ci-controls'
+import { PayloadExample, TicketsApiExample, TokenCell } from '@/components/ci-controls'
 import { Flash } from '@/components/flash'
 import { TeamGrid } from '@/components/grid/list-grids'
 import { SubmitButton } from '@/components/submit-button'
@@ -101,6 +101,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
             {!tokens?.length && <p className="p-6 text-center text-[13px] text-[var(--muted)]">No tokens yet.</p>}
           </div>
           <PayloadExample appUrl={process.env.NEXT_PUBLIC_APP_URL || 'https://vulqan-launchpad.vercel.app'} />
+          <TicketsApiExample appUrl={process.env.NEXT_PUBLIC_APP_URL || 'https://vulqan-launchpad.vercel.app'} />
         </>
       )}
     </>

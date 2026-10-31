@@ -19,13 +19,16 @@ export type CaseInput = {
   expected: string | null
   priority: Priority
   test_type: string | null
+  /** Traceability, e.g. TS_E2E_01 and REQ_E2E_01: from columns on the row, or the Test Scenarios sheet. */
+  scenario_id: string | null
+  requirement_id: string | null
   /** The row in the file, for messages. */
   row?: number
 }
 
 /** `present`: the optional fields the file actually has a column for. Others are left untouched on update. */
 export type ParseResult = { cases: CaseInput[]; errors: { row: number; message: string }[]; present: OptionalField[] }
-export const OPTIONAL_FIELDS = ['preconditions', 'steps', 'test_data', 'expected', 'test_type'] as const
+export const OPTIONAL_FIELDS = ['preconditions', 'steps', 'test_data', 'expected', 'test_type', 'scenario_id', 'requirement_id'] as const
 export type OptionalField = (typeof OPTIONAL_FIELDS)[number]
 
 /** Header spellings we accept, normalised to lower case without punctuation. */
@@ -40,6 +43,8 @@ const ALIASES: Record<keyof Omit<CaseInput, 'area_id' | 'source_page' | 'row'>, 
   expected: ['expected result', 'expected', 'expected results'],
   priority: ['priority'],
   test_type: ['test type', 'type'],
+  scenario_id: ['scenario id', 'test scenario id', 'ts id'],
+  requirement_id: ['requirement id', 'req id', 'requirement'],
 }
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
@@ -116,6 +121,8 @@ export function parseCases(rows: Record<string, string>[], areas: AreaRef[], fir
       expected: get(r, 'expected') || null,
       priority: priority!,
       test_type: get(r, 'test_type') || null,
+      scenario_id: get(r, 'scenario_id') || null,
+      requirement_id: get(r, 'requirement_id') || null,
       row,
     })
   })
@@ -170,7 +177,45 @@ export function parseDelimited(text: string, sep: string): string[][] {
   return out.filter((r) => r.some((c) => c.trim() !== ''))
 }
 
-export type Existing = Pick<CaseInput, 'title' | 'area_id' | 'priority' | 'preconditions' | 'steps' | 'test_data' | 'expected' | 'test_type'> & { tc_id: string }
+export type Existing = Pick<CaseInput, 'title' | 'area_id' | 'priority' | 'preconditions' | 'steps' | 'test_data' | 'expected' | 'test_type' | 'scenario_id' | 'requirement_id'> & { tc_id: string }
+
+/**
+ * The workbook's Test Scenarios sheet: each scenario names its requirement and the run of cases
+ * it covers, First TC ID to Last TC ID (e.g. TC_E2E_004 to TC_E2E_007).
+ */
+export type Scenario = { scenario_id: string; requirement_id: string | null; prefix: string; from: number; to: number }
+const tcNumber = (id: string) => {
+  const m = /^(TC_[A-Z0-9]+_)(\d+)$/.exec(id.trim().toUpperCase())
+  return m ? { prefix: m[1], n: Number(m[2]) } : null
+}
+export function parseScenarios(rows: Record<string, string>[]): Scenario[] {
+  const key = (r: Record<string, string>, names: string[]) => {
+    const h = Object.keys(r).find((x) => names.includes(norm(x)))
+    return h ? (r[h] ?? '').trim() : ''
+  }
+  return rows.flatMap((r) => {
+    const scenario_id = key(r, ['scenario id', 'test scenario id'])
+    const first = tcNumber(key(r, ['first tc id', 'first test case id']))
+    const last = tcNumber(key(r, ['last tc id', 'last test case id']) || key(r, ['first tc id', 'first test case id']))
+    if (!scenario_id || !first || !last || first.prefix !== last.prefix) return []
+    return [{ scenario_id, requirement_id: key(r, ['requirement id', 'req id']) || null, prefix: first.prefix, from: first.n, to: last.n }]
+  })
+}
+
+/**
+ * Fill each case's scenario and requirement from the scenario ranges, where its row has none.
+ * With scenarios to go on, both fields count as present: a case no scenario covers is cleared.
+ */
+export function applyScenarios(r: ParseResult, scenarios: Scenario[]): ParseResult {
+  if (!scenarios.length) return r
+  const cases = r.cases.map((c) => {
+    const t = c.tc_id ? tcNumber(c.tc_id) : null
+    const s = t && scenarios.find((x) => x.prefix === t.prefix && t.n >= x.from && t.n <= x.to)
+    return { ...c, scenario_id: c.scenario_id ?? s?.scenario_id ?? null, requirement_id: c.requirement_id ?? s?.requirement_id ?? null }
+  })
+  const present = [...new Set([...r.present, 'scenario_id', 'requirement_id'] as OptionalField[])]
+  return { ...r, cases, present }
+}
 
 /**
  * Matching is by Test Case ID only. A row with no ID would be added as a new case, so a row

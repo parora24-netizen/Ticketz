@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CasesQuery, ListQuery, RaisePayload, ResultsQuery, failureText, nextKey, retestMove } from './tickets-api'
+import { CasesQuery, ListQuery, RaisePayload, ResultsQuery, RunsQuery, failureText, nextKey, readQuery, retestMove } from './tickets-api'
 
 describe('tickets API', () => {
   it('names tickets like the workbook and steps past taken keys', () => {
@@ -44,5 +44,17 @@ describe('tickets API', () => {
     expect(ResultsQuery.parse({ latest: 'true', result: 'failed,known_defect' })).toMatchObject({ latest: true, result: ['failed', 'known_defect'], offset: 0 })
     expect(ResultsQuery.parse({}).latest).toBe(false)
     expect(ResultsQuery.safeParse({ kind: 'nightly' }).success).toBe(false)
+  })
+
+  it('reads since and updated_after as updated_since, and refuses filters it does not know', () => {
+    const at = '2026-10-30T00:00:00Z'
+    for (const k of ['since', 'updated_after', 'updated_since']) {
+      const q = readQuery(ResultsQuery, new URLSearchParams({ [k]: at }))
+      expect(q.success && q.data.updated_since).toBe(at)
+    }
+    const both = readQuery(ResultsQuery, new URLSearchParams([['since', '2026-01-01T00:00:00Z'], ['updated_since', at]]))
+    expect(both.success && both.data.updated_since).toBe(at)
+    expect(readQuery(ResultsQuery, new URLSearchParams({ updatedAfter: at })).success).toBe(false)
+    expect(readQuery(RunsQuery, new URLSearchParams({ build: 'index-1,index-2' })).data?.build).toEqual(['index-1', 'index-2'])
   })
 })

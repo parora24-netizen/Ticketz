@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { getMe } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/data'
-import { OPTIONAL_FIELDS, diffCases, holdUnlabelledDuplicates, nextIds, parseCases, parseCsv, parseTsv, type CaseInput, type Existing, type OptionalField } from '@/lib/import-cases'
+import { OPTIONAL_FIELDS, applyScenarios, diffCases, holdUnlabelledDuplicates, nextIds, parseCases, parseCsv, parseScenarios, parseTsv, type CaseInput, type Existing, type OptionalField, type Scenario } from '@/lib/import-cases'
 import { xlsxRecords } from '@/lib/xlsx-records'
 
 export type PreviewRow = {
@@ -38,16 +38,21 @@ export async function previewImport(_prev: ImportState, formData: FormData): Pro
 
   let records: Record<string, string>[] = []
   let rowNumbers: number[] | undefined
+  let scenarios: Scenario[] = []
   let source = ''
   if (file instanceof File && file.size > 0) {
     if (file.size > MAX_FILE) return { error: 'That file is over 8 MB' }
     const name = file.name.toLowerCase()
     if (name.endsWith('.xlsx')) {
-      const r = await xlsxRecords(await file.arrayBuffer(), ['Test Case Title', 'Title', 'Test Case ID'])
+      const buf = await file.arrayBuffer()
+      const r = await xlsxRecords(buf, ['Test Case Title', 'Title', 'Test Case ID'])
       if (!r) return { error: 'No sheet with a "Test Case Title" or "Test Case ID" header was found' }
       records = r.rows
       rowNumbers = r.rowNumbers
-      source = `${file.name} · sheet "${r.sheet}"`
+      // The Test Scenarios sheet links cases to scenario and requirement ids by TC ranges.
+      const s = await xlsxRecords(buf, ['Scenario ID'])
+      scenarios = s ? parseScenarios(s.rows) : []
+      source = `${file.name} · sheet "${r.sheet}"${scenarios.length ? ` + ${scenarios.length} scenarios from "${s!.sheet}"` : ''}`
     } else if (name.endsWith('.csv')) {
       records = parseCsv(await file.text())
       source = file.name
@@ -60,10 +65,10 @@ export async function previewImport(_prev: ImportState, formData: FormData): Pro
 
   const supabase = await createClient()
   const { data: areas } = await supabase.from('areas').select('id, zone, page')
-  const parsed = parseCases(records, areas ?? [], 2, rowNumbers)
+  const parsed = applyScenarios(parseCases(records, areas ?? [], 2, rowNumbers), scenarios)
   const { present } = parsed
   const existing = await fetchAll<Existing>((from, to) =>
-    supabase.from('test_cases').select('tc_id, title, area_id, priority, preconditions, steps, test_data, expected, test_type').range(from, to),
+    supabase.from('test_cases').select('tc_id, title, area_id, priority, preconditions, steps, test_data, expected, test_type, scenario_id, requirement_id').range(from, to),
   )
   const held = holdUnlabelledDuplicates(parsed.cases, existing)
   const errors = [...parsed.errors, ...held.errors].sort((a, b) => a.row - b.row)
@@ -101,6 +106,8 @@ const CaseSchema = z.object({
   expected: z.string().nullable(),
   priority: z.enum(['Critical', 'High', 'Medium', 'Low']),
   test_type: z.string().nullable(),
+  scenario_id: z.string().max(100).nullable().default(null),
+  requirement_id: z.string().max(100).nullable().default(null),
 })
 
 /** Step 2: save the new and changed cases from the preview. Automation status and results are kept. */

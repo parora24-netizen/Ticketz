@@ -4,7 +4,7 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { currentSprint, type Sprint } from '@/lib/data'
 import { ResultsPayload, bearer, lastPerCase } from '@/lib/results'
 import { authenticate, raiseTicket } from '@/lib/ci-api'
-import { ResultsQuery } from '@/lib/tickets-api'
+import { ResultsQuery, readQuery } from '@/lib/tickets-api'
 import { mismatch, type RunResult } from '@/lib/workflow/case-stage'
 
 // The mismatch kinds as PostgREST filters, matching mismatch() in case-stage.
@@ -22,7 +22,7 @@ const one = <T,>(v: unknown): T | null => ((Array.isArray(v) ? v[0] ?? null : v)
 export async function GET(request: NextRequest) {
   const caller = await authenticate(request)
   if (caller instanceof NextResponse) return caller
-  const q = ResultsQuery.safeParse(Object.fromEntries(request.nextUrl.searchParams))
+  const q = readQuery(ResultsQuery, request.nextUrl.searchParams)
   if (!q.success) return NextResponse.json({ error: 'Invalid query', issues: q.error.issues.slice(0, 10) }, { status: 400 })
   const f = q.data
   const { data: sprints } = await caller.db.from('sprints').select('id, name')
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
 
   let query = caller.db.from('test_runs')
     .select('kind, result, build, run_id, defect_id, note, url, duration_ms, sprint_id, recorded_at, test_cases!inner(tc_id), people(name)', { count: 'exact' })
-    .order('recorded_at').range(...range)
+    .order('recorded_at').order('id').range(...range)
   if (f.tc_id?.length) query = query.in('test_cases.tc_id', f.tc_id)
   if (f.kind) query = query.eq('kind', f.kind)
   if (f.result?.length) query = query.in('result', f.result)
@@ -127,6 +127,7 @@ export async function POST(request: NextRequest) {
       run_id,
       sprint_id: sprint?.id ?? null,
       duration_ms: r.duration_ms ?? null,
+      ci_token_id: tok.id,
       note: r.error ?? null,
       url: r.url ?? null,
       defect_id: r.defect_id ?? null,

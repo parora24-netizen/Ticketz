@@ -66,9 +66,11 @@ export const ListQuery = z.object({
   limit,
 })
 
-/** GET /api/cases query: tc_id, zone, page, updated_since, limit, offset. */
+/** GET /api/cases query: tc_id, scenario_id, requirement_id, zone, page, updated_since, limit, offset. */
 export const CasesQuery = z.object({
   tc_id: z.string().optional().transform((s) => list(s)?.map((x) => x.toUpperCase())),
+  scenario_id: z.string().optional().transform(list),
+  requirement_id: z.string().optional().transform(list),
   zone: z.string().trim().optional(),
   page: z.string().trim().optional(),
   updated_since: iso.optional(),
@@ -94,6 +96,29 @@ export const ResultsQuery = z.object({
   limit,
   offset,
 })
+
+/** GET /api/runs query: run_id, build, updated_since (posted at or after), limit, offset. */
+export const RunsQuery = z.object({
+  run_id: z.string().optional().transform(list),
+  build: z.string().optional().transform(list),
+  updated_since: iso.optional(),
+  limit,
+  offset,
+})
+
+/** Other names callers use for updated_since. */
+const SINCE_ALIASES = ['since', 'updated_after']
+
+/**
+ * Reads a list call's query string. since and updated_after mean updated_since, and a filter the
+ * call does not know is an error rather than silently ignored (which would return everything).
+ */
+export function readQuery<T extends z.ZodObject>(schema: T, params: URLSearchParams): z.ZodSafeParseResult<z.output<T>> {
+  const q: Record<string, string> = {}
+  for (const [k, v] of params) q[SINCE_ALIASES.includes(k) ? 'updated_since' : k] ??= v
+  if (params.has('updated_since')) q.updated_since = params.get('updated_since')!
+  return schema.strict().safeParse(q) as z.ZodSafeParseResult<z.output<T>>
+}
 
 /** Ticket keys follow the workbook: DEV-TC_FN_070 for a defect, MM-TC_FN_070 for a mismatch; -2, -3 when taken. */
 export function nextKey(kind: 'defect' | 'test_mismatch', tcId: string, taken: Set<string>): string {

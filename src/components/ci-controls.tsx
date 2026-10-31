@@ -112,7 +112,7 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
     },
     {
       title: 'Test cases',
-      what: 'In place of the workbook download. Filters: tc_id, zone, page, updated_since (new cases and edits), limit (max 1000), offset. Oldest change first; page with offset until you have total.',
+      what: 'In place of the workbook download, with each case\'s scenario_id and requirement_id. Filters: tc_id, scenario_id, requirement_id, zone, page, updated_since (new cases and edits), limit (max 1000), offset. Oldest change first; page with offset until you have total.',
       curl: `curl "${appUrl}/api/cases?updated_since=2026-10-28T00:00:00Z&limit=1000" \\
   ${auth}`,
     },
@@ -120,6 +120,12 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
       title: 'Results',
       what: 'latest=true gives each case its latest automated and manual result and its mismatch; add mismatch=type_i (automation failed, manual passed), type_ii or any to list just those. Without it, every result, oldest first, filtered by tc_id, kind (auto, manual), result, sprint, run_id, defect_id, updated_since; limit and offset page through.',
       curl: `curl "${appUrl}/api/results?latest=true&updated_since=2026-10-28T00:00:00Z" \\
+  ${auth}`,
+    },
+    {
+      title: 'Runs',
+      what: 'Each automated run posted to /api/results, newest first: run id, build, posted at, posted by (the token and its maker), sprint and a count of each result. Filters: run_id, build, updated_since, limit, offset.',
+      curl: `curl "${appUrl}/api/runs?limit=10" \\
   ${auth}`,
     },
     {
@@ -141,7 +147,7 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
     <section className="card mt-4">
       <header className="border-b border-[var(--line)] px-4 py-2.5">
         <h2 className="text-[14px] font-semibold text-[var(--navy-ink)]">Tickets, cases and results API</h2>
-        <p className="text-[12px] text-[var(--muted)]">Same token. Acts with QA&apos;s rights: it can raise, comment and retest, never skip a step of the workflow.</p>
+        <p className="text-[12px] text-[var(--muted)]">Same token. Acts with QA&apos;s rights: it can raise, comment and retest, never skip a step of the workflow. On the list calls, since and updated_after work as updated_since; a filter a call does not know is a 400, never ignored.</p>
       </header>
       <div className="divide-y divide-[var(--line)]">
         {calls.map((c) => (

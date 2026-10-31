@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { areaPage, diffCases, holdUnlabelledDuplicates, mapHeaders, nextIds, parseCases, parseCsv, parseDelimited, parseTsv } from './import-cases'
+import { applyScenarios, areaPage, diffCases, holdUnlabelledDuplicates, mapHeaders, nextIds, parseCases, parseCsv, parseDelimited, parseScenarios, parseTsv } from './import-cases'
 
 const areas = [
   { id: 'a-signon', zone: 'Engine', page: 'Sign-On' },
@@ -79,7 +79,7 @@ describe('case import', () => {
       ],
       areas,
     )
-    const base = { area_id: 'a-signon', priority: 'High' as const, preconditions: null, steps: null, test_data: null, expected: null, test_type: null }
+    const base = { area_id: 'a-signon', priority: 'High' as const, preconditions: null, steps: null, test_data: null, expected: null, test_type: null, scenario_id: null, requirement_id: null }
     const d = diffCases(cases, [
       { tc_id: 'TC_FN_001', title: 'Same', ...base },
       { tc_id: 'TC_FN_002', title: 'Old name', ...base },
@@ -91,7 +91,7 @@ describe('case import', () => {
   it('never blanks fields the file has no column for', () => {
     const { cases, present } = parseCases([{ 'Test Case ID': 'TC_FN_001', Zone: 'Engine', Page: 'Sign-On', Title: 'Same', Priority: 'High' }], areas)
     expect(present).toEqual([])
-    const d = diffCases(cases, [{ tc_id: 'TC_FN_001', title: 'Same', area_id: 'a-signon', priority: 'High', preconditions: 'p', steps: 's', test_data: null, expected: 'e', test_type: 'UI' }], present)
+    const d = diffCases(cases, [{ tc_id: 'TC_FN_001', title: 'Same', area_id: 'a-signon', priority: 'High', preconditions: 'p', steps: 's', test_data: null, expected: 'e', test_type: 'UI', scenario_id: null, requirement_id: null }], present)
     expect(d[0].status).toBe('unchanged')
   })
 
@@ -107,7 +107,7 @@ describe('case import', () => {
     )
     expect(errors.map((e) => e.row)).toEqual([3])
     expect(cases.map((c) => [c.tc_id, c.row])).toEqual([['TC_FN_001', 2], [null, 4], [null, 5]])
-    const existing = [{ tc_id: 'TC_FN_001', title: 'Login works', area_id: 'a-signon', priority: 'High' as const, preconditions: null, steps: null, test_data: null, expected: null, test_type: null }]
+    const existing = [{ tc_id: 'TC_FN_001', title: 'Login works', area_id: 'a-signon', priority: 'High' as const, preconditions: null, steps: null, test_data: null, expected: null, test_type: null, scenario_id: null, requirement_id: null }]
     const held = holdUnlabelledDuplicates(cases, existing)
     expect(held.cases.map((c) => c.title)).toEqual(['Login works', 'Truly new'])
     expect(held.errors).toEqual([{ row: 4, message: expect.stringContaining('already TC_FN_001') }])
@@ -116,5 +116,25 @@ describe('case import', () => {
   it('numbers new cases after the highest id', () => {
     expect(nextIds(931, 2)).toEqual(['TC_FN_932', 'TC_FN_933'])
     expect(nextIds(7, 1)).toEqual(['TC_FN_008'])
+  })
+
+  it('links cases to scenarios and requirements by the Test Scenarios sheet ranges', () => {
+    const scenarios = parseScenarios([
+      { 'Scenario ID': 'TS_E2E_02', 'Requirement ID': 'REQ_E2E_02', 'First TC ID': 'TC_E2E_004', 'Last TC ID': 'TC_E2E_007' },
+      { 'Scenario ID': 'TS_FN_10', 'Requirement ID': 'REQ_FN_10', 'First TC ID': 'TC_FN_1648', 'Last TC ID': 'TC_FN_1650' },
+      { 'Scenario ID': '', 'Requirement ID': '', 'First TC ID': '', 'Last TC ID': '' },
+    ])
+    expect(scenarios).toHaveLength(2)
+    const areas = [{ id: 'a1', zone: 'Engine', page: 'Sign-On' }]
+    const row = (id: string, extra = {}) => ({ 'Test Case ID': id, Zone: 'Engine', Page: 'Sign-On', Title: 'x', Priority: 'High', 'Scenario ID': '', ...extra })
+    const r = applyScenarios(parseCases([row('TC_E2E_005'), row('TC_FN_1650'), row('TC_FN_070'), row('TC_E2E_006', { 'Scenario ID': 'TS_OWN' })], areas), scenarios)
+    expect(r.cases.map((c) => [c.tc_id, c.scenario_id, c.requirement_id])).toEqual([
+      ['TC_E2E_005', 'TS_E2E_02', 'REQ_E2E_02'],
+      ['TC_FN_1650', 'TS_FN_10', 'REQ_FN_10'],
+      ['TC_FN_070', null, null],
+      ['TC_E2E_006', 'TS_OWN', 'REQ_E2E_02'],
+    ])
+    expect(r.present).toContain('requirement_id')
+    expect(applyScenarios(parseCases([row('TC_E2E_005')], areas), []).present).not.toContain('requirement_id')
   })
 })

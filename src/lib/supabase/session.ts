@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { publicEnv } from '@/lib/env'
 
 // The API routes check their own CI token instead of a session.
-const PUBLIC_PATHS = ['/login', '/auth/', '/api/results', '/api/tickets', '/api/cases', '/api/team']
+const PUBLIC_PATHS = ['/login', '/auth/', '/api/results', '/api/tickets', '/api/cases', '/api/team', '/api/runs']
 
 export function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname.startsWith(p))

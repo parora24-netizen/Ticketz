@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { authenticate, raiseTicket, ticketUrl } from '@/lib/ci-api'
-import { ListQuery, RaisePayload } from '@/lib/tickets-api'
+import { ListQuery, RaisePayload, readQuery } from '@/lib/tickets-api'
 
 /**
  * GET /api/tickets: tickets for the suite or another tool, e.g. ?state=open&tc_id=TC_FN_070,TC_FN_071
@@ -11,7 +11,7 @@ import { ListQuery, RaisePayload } from '@/lib/tickets-api'
 export async function GET(request: NextRequest) {
   const caller = await authenticate(request)
   if (caller instanceof NextResponse) return caller
-  const q = ListQuery.safeParse(Object.fromEntries(request.nextUrl.searchParams))
+  const q = readQuery(ListQuery, request.nextUrl.searchParams)
   if (!q.success) return NextResponse.json({ error: 'Invalid query', issues: q.error.issues.slice(0, 10) }, { status: 400 })
   const f = q.data
 
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
   const sprintName = new Map((sprints ?? []).map((s) => [s.id as string, s.name as string]))
   let query = caller.db.from('ticket_list')
     .select('key, title, kind, state, severity, owner_name, tc_id, zone, page, current_sprint_id, fixed_in_build, blocked_reason, defect_id, logged_on, updated_at', { count: 'exact' })
-    .order('updated_at', { ascending: false }).limit(f.limit)
+    .order('updated_at', { ascending: false }).order('key').limit(f.limit)
   if (f.state) query = query.in('state', f.state)
   if (f.tc_id?.length) query = query.in('tc_id', f.tc_id)
   if (f.defect_id?.length) query = query.in('defect_id', f.defect_id)

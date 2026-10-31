@@ -55,7 +55,7 @@ const TABLE: Record<string, { noun: string; href: (label: string) => string }> =
 const FIELD_LABEL: Record<string, string> = {
   tc_id: 'ID', title: 'Title', priority: 'Priority', severity: 'Severity', automation: 'Automation', area_id: 'Area',
   tester_id: 'Tester', owner_id: 'Owner', preconditions: 'Pre-conditions', steps: 'Steps', test_data: 'Test data',
-  expected: 'Expected', test_type: 'Test type', source_page: 'Workbook page', description: 'Description', state: 'State',
+  expected: 'Expected', test_type: 'Test type', scenario_id: 'Scenario', requirement_id: 'Requirement', source_page: 'Workbook page', description: 'Description', state: 'State',
   kind: 'Kind', case_id: 'Case', current_sprint_id: 'Sprint', found_in_sprint_id: 'Found in', fixed_in_build: 'Fixed in build',
   defer_reason: 'Defer reason', duplicate_of: 'Duplicate of', attachments: 'Screenshots', name: 'Name', email: 'Email',
   role: 'Role', active: 'Active', starts_on: 'Starts', ends_on: 'Ends', goal: 'Goal', status: 'Status',

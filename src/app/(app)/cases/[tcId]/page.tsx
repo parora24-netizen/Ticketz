@@ -83,6 +83,8 @@ export default async function CasePage({
               <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Priority</dt><dd><PriorityChip p={c.priority} /></dd></div>
               <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Last automated</dt><dd><ResultChip r={lastAuto} /></dd></div>
               <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Last manual</dt><dd><ResultChip r={lastManual} /></dd></div>
+              {c.scenario_id && <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Scenario</dt><dd className="mono">{c.scenario_id}</dd></div>}
+              {c.requirement_id && <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Requirement</dt><dd className="mono">{c.requirement_id}</dd></div>}
               {c.test_type && <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Type</dt><dd>{c.test_type}</dd></div>}
               <div className="px-4 py-2.5"><dt className="label mb-1">Automation</dt><dd><CaseAutomationField caseId={c.id} value={c.automation} disabled={!canTest} /></dd></div>
             </dl>

@@ -3,10 +3,10 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { getMe } from '@/lib/auth'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/data'
-import { OPTIONAL_FIELDS, applyScenarios, diffCases, holdUnlabelledDuplicates, nextIds, parseCases, parseCsv, parseScenarios, parseTsv, type CaseInput, type Existing, type OptionalField, type Scenario } from '@/lib/import-cases'
-import { xlsxRecords } from '@/lib/xlsx-records'
+import { OPTIONAL_FIELDS, applyScenarios, diffCases, holdUnlabelledDuplicates, nextIds, parseCases, parseCsv, parseFramework, parseScenarios, parseTsv, type CaseInput, type Existing, type OptionalField, type Scenario } from '@/lib/import-cases'
+import { xlsxRecords, xlsxSheetRows } from '@/lib/xlsx-records'
 
 export type PreviewRow = {
   row: number | null
@@ -24,7 +24,9 @@ export type ImportState = {
   errors?: { row: number; message: string }[]
   counts?: { new: number; updated: number; unchanged: number }
   payload?: string // the cases to save, sent back on confirm
-  done?: { added: number; updated: number; firstNewId?: string }
+  /** Pages the Framework tab marks Completed that Launchpad does not yet. */
+  completing?: string[]
+  done?: { added: number; updated: number; firstNewId?: string; completed?: number }
 }
 
 const MAX_FILE = 8 * 1024 * 1024
@@ -39,6 +41,7 @@ export async function previewImport(_prev: ImportState, formData: FormData): Pro
   let records: Record<string, string>[] = []
   let rowNumbers: number[] | undefined
   let scenarios: Scenario[] = []
+  let completedPages: { zone: string; page: string }[] = []
   let source = ''
   if (file instanceof File && file.size > 0) {
     if (file.size > MAX_FILE) return { error: 'That file is over 8 MB' }
@@ -52,6 +55,8 @@ export async function previewImport(_prev: ImportState, formData: FormData): Pro
       // The Test Scenarios sheet links cases to scenario and requirement ids by TC ranges.
       const s = await xlsxRecords(buf, ['Scenario ID'])
       scenarios = s ? parseScenarios(s.rows) : []
+      const fw = await xlsxSheetRows(buf, 'Framework')
+      completedPages = fw ? parseFramework(fw).filter((f) => f.completed) : []
       source = `${file.name} · sheet "${r.sheet}"${scenarios.length ? ` + ${scenarios.length} scenarios from "${s!.sheet}"` : ''}`
     } else if (name.endsWith('.csv')) {
       records = parseCsv(await file.text())
@@ -64,7 +69,10 @@ export async function previewImport(_prev: ImportState, formData: FormData): Pro
   if (!records.length) return { error: 'No rows found under the header row' }
 
   const supabase = await createClient()
-  const { data: areas } = await supabase.from('areas').select('id, zone, page')
+  const { data: areas } = await supabase.from('areas').select('id, zone, page, cases_done_on')
+  const key = (zone: string, page: string) => `${zone.trim().toLowerCase()}|${page.trim().toLowerCase()}`
+  const done = new Set(completedPages.map((f) => key(f.zone, f.page)))
+  const completing = (areas ?? []).filter((a) => !a.cases_done_on && done.has(key(a.zone, a.page)))
   const parsed = applyScenarios(parseCases(records, areas ?? [], 2, rowNumbers), scenarios)
   const { present } = parsed
   const existing = await fetchAll<Existing>((from, to) =>
@@ -80,6 +88,7 @@ export async function previewImport(_prev: ImportState, formData: FormData): Pro
     source,
     errors,
     counts,
+    completing: completing.map((a) => `${a.zone} · ${a.page}`),
     rows: diff.map((d) => ({
       row: d.case.row ?? null,
       tc_id: d.case.tc_id,
@@ -89,7 +98,7 @@ export async function previewImport(_prev: ImportState, formData: FormData): Pro
       status: d.status,
       changed: d.changed,
     })),
-    payload: JSON.stringify({ present, cases: diff.filter((d) => d.status !== 'unchanged').map(({ case: { row: _row, ...c } }) => c) }),
+    payload: JSON.stringify({ present, completing: completing.map((a) => a.id), cases: diff.filter((d) => d.status !== 'unchanged').map(({ case: { row: _row, ...c } }) => c) }),
   }
 }
 
@@ -116,14 +125,26 @@ export async function commitImport(_prev: ImportState, formData: FormData): Prom
   if (me.role === 'dev') return { error: 'Only QA or the lead import test cases' }
   let parsed: CaseInput[]
   let present: OptionalField[]
+  let completing: string[]
   try {
-    const body = z.object({ present: z.array(z.enum(OPTIONAL_FIELDS)), cases: z.array(CaseSchema).max(5000) }).parse(JSON.parse(String(formData.get('payload') ?? '{}')))
+    const body = z.object({ present: z.array(z.enum(OPTIONAL_FIELDS)), completing: z.array(z.uuid()).max(200).default([]), cases: z.array(CaseSchema).max(5000) }).parse(JSON.parse(String(formData.get('payload') ?? '{}')))
     parsed = body.cases
     present = body.present
+    completing = body.completing
   } catch {
     return { error: 'The preview expired. Upload the file again.' }
   }
-  if (!parsed.length) return { done: { added: 0, updated: 0 } }
+  // Pages the Framework tab marks Completed. Only the lead may edit pages, so this one change, which
+  // only ever sets a missing date, is made with the server's key for whoever imports.
+  let completed = 0
+  if (completing.length) {
+    const { count } = await createServiceClient().from('areas')
+      .update({ cases_done_on: new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10) }, { count: 'exact' })
+      .in('id', completing).is('cases_done_on', null)
+    completed = count ?? 0
+    revalidatePath('/cases/progress')
+  }
+  if (!parsed.length) return { done: { added: 0, updated: 0, completed } }
 
   const supabase = await createClient()
   const ids = await fetchAll<{ tc_id: string }>((from, to) => supabase.from('test_cases').select('tc_id').range(from, to))
@@ -153,5 +174,5 @@ export async function commitImport(_prev: ImportState, formData: FormData): Prom
   const added = toAdd.length
   const firstNewId = toAdd[0]?.tc_id as string | undefined
   revalidatePath('/', 'layout')
-  return { done: { added, updated: toUpdate.length, firstNewId } }
+  return { done: { added, updated: toUpdate.length, firstNewId, completed } }
 }

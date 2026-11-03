@@ -9,7 +9,7 @@ export type ProgressArea = { id: string; zone: string; page: string; sort: numbe
 export type ProgressCase = { area_id: string; priority: Priority; automation: Automation; auto_result: RunResult | null; manual_result: RunResult | null }
 
 export type Writing = 'done' | 'writing' | 'not_started'
-export const WRITING_LABEL: Record<Writing, string> = { done: 'Written', writing: 'Writing', not_started: 'Not started' }
+export const WRITING_LABEL: Record<Writing, string> = { done: 'Completed', writing: 'Writing', not_started: 'Not started' }
 
 export type Counts = {
   cases: number

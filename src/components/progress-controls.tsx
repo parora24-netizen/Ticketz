@@ -35,13 +35,13 @@ export function PageOwnerFields({ areaId, ownerId, dueOn, people }: { areaId: st
   )
 }
 
-/** The writer or lead: mark a page's cases written, or reopen it. */
+/** The writer or lead: mark a page's cases completed (as on the Framework tab), or reopen it. */
 export function WrittenButton({ areaId, done, page }: { areaId: string; done: boolean; page: string }) {
   const { pending, save } = useSave(areaId)
   return (
     <button type="button" disabled={pending} className="btn btn-sm"
-      onClick={() => save({ done: !done }, done ? `${page} reopened for writing` : `${page} marked written`)}>
-      {done ? 'Reopen' : 'Mark written'}
+      onClick={() => save({ done: !done }, done ? `${page} reopened for writing` : `${page} marked completed`)}>
+      {done ? 'Reopen' : 'Mark completed'}
     </button>
   )
 }

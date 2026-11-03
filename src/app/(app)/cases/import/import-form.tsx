@@ -22,7 +22,7 @@ export function ImportForm() {
       <div className="card p-6">
         <h2 className="text-[17px] font-semibold">Import saved</h2>
         <p className="mt-2 text-[13px] text-[var(--ink-2)]">
-          {result.done.added} new test cases added, {result.done.updated} updated. Automation status and results were kept.
+          {result.done.added} new test cases added, {result.done.updated} updated{result.done.completed ? `, ${result.done.completed} pages marked Completed` : ''}. Automation status and results were kept.
         </p>
         <div className="mt-4 flex gap-2">
           <Link href="/cases" className="btn btn-primary">Open test cases</Link>
@@ -69,6 +69,11 @@ export function ImportForm() {
                 <b className="text-[var(--good)]">{preview.counts.new} new</b> · <b className="text-[var(--accent)]">{preview.counts.updated} changed</b> ·{' '}
                 {preview.counts.unchanged} unchanged{preview.errors?.length ? <> · <b className="text-[var(--crit)]">{preview.errors.length} rows skipped</b></> : null}
               </div>
+              {preview.completing?.length ? (
+                <div className="mt-1 text-[12px] text-[var(--muted)]">
+                  The Framework tab marks <b className="text-[var(--good)]">{preview.completing.length} more pages Completed</b>: {preview.completing.join(', ')}
+                </div>
+              ) : null}
             </div>
             <div className="ml-auto flex items-center gap-2">
               <select className="select" value={show} onChange={(e) => setShow(e.target.value as 'changes' | 'all')}>
@@ -77,7 +82,7 @@ export function ImportForm() {
               </select>
               <form action={commitAction}>
                 <input type="hidden" name="payload" value={preview.payload} />
-                <SubmitButton primary pendingText="Saving…" disabled={!preview.counts.new && !preview.counts.updated}>
+                <SubmitButton primary pendingText="Saving…" disabled={!preview.counts.new && !preview.counts.updated && !preview.completing?.length}>
                   Save {preview.counts.new + preview.counts.updated} {preview.counts.new + preview.counts.updated === 1 ? 'case' : 'cases'}
                 </SubmitButton>
               </form>

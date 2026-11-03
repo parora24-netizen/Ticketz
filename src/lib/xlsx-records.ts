@@ -14,6 +14,18 @@ export function cellText(v: Cell): string {
   return String(v).trim()
 }
 
+/** Every row of the sheet called `name` (any case) as cell text, or null if there is none. */
+export async function xlsxSheetRows(buf: ArrayBuffer, name: string): Promise<string[][] | null> {
+  const { default: Excel } = await import('exceljs')
+  const wb = new Excel.Workbook()
+  await wb.xlsx.load(buf)
+  const ws = wb.worksheets.find((w) => w.name.trim().toLowerCase() === name.toLowerCase())
+  if (!ws) return null
+  const rows: string[][] = []
+  ws.eachRow((row) => { rows.push((row.values as Cell[]).map(cellText)) })
+  return rows
+}
+
 /**
  * Records from the sheet that holds test cases: the first sheet whose header row has one of
  * `titleHeaders`. The widest such row is the header (side tables repeat headers in narrower rows).

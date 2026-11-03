@@ -52,9 +52,9 @@ export default async function ProgressPage() {
       <PageHeader sub={`${all.cases.toLocaleString()} cases across ${pages.length} pages · as of ${fmtDate(today)}`} />
 
       <section className="grid gap-3 lg:grid-cols-3" aria-label="The flow">
-        <FlowStep n="①" title="Write" value={`${written} of ${pages.length}`} unit="pages written"
+        <FlowStep n="①" title="Write" value={`${written} of ${pages.length}`} unit="pages completed"
           line={`${all.cases.toLocaleString()} cases${due ? ` · due ${fmtDate(due)} (${Math.max(daysUntil(due), 0)} days)` : ''}`}
-          parts={[{ value: written, tone: 'good', label: 'Written' }, { value: pages.length - written - notStarted.length, tone: 'accent', label: 'Writing' }, { value: notStarted.length, tone: 'muted', label: 'Not started' }]} />
+          parts={[{ value: written, tone: 'good', label: 'Completed' }, { value: pages.length - written - notStarted.length, tone: 'accent', label: 'Writing' }, { value: notStarted.length, tone: 'muted', label: 'Not started' }]} />
         <FlowStep n="②" title="Automate" value={`${pct(all.automated, all.cases)}%`} unit={`${all.automated.toLocaleString()} of ${all.cases.toLocaleString()} automated`}
           line={`${all.autoPassed.toLocaleString()} passing in their latest run (${pct(all.autoPassed, all.automated)}%)`}
           parts={[{ value: all.autoPassed, tone: 'good', label: 'Automated, passing' }, { value: all.automated - all.autoPassed, tone: 'warn', label: 'Automated, not passing' }, { value: all.cases - all.automated, tone: 'muted', label: 'Not automated' }]} />
@@ -106,7 +106,7 @@ export default async function ProgressPage() {
                     <b className="font-semibold">{w.name}</b>
                     <span className="text-[var(--muted)]">{w.done} of {w.pages} pages · {w.cases.toLocaleString()} cases</span>
                   </div>
-                  <div className="mt-1.5"><Bar parts={[{ value: w.done, tone: 'good', label: 'Written' }, { value: w.pages - w.done, tone: 'muted', label: 'To finish' }]} /></div>
+                  <div className="mt-1.5"><Bar parts={[{ value: w.done, tone: 'good', label: 'Completed' }, { value: w.pages - w.done, tone: 'muted', label: 'To finish' }]} /></div>
                 </li>
               ))}
             </ul>

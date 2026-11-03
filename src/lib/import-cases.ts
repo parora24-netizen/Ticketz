@@ -182,6 +182,25 @@ export function parseDelimited(text: string, sep: string): string[][] {
 export type Existing = Pick<CaseInput, 'title' | 'area_id' | 'priority' | 'preconditions' | 'steps' | 'test_data' | 'expected' | 'test_type' | 'scenario_id' | 'requirement_id'> & { tc_id: string }
 
 /**
+ * The workbook's Framework tab: pages and whether their cases are Completed. The tab holds the old
+ * framework and V2 side by side, both headed Zone and Page, so the V2 columns are the last Zone and
+ * Page before Owner, and the status is under Date.
+ */
+export function parseFramework(rows: string[][]): { zone: string; page: string; completed: boolean }[] {
+  const at = rows.findIndex((r) => r.some((c) => norm(c) === 'owner') && r.some((c) => norm(c) === 'date'))
+  if (at < 0) return []
+  const head = rows[at].map(norm)
+  const owner = head.indexOf('owner')
+  const last = (name: string) => head.slice(0, owner).lastIndexOf(name)
+  const [z, p, d] = [last('zone'), last('page'), head.indexOf('date')]
+  if (z < 0 || p < 0) return []
+  return rows.slice(at + 1).flatMap((r) => {
+    const zone = (r[z] ?? '').trim(), page = (r[p] ?? '').trim()
+    return zone && page ? [{ zone, page, completed: /^complete/i.test((r[d] ?? '').trim()) }] : []
+  })
+}
+
+/**
  * The workbook's Test Scenarios sheet: each scenario names its requirement and the run of cases
  * it covers, First TC ID to Last TC ID (e.g. TC_E2E_004 to TC_E2E_007).
  */

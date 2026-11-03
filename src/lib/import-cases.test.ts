@@ -138,3 +138,11 @@ describe('case import', () => {
     expect(applyScenarios(parseCases([row('TC_E2E_005')], areas), []).present).not.toContain('requirement_id')
   })
 })
+
+describe('framework v2', () => {
+  it('reads Zone v2 over Zone when a sheet has both', () => {
+    const { map } = mapHeaders(['Test Case ID', 'Zone', 'Zone v2', 'Page', 'Test Case Title', 'Priority'])
+    expect(map.zone).toBe('Zone v2')
+    expect(mapHeaders(['Zone', 'Page', 'Title', 'Priority']).map.zone).toBe('Zone')
+  })
+})

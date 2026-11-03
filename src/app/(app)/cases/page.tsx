@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { PageHeader } from '@/components/ui'
+import { CASES_TABS, Tabs } from '@/components/tabs'
 import { getMe } from '@/lib/auth'
 import { loadAreas, loadCases, loadPeople, loadSprintAreas, loadSprintRuns, loadSprints, toStageInput } from '@/lib/data'
 import { STAGE_LABEL, caseStage, mismatch, type Stage } from '@/lib/workflow/case-stage'
@@ -42,6 +43,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
 
   return (
     <>
+      <Tabs items={CASES_TABS} active="all" />
       <PageHeader sub={scopeText ? <>{scopeText} · <Link href="/cases" className="text-[var(--accent)] hover:underline">show all</Link></> : `${all.length} cases across ${areas.length} areas`}>
         {sp.mismatch
           ? (['type_i', 'type_ii'] as const).map((k) => (

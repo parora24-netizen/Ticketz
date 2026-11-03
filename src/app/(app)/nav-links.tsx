@@ -13,7 +13,7 @@ const ITEMS: Item[] = [
   { href: '/', label: 'For you', icon: HomeIcon, match: ['/mine'] },
   { href: '/sprint', label: 'Sprints', icon: SprintIcon, match: ['/sprint', '/sprints'] },
   { href: '/tickets', label: 'Tickets', icon: TicketIcon, match: ['/tickets'] },
-  { href: '/cases', label: 'Test cases', icon: CasesIcon, match: ['/cases'] },
+  { href: '/cases/progress', label: 'Test cases', icon: CasesIcon, match: ['/cases'] },
   { href: '/release', label: 'Release', icon: ReleaseIcon, match: ['/release', '/plan', '/areas'] },
   { href: '/admin', label: 'Admin', icon: AdminIcon, match: ['/admin'], lead: true },
 ]

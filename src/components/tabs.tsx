@@ -24,6 +24,11 @@ export const ADMIN_TABS = [
   { key: 'ci', href: '/admin?tab=ci', label: 'CI tokens' },
 ]
 
+export const CASES_TABS = [
+  { key: 'progress', href: '/cases/progress', label: 'Progress' },
+  { key: 'all', href: '/cases', label: 'All cases' },
+]
+
 export const RELEASE_TABS = [
   { key: 'overview', href: '/release', label: 'Overview' },
   { key: 'plan', href: '/plan', label: 'Plan' },

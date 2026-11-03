@@ -34,7 +34,8 @@ export type OptionalField = (typeof OPTIONAL_FIELDS)[number]
 /** Header spellings we accept, normalised to lower case without punctuation. */
 const ALIASES: Record<keyof Omit<CaseInput, 'area_id' | 'source_page' | 'row'>, string[]> = {
   tc_id: ['test case id', 'tc id', 'id', 'test id'],
-  zone: ['zone'],
+  // The Framework V2 column wins over the old one when a sheet has both.
+  zone: ['zone v2', 'zone'],
   page: ['page', 'area'],
   title: ['test case title', 'title', 'test case', 'name'],
   preconditions: ['pre-conditions', 'preconditions', 'pre conditions'],
@@ -53,10 +54,11 @@ const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ')
 export function mapHeaders(headers: string[]): { map: Partial<Record<keyof typeof ALIASES, string>>; missing: string[] } {
   const map: Partial<Record<keyof typeof ALIASES, string>> = {}
   for (const [field, names] of Object.entries(ALIASES) as [keyof typeof ALIASES, string[]][]) {
-    const h = headers.find((x) => names.includes(norm(x)))
+    // Aliases in order of preference, so 'Zone v2' is picked over 'Zone'.
+    const h = names.map((n) => headers.find((x) => norm(x) === n)).find(Boolean)
     if (h) map[field] = h
   }
-  const missing = (['zone', 'page', 'title', 'priority'] as const).filter((f) => !map[f]).map((f) => ALIASES[f][0])
+  const missing = (['zone', 'page', 'title', 'priority'] as const).filter((f) => !map[f]).map((f) => (f === 'zone' ? 'zone' : ALIASES[f][0]))
   return { map, missing }
 }
 

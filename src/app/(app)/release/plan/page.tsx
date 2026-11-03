@@ -26,14 +26,15 @@ export default async function PlanPage() {
   const pages = pageProgress(areas, cases, today)
   const rows: PlanRow[] = pages.map((p) => {
     const st = pageStatus(p)
-    const test = sprintAreas.filter((x) => x.area_id === p.id).map((x) => sprints.find((s) => s.id === x.sprint_id))
-      .filter((s) => s?.kind === 'test').sort((a, b) => (a!.status === 'closed' ? 1 : 0) - (b!.status === 'closed' ? 1 : 0))[0]
     const fix = fixSprintForArea(p.id, sprints, sprintAreas)
+    // Tested (automation and by hand) the week before its fix sprint.
+    const shift = (d: string, days: number) => new Date(Date.parse(`${d}T00:00:00Z`) + days * 864e5).toISOString().slice(0, 10)
+    const test = fix ? { name: 'Week of', starts_on: shift(fix.starts_on, -7), ends_on: shift(fix.starts_on, -3) } : null
     return {
       id: p.id, zone: p.zone, page: p.page, writer: p.owner_id ? name.get(p.owner_id) ?? 'Someone' : '', owner_id: p.owner_id ?? null,
       due_on: p.due_on ?? null, writing: st.writing, done: p.writing === 'done', late: p.late,
       automate_due_on: p.automate_due_on ?? null, automation: st.automation, automateLate: p.automateLate,
-      test: test?.name ?? '', testDates: dates(test), testStart: test?.starts_on ?? '',
+      test: test ? dates(test) : '', testStart: test?.starts_on ?? '',
       fix: fix?.name ?? '', fixDates: dates(fix), fixStart: fix?.starts_on ?? '',
     }
   })

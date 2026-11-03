@@ -10,7 +10,7 @@ export type PlanRow = {
   id: string; zone: string; page: string; writer: string; owner_id: string | null
   due_on: string | null; writing: string; done: boolean; late: boolean
   automate_due_on: string | null; automation: string; automateLate: boolean
-  test: string; testDates: string; testStart: string; fix: string; fixDates: string; fixStart: string
+  test: string; testStart: string; fix: string; fixDates: string; fixStart: string
 }
 
 const fmt = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
@@ -36,7 +36,7 @@ export function PlanGrid({ rows, team, isLead }: { rows: PlanRow[]; team: { valu
     { key: 'autoDue', header: 'Automation due', width: 130, mono: true, value: (r) => (r.automation === 'Fully automated' ? '' : r.automate_due_on) ?? '',
       render: (r) => (r.automation === 'Fully automated' ? dash : due(r.automate_due_on, r.automateLate)),
       edit: lead({ field: 'automate_due_on', kind: 'date' as const }), editable: (r) => r.automation !== 'Fully automated' },
-    { key: 'test', header: 'Tested in', width: 170, value: (r) => r.test, sortValue: (r) => r.testStart, render: (r) => sprint(r.test, r.testDates) },
+    { key: 'test', header: 'Tested', width: 130, value: (r) => r.test, sortValue: (r) => r.testStart, render: (r) => r.test || <span className="text-[var(--faint)]">—</span> },
     { key: 'fix', header: 'Fixed in', width: 170, value: (r) => r.fix, sortValue: (r) => r.fixStart, render: (r) => sprint(r.fix, r.fixDates) },
   ]
   const bulk: BulkField[] = isLead ? [
@@ -49,7 +49,7 @@ export function PlanGrid({ rows, team, isLead }: { rows: PlanRow[]; team: { valu
       charts={[
         { key: 'writing', title: 'Writing', order: ['Completed', 'Writing', 'Late', 'Not started'] },
         { key: 'automation', title: 'Automation', order: ['Fully automated', 'Partly', 'Late', 'Not started', 'No cases'] },
-        { key: 'test', title: 'Tested in' },
+        { key: 'test', title: 'Tested' },
         { key: 'fix', title: 'Fixed in' },
       ]}
       bulkFields={bulk}

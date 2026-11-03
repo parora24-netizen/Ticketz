@@ -149,8 +149,12 @@ export function toStageInput(c: CaseRow, _runs?: { auto: Set<string>; manual: Se
 export type Track = 'qa' | 'dev'
 export const trackOf = (s: { kind: Sprint['kind'] }): Track => (s.kind === 'fix' ? 'dev' : 'qa')
 
-/** A track's running sprint: the one marked active, else the one whose dates cover today. QA's by default. */
-export function currentSprint(sprints: Sprint[], today = new Date().toISOString().slice(0, 10), track: Track = 'qa'): Sprint | null {
+/**
+ * A track's running sprint: the one marked active, else the one whose dates cover today. Without a
+ * track, QA's, else the devs' (weeks with only a fix sprint running).
+ */
+export function currentSprint(sprints: Sprint[], today = new Date().toISOString().slice(0, 10), track?: Track): Sprint | null {
+  if (!track) return currentSprint(sprints, today, 'qa') ?? currentSprint(sprints, today, 'dev')
   const mine = sprints.filter((s) => trackOf(s) === track)
   return (
     mine.find((s) => s.status === 'active') ??

@@ -96,7 +96,7 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
     },
     {
       title: 'Comment',
-      what: 'Shown on the ticket as "CI: …", credited to whoever made the token.',
+      what: 'Shown on the ticket as a comment by CI.',
       curl: `curl -X POST "${appUrl}/api/tickets/DEV-TC_FN_071/comments" \\
   ${auth} \\
   -H "Content-Type: application/json" \\
@@ -130,7 +130,7 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
     },
     {
       title: 'Comment on a case',
-      what: 'A question or note on a test case, where the testers read it. @Name (a name from /api/team) notifies that person; the case\'s tester hears of the rest. GET the same path to read them.',
+      what: 'A question or note on a test case, by CI, where the testers read it. @Name (a name from /api/team) notifies that person; the case\'s tester hears of the rest. GET the same path to read them.',
       curl: `curl -X POST "${appUrl}/api/cases/TC_FN_071/comments" \\
   ${auth} \\
   -H "Content-Type: application/json" \\

@@ -24,7 +24,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 /**
  * POST /api/cases/{tc_id}/comments: a question or note on a test case, where the testers read it.
  * "@Name" (a name from GET /api/team) notifies that person; the case's tester hears of the rest.
- * Body: { body }. Shows as "CI: …".
+ * Body: { body }. Shows as a comment by CI.
  */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ tcId: string }> }) {
   const caller = await authenticate(request)

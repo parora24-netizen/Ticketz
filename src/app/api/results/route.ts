@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { currentSprint, type Sprint } from '@/lib/data'
 import { ResultsPayload, bearer, lastPerCase } from '@/lib/results'
-import { authenticate, raiseTicket } from '@/lib/ci-api'
+import { authenticate, ciActor, raiseTicket } from '@/lib/ci-api'
 import { ResultsQuery, readQuery } from '@/lib/tickets-api'
 import { mismatch, type RunResult } from '@/lib/workflow/case-stage'
 
@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
   // defect_id when sent). Only failed results raise: known_defect, skipped and passed never do.
   const tickets: { tc_id: string; key?: string; created?: boolean; error?: string }[] = []
   if (parsed.data.raise_tickets) {
-    const caller = { db: supabase, tokenId: tok.id, actorId: tok.created_by as string | null }
+    const caller = { db: supabase, tokenId: tok.id, actorId: await ciActor(supabase, tok.created_by as string | null) }
     for (const r of results.filter((x) => x.status === 'failed' && caseIds.has(x.tc_id)).slice(0, 200)) {
       const res = await raiseTicket(caller, { tc_id: r.tc_id, kind: 'defect', build, run_id, error: r.error, url: r.url, defect_id: r.defect_id })
       tickets.push('error' in res ? { tc_id: r.tc_id, error: res.error } : { tc_id: r.tc_id, key: res.key, created: res.created })

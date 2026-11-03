@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { addComment, authenticate } from '@/lib/ci-api'
 import { CommentPayload } from '@/lib/tickets-api'
 
-/** POST /api/tickets/{key}/comments: add a note, e.g. a log link. Body: { body }. Shows as "CI: …". */
+/** POST /api/tickets/{key}/comments: add a note, e.g. a log link. Body: { body }. Shows as a comment by CI. */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ key: string }> }) {
   const caller = await authenticate(request)
   if (caller instanceof NextResponse) return caller

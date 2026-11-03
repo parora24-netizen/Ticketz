@@ -35,10 +35,12 @@ export default async function ProgressPage() {
   // Follow-ups, as on the Dashboard
   const notStarted = pages.filter((p) => p.writing === 'not_started')
   const late = pages.filter((p) => p.late)
+  const autoLate = pages.filter((p) => p.automateLate)
   const skipped = cases.filter((c) => c.auto_result === 'skipped').length
   const mismatches = cases.filter((c) => mismatch(c.auto_result, c.manual_result)).length
   const follow = [
     late.length && { text: `${late.length} page${late.length > 1 ? 's are' : ' is'} past the writing date`, detail: late.map((p) => `${p.zone} · ${p.page}`).join(', '), tone: 'crit' as const },
+    autoLate.length && { text: `${autoLate.length} page${autoLate.length > 1 ? 's are' : ' is'} past the automation date`, detail: autoLate.map((p) => `${p.zone} · ${p.page} (${p.automated} of ${p.cases})`).join(', '), tone: 'crit' as const },
     notStarted.length && { text: `${notStarted.length} page${notStarted.length > 1 ? 's have' : ' has'} no cases yet`, detail: notStarted.map((p) => `${p.zone} · ${p.page}`).join(', '), tone: 'warn' as const },
     all.untested && { text: `${all.untested} cases still need a manual test`, detail: 'Critical/High cases, cases not automated, and cases automation did not pass.', href: '/cases?stage=test', tone: 'accent' as const },
     mismatches && { text: `${mismatches} cases where automation and manual testing disagree`, detail: 'Either the automated test misses what a person catches, or a known defect is fixed.', href: '/cases?mismatch=1', tone: 'warn' as const },
@@ -159,7 +161,15 @@ function PageRow({ p, owner, isLead, canMark, team }: { p: PageProgress; owner: 
         </span>
       </td>
       <td className="px-2 py-2 text-right tabular-nums">{p.cases || <span className="text-[var(--faint)]">0</span>}</td>
-      <td className="w-[130px] px-2 py-2">{p.cases ? <MiniBar n={p.automated} of={p.cases} parts={[{ value: p.autoPassed, tone: 'good', label: 'Passing' }, { value: p.automated - p.autoPassed, tone: 'warn', label: 'Not passing' }, { value: p.cases - p.automated, tone: 'muted', label: 'Not automated' }]} /> : null}</td>
+      <td className="w-[170px] px-2 py-2">
+        {p.cases ? <MiniBar n={p.automated} of={p.cases} parts={[{ value: p.autoPassed, tone: 'good', label: 'Passing' }, { value: p.automated - p.autoPassed, tone: 'warn', label: 'Not passing' }, { value: p.cases - p.automated, tone: 'muted', label: 'Not automated' }]} /> : null}
+        {!(p.cases && p.automated === p.cases) && (
+          <div className={`mt-1 text-[11.5px] ${p.automateLate ? 'font-semibold text-[var(--crit)]' : 'text-[var(--muted)]'}`}>
+            {isLead ? <DueDate areaId={p.id} dueOn={p.automate_due_on ?? null} field="automate_due_on" />
+              : p.automate_due_on ? `due ${fmtDate(p.automate_due_on)}${p.automateLate ? ', late' : ''}` : null}
+          </div>
+        )}
+      </td>
       <td className="w-[130px] px-2 py-2">{p.needManual ? <MiniBar n={p.manualDone} of={p.needManual} parts={[{ value: p.manualPassed, tone: 'good', label: 'Passed' }, { value: p.manualDone - p.manualPassed, tone: 'crit', label: 'Not passed' }, { value: p.untested, tone: 'muted', label: 'Left' }]} /> : null}</td>
       <td className="px-2 py-2 text-right tabular-nums">{p.untested || <span className="text-[var(--faint)]">0</span>}</td>
       <td className="px-4 py-2 text-right">{canMark && (p.cases > 0 || p.writing === 'done') && <WrittenButton areaId={p.id} done={p.writing === 'done'} page={p.page} />}</td>

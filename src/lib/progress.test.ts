@@ -27,6 +27,9 @@ describe('test case progress', () => {
       ['Create', 'writing', true],
       ['APIs', 'not_started', true],
     ])
+    const auto = pageProgress([{ id: 'a1', zone: 'E', page: 'P', sort: 1, automate_due_on: '2026-11-07' }, { id: 'a2', zone: 'E', page: 'Q', sort: 2, automate_due_on: '2026-11-07' }],
+      [c({ area_id: 'a1', automation: 'automated' }), c({ area_id: 'a2' })], '2026-11-10')
+    expect(auto.map((p) => p.automateLate)).toEqual([false, true])
     expect(pct(1, 3)).toBe(33)
     expect(pct(1, 0)).toBe(0)
   })

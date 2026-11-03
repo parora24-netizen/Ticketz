@@ -5,7 +5,7 @@ import { needsManual, type Automation, type Priority, type RunResult } from '@/l
  * them, ③ test by hand what automation does not cover. Pure, for the Test cases progress page.
  */
 
-export type ProgressArea = { id: string; zone: string; page: string; sort: number; in_release?: boolean; owner_id?: string | null; due_on?: string | null; cases_done_on?: string | null }
+export type ProgressArea = { id: string; zone: string; page: string; sort: number; in_release?: boolean; owner_id?: string | null; due_on?: string | null; cases_done_on?: string | null; automate_due_on?: string | null }
 export type ProgressCase = { area_id: string; priority: Priority; automation: Automation; auto_result: RunResult | null; manual_result: RunResult | null }
 
 export type Writing = 'done' | 'writing' | 'not_started'
@@ -39,7 +39,7 @@ export function count(cases: ProgressCase[]): Counts {
   return c
 }
 
-export type PageProgress = ProgressArea & Counts & { writing: Writing; late: boolean }
+export type PageProgress = ProgressArea & Counts & { writing: Writing; late: boolean; automateLate: boolean }
 
 /** Each page in the release with its counts and writing status; `today` as YYYY-MM-DD. */
 export function pageProgress(areas: ProgressArea[], cases: ProgressCase[], today: string): PageProgress[] {
@@ -48,7 +48,8 @@ export function pageProgress(areas: ProgressArea[], cases: ProgressCase[], today
   return areas.filter((a) => a.in_release !== false).sort((a, b) => a.sort - b.sort).map((a) => {
     const n = count(byArea.get(a.id) ?? [])
     const writing: Writing = a.cases_done_on ? 'done' : n.cases ? 'writing' : 'not_started'
-    return { ...a, ...n, writing, late: writing !== 'done' && !!a.due_on && a.due_on < today }
+    const allAutomated = n.cases > 0 && n.automated === n.cases
+    return { ...a, ...n, writing, late: writing !== 'done' && !!a.due_on && a.due_on < today, automateLate: !allAutomated && !!a.automate_due_on && a.automate_due_on < today }
   })
 }
 

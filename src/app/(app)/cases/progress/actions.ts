@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/server'
 const Patch = z.object({
   owner_id: z.uuid().nullable().optional(),
   due_on: z.iso.date().nullable().optional(),
+  automate_due_on: z.iso.date().nullable().optional(),
   /** true marks the page's cases written today; false reopens it. */
   done: z.boolean().optional(),
 })
@@ -19,7 +20,7 @@ export async function updatePageWriting(areaId: string, patch: z.infer<typeof Pa
   if (!v.success || !z.uuid().safeParse(areaId).success) return { error: 'That change was not understood' }
   const supabase = await createClient()
   const { data: area } = await supabase.from('areas').select('owner_id').eq('id', areaId).single()
-  const onlyDone = v.data.owner_id === undefined && v.data.due_on === undefined
+  const onlyDone = v.data.owner_id === undefined && v.data.due_on === undefined && v.data.automate_due_on === undefined
   if (me.role !== 'lead' && !(onlyDone && area?.owner_id === me.id)) return { error: 'Only the lead or the page\'s writer can change this' }
   const { done, ...rest } = v.data
   const row = { ...rest, ...(done === undefined ? {} : { cases_done_on: done ? new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10) : null }) }

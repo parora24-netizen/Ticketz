@@ -5,7 +5,7 @@ import type { Automation, CaseForStage, Priority, RunResult } from '@/lib/workfl
 import type { TicketState } from '@/lib/workflow/ticket-machine'
 
 
-export type Area = { id: string; zone: string; page: string; sort: number; in_release?: boolean; owner_id?: string | null; due_on?: string | null; cases_done_on?: string | null }
+export type Area = { id: string; zone: string; page: string; sort: number; in_release?: boolean; owner_id?: string | null; due_on?: string | null; cases_done_on?: string | null; automate_due_on?: string | null }
 export type Sprint = {
   id: string
   name: string

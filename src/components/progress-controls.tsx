@@ -31,14 +31,14 @@ export function WriterSelect({ areaId, ownerId, people }: { areaId: string; owne
   )
 }
 
-/** Lead: when a page still being written is due. */
-export function DueDate({ areaId, dueOn }: { areaId: string; dueOn: string | null }) {
+/** Lead: when a page's cases are due to be written (due_on) or automated (automate_due_on). */
+export function DueDate({ areaId, dueOn, field = 'due_on' }: { areaId: string; dueOn: string | null; field?: 'due_on' | 'automate_due_on' }) {
   const { pending, save } = useSave(areaId)
   return (
     <label className="inline-flex items-center gap-1 text-[11.5px] text-[var(--muted)]">
       due
-      <input type="date" aria-label="Due" disabled={pending} defaultValue={dueOn ?? ''} className="input h-7 w-[8.5rem] py-0 text-[12px]"
-        onChange={(e) => save({ due_on: e.target.value || null })} />
+      <input type="date" aria-label={field === 'due_on' ? 'Writing due' : 'Automation due'} disabled={pending} defaultValue={dueOn ?? ''} className="input h-7 w-[8.5rem] py-0 text-[12px]"
+        onChange={(e) => save({ [field]: e.target.value || null })} />
     </label>
   )
 }

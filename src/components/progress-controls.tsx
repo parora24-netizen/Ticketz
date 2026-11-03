@@ -19,19 +19,27 @@ function useSave(areaId: string) {
   return { pending, save }
 }
 
-/** Lead: who writes a page's cases and when they are due. */
-export function PageOwnerFields({ areaId, ownerId, dueOn, people }: { areaId: string; ownerId: string | null; dueOn: string | null; people: Opt[] }) {
+/** Lead: who writes a page's cases. */
+export function WriterSelect({ areaId, ownerId, people }: { areaId: string; ownerId: string | null; people: Opt[] }) {
   const { pending, save } = useSave(areaId)
   return (
-    <span className="flex items-center gap-1.5">
-      <select aria-label="Writer" disabled={pending} defaultValue={ownerId ?? ''} className="select h-7 py-0 text-[12px]"
-        onChange={(e) => save({ owner_id: e.target.value || null })}>
-        <option value="">No one</option>
-        {people.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-      </select>
+    <select aria-label="Writer" disabled={pending} defaultValue={ownerId ?? ''} className="select h-7 py-0 text-[12px]"
+      onChange={(e) => save({ owner_id: e.target.value || null })}>
+      <option value="">No one</option>
+      {people.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+    </select>
+  )
+}
+
+/** Lead: when a page still being written is due. */
+export function DueDate({ areaId, dueOn }: { areaId: string; dueOn: string | null }) {
+  const { pending, save } = useSave(areaId)
+  return (
+    <label className="inline-flex items-center gap-1 text-[11.5px] text-[var(--muted)]">
+      due
       <input type="date" aria-label="Due" disabled={pending} defaultValue={dueOn ?? ''} className="input h-7 w-[8.5rem] py-0 text-[12px]"
         onChange={(e) => save({ due_on: e.target.value || null })} />
-    </span>
+    </label>
   )
 }
 

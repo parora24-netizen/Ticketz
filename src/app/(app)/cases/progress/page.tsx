@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { Fragment } from 'react'
 import { Bar, Chip, PageHeader } from '@/components/ui'
 import { CASES_TABS, Tabs } from '@/components/tabs'
-import { PageOwnerFields, WrittenButton } from '@/components/progress-controls'
+import { DueDate, WriterSelect, WrittenButton } from '@/components/progress-controls'
 import { getMe } from '@/lib/auth'
 import { daysUntil, fmtDate, loadAreas, loadCases, loadPeople } from '@/lib/data'
 import { WRITING_LABEL, count, pageProgress, pct, type PageProgress } from '@/lib/progress'
@@ -148,12 +148,14 @@ function PageRow({ p, owner, isLead, canMark, team }: { p: PageProgress; owner: 
     <tr className="border-b border-[var(--line-soft)] align-middle">
       <td className="px-4 py-2"><Link href={`/cases?area=${p.id}`} className="font-medium text-[var(--accent)] hover:underline">{p.page}</Link></td>
       <td className="px-2 py-2">
-        {isLead ? <PageOwnerFields areaId={p.id} ownerId={p.owner_id ?? null} dueOn={p.due_on ?? null} people={team} /> : owner ?? <span className="text-[var(--faint)]">No one</span>}
+        {isLead ? <WriterSelect areaId={p.id} ownerId={p.owner_id ?? null} people={team} /> : owner ?? <span className="text-[var(--faint)]">No one</span>}
       </td>
       <td className="px-2 py-2 whitespace-nowrap">
         <Chip tone={p.late ? 'crit' : TONE[p.writing]}>{WRITING_LABEL[p.writing]}</Chip>
         <span className="ml-1.5 text-[11.5px] text-[var(--muted)]">
-          {p.writing === 'done' ? fmtDate(p.cases_done_on!) : p.due_on && !isLead ? `due ${fmtDate(p.due_on)}` : ''}
+          {p.writing === 'done' ? fmtDate(p.cases_done_on!)
+            : isLead ? <DueDate areaId={p.id} dueOn={p.due_on ?? null} />
+            : p.due_on ? `due ${fmtDate(p.due_on)}` : ''}
         </span>
       </td>
       <td className="px-2 py-2 text-right tabular-nums">{p.cases || <span className="text-[var(--faint)]">0</span>}</td>

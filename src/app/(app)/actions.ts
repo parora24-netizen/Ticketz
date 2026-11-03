@@ -374,6 +374,7 @@ export async function createCiToken(formData: FormData) {
   const me = await getMe()
   if (me.role !== 'lead') fail('/admin?tab=ci', 'Only the lead creates CI tokens')
   const label = String(formData.get('label') ?? '').trim() || 'CI'
+  const person = z.uuid().safeParse(formData.get('person_id'))
   const token = `vqt_${randomBytes(24).toString('base64url')}`
   const supabase = await createClient()
   // The API checks the hash; the sealed copy lets the lead reveal it again on Admin.
@@ -382,6 +383,7 @@ export async function createCiToken(formData: FormData) {
     token_hash: createHash('sha256').update(token).digest('hex'),
     token_enc: seal(token, 'ci-token'),
     created_by: me.id,
+    person_id: person.success ? person.data : null,
   })
   if (error) fail('/admin?tab=ci', error.message)
   revalidatePath('/admin')

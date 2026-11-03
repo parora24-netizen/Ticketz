@@ -16,9 +16,14 @@ const limit = z.coerce.number().int().min(1).max(1000).default(200)
 const offset = z.coerce.number().int().min(0).default(0)
 const list = (s: string | undefined) => s?.split(',').map((x) => x.trim()).filter(Boolean)
 
-/** POST /api/tickets: raise a ticket for a failing test case, or add to the open one. */
+/**
+ * POST /api/tickets: raise a ticket for a failing test case, or add to the open one. Without a
+ * tc_id it is a ticket of its own (needs a title), optionally on a zone and page.
+ */
 export const RaisePayload = z.object({
-  tc_id: TcId,
+  tc_id: TcId.optional(),
+  zone: z.string().trim().max(100).optional(),
+  page: z.string().trim().max(100).optional(),
   kind: z.enum(['defect', 'test_mismatch']).default('defect'),
   title: z.string().trim().min(3).max(300).optional(),
   description: z.string().trim().max(4000).optional(),
@@ -28,7 +33,8 @@ export const RaisePayload = z.object({
   error: z.string().max(4000).optional(),
   url: Url.optional(),
   defect_id: DefectId.optional(),
-})
+}).refine((p) => p.tc_id || p.title, { message: 'Send a tc_id, or a title for a ticket without a test case', path: ['title'] })
+  .refine((p) => p.tc_id || p.kind === 'defect', { message: 'A test_mismatch ticket needs a tc_id', path: ['kind'] })
 export type RaisePayload = z.infer<typeof RaisePayload>
 
 /** POST /api/tickets/{key}/comments */

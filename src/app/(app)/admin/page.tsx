@@ -8,6 +8,7 @@ import { SubmitButton } from '@/components/submit-button'
 import { ADMIN_TABS, Tabs } from '@/components/tabs'
 import { PageHeader } from '@/components/ui'
 import { getMe } from '@/lib/auth'
+import { CI_EMAIL } from '@/lib/ci-api'
 import { createClient } from '@/lib/supabase/server'
 import { fmtDate, loadHolidays, loadPeople } from '@/lib/data'
 import { createCiToken, removeHoliday, revokeCiToken, saveHoliday, savePerson } from '../actions'
@@ -21,7 +22,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const supabase = await createClient()
   const [people, holidays, { data: tokens }] = await Promise.all([
     loadPeople(), loadHolidays(),
-    supabase.from('ci_tokens').select('id, label, created_at, last_used_at, revoked_at, token_enc').order('created_at', { ascending: false }),
+    supabase.from('ci_tokens').select('id, label, person_id, created_at, last_used_at, revoked_at, token_enc').order('created_at', { ascending: false }),
   ])
   const noEmail = people.filter((p) => p.active && !p.email).length
 
@@ -75,19 +76,26 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
         </>
       ) : (
         <>
-          <PageHeader sub={<>Tokens for <code className="mono">/api/results</code></>} />
+          <PageHeader sub={<>Tokens for the API (<code className="mono">/api/results</code>, <code className="mono">/api/tickets</code>…). A token acts as CI, or as a person, who is then credited with what it raises.</>} />
           <form action={createCiToken} className="mb-4 flex flex-wrap items-end gap-3">
             <label><span className="label">Label</span><input name="label" placeholder="e.g. CodeBuild e2e" className="input mt-1 block w-72" /></label>
+            <label><span className="label">Acts as</span>
+              <select name="person_id" defaultValue="" className="select mt-1 block w-56">
+                <option value="">CI</option>
+                {people.filter((p) => p.active && p.email !== CI_EMAIL).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </label>
             <SubmitButton primary pendingText="Creating…">Create token</SubmitButton>
           </form>
           <div className="border border-[var(--line)] bg-white">
             <table className="table grid-table plain">
-              <colgroup><col className="w-36" /><col /><col className="w-24" /><col className="w-24" /><col className="w-24" /></colgroup>
-              <thead><tr><th>Label</th><th>Token</th><th>Created</th><th>Last used</th><th>Status</th></tr></thead>
+              <colgroup><col className="w-36" /><col className="w-28" /><col /><col className="w-24" /><col className="w-24" /><col className="w-24" /></colgroup>
+              <thead><tr><th>Label</th><th>Acts as</th><th>Token</th><th>Created</th><th>Last used</th><th>Status</th></tr></thead>
               <tbody>
                 {(tokens ?? []).map((t) => (
                   <tr key={t.id}>
                     <td>{t.label}</td>
+                    <td>{t.person_id ? people.find((p) => p.id === t.person_id)?.name ?? 'Someone' : 'CI'}</td>
                     <td>{t.revoked_at ? <span className="text-[12px] text-[var(--muted)]">Revoked</span> : <TokenCell id={t.id} revealable={!!t.token_enc} />}</td>
                     <td className="mono text-[12px]">{fmtDate(t.created_at)}</td>
                     <td className="mono text-[12px]">{t.last_used_at ? fmtDate(t.last_used_at) : 'Never'}</td>

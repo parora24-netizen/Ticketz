@@ -89,6 +89,15 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
         "error": "Expected error text not shown", "url": "https://reports.example/1234#TC_FN_071" }'`,
     },
     {
+      title: 'Raise a ticket without a test case',
+      what: 'Leave out tc_id and send a title; zone and page (as in /api/cases) put it on a page and route it to the fix sprint for that page. Keyed DEV-<n>; severity defaults to Medium. A defect_id with an open ticket adds to that one instead. With a personal token (Acts as a person), the ticket is raised by that person.',
+      curl: `curl -X POST "${appUrl}/api/tickets" \
+  ${auth} \
+  -H "Content-Type: application/json" \
+  -d '{ "title": "Save does nothing on Admin settings", "zone": "Engine", "page": "Admin",
+        "severity": "High", "description": "Steps: ...", "build": "26.111.4" }'`,
+    },
+    {
       title: 'One ticket',
       what: 'With its history of moves and its comments.',
       curl: `curl "${appUrl}/api/tickets/DEV-TC_FN_071" \\
@@ -96,7 +105,7 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
     },
     {
       title: 'Comment',
-      what: 'Shown on the ticket as a comment by CI.',
+      what: 'Shown on the ticket as a comment by CI, or by the person a personal token acts as.',
       curl: `curl -X POST "${appUrl}/api/tickets/DEV-TC_FN_071/comments" \\
   ${auth} \\
   -H "Content-Type: application/json" \\

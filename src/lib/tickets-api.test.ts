@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { CasesQuery, ListQuery, RaisePayload, ResultsQuery, RunsQuery, failureText, nextKey, readQuery, retestMove } from './tickets-api'
 
 describe('tickets API', () => {
+  it('raises without a test case when there is a title', () => {
+    expect(RaisePayload.safeParse({ title: 'Save does nothing', zone: 'Engine', page: 'Admin' }).success).toBe(true)
+    expect(RaisePayload.safeParse({ description: 'no title or case' }).success).toBe(false)
+    expect(RaisePayload.safeParse({ title: 'Mismatch', kind: 'test_mismatch' }).success).toBe(false)
+    expect(RaisePayload.safeParse({ tc_id: 'tc_fn_070' }).data?.tc_id).toBe('TC_FN_070')
+  })
+
   it('names tickets like the workbook and steps past taken keys', () => {
     expect(nextKey('defect', 'TC_FN_070', new Set())).toBe('DEV-TC_FN_070')
     expect(nextKey('test_mismatch', 'TC_FN_070', new Set())).toBe('MM-TC_FN_070')

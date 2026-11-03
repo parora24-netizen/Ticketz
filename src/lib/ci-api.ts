@@ -55,7 +55,7 @@ const NO_OWNER = 'There is no CI person to post comments as; run the ci_identity
  * Raise a ticket for a failing test case, or add the new failure to the ticket already open for it
  * as a comment, so repeat failures never make duplicates. With a defect_id, the open ticket for that
  * defect is the one, whichever case it was raised from (one defect failing nine cases is one
- * ticket); without, it is the case's open ticket of the same kind. With nothing open, the case's
+ * ticket); failing that, or without one, the case's open ticket of the same kind. With nothing open, the case's
  * closed ticket is reopened (the fix did not hold), so its whole history stays on one ticket.
  * Otherwise a new ticket is found in the running test sprint and goes to the page's fix sprint.
  */
@@ -64,8 +64,10 @@ export async function raiseTicket(c: Caller, p: RaisePayload): Promise<{ key: st
   if (!tc) return { error: `No test case ${p.tc_id}`, status: 404 }
   const text = failureText(p)
 
-  const same = c.db.from('tickets').select('id, key, case_id').in('state', OPEN).order('logged_on', { ascending: false }).limit(1)
-  const { data: open } = await (p.defect_id ? same.eq('defect_id', p.defect_id) : same.eq('case_id', tc.id).eq('kind', p.kind)).maybeSingle()
+  // The defect's open ticket first, then the case's own (which may predate defect ids).
+  const same = () => c.db.from('tickets').select('id, key, case_id').in('state', OPEN).order('logged_on', { ascending: false }).limit(1)
+  const { data: forDefect } = p.defect_id ? await same().eq('defect_id', p.defect_id).maybeSingle() : { data: null }
+  const open = forDefect ?? (await same().eq('case_id', tc.id).eq('kind', p.kind).maybeSingle()).data
   if (open) {
     const where = open.case_id === tc.id ? 'Failed again' : `${tc.tc_id} failed too`
     const err = await addComment(c, open.id, `${where}.${text ? `\n${text}` : ''}`)

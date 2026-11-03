@@ -3,11 +3,11 @@
 import Link from 'next/link'
 import { DataGrid, type BulkField, type Column } from '@/components/grid/data-grid'
 import type { ChartData } from '@/components/grid/grid-charts'
+import { FilterCard, MiniBar, STATUS_TONE as TONE } from '@/components/grid/filter-cards'
 import { Bar, Chip } from '@/components/ui'
 import { pageStatus, pct, type PageProgress } from '@/lib/progress'
 import { updatePages } from './actions'
 
-type Tone = 'good' | 'warn' | 'crit' | 'accent' | 'muted'
 export type PageRow = PageProgress & { writer: string }
 type Row = PageRow & { status_writing: string; status_automation: string; status_hand: string }
 
@@ -16,12 +16,6 @@ const ORDER = {
   automation: ['Fully automated', 'Partly', 'Late', 'Not started', 'No cases'],
   hand: ['Done', 'In progress', 'Not started', 'Nothing to test'],
 }
-const TONE: Record<string, Tone> = {
-  Completed: 'good', 'Fully automated': 'good', Done: 'good',
-  Writing: 'accent', Partly: 'accent', 'In progress': 'accent',
-  Late: 'crit',
-}
-const DOT: Record<Tone, string> = { good: 'bg-[var(--good)]', warn: 'bg-[var(--warn)]', crit: 'bg-[var(--crit)]', accent: 'bg-[var(--accent)]', muted: 'bg-[var(--line)]' }
 const WRITING_EDIT = [{ value: 'done', label: 'Completed' }, { value: 'open', label: 'Not completed' }]
 
 const fmt = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
@@ -121,11 +115,11 @@ function Cards({ charts, rowsFor, toggle, today, mismatches, skipped }: {
   const [needManual, manualDone, manualPassed, untested] = [sum(h, 'needManual'), sum(h, 'manualDone'), sum(h, 'manualPassed'), sum(h, 'untested')]
   return (
     <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="The flow">
-      <Card n="①" title="Write" value={`${w.filter((r) => r.writing === 'done').length} of ${w.length}`} unit="pages completed" chart={chart('writing')} toggle={toggle}
+      <FilterCard label="① Write" value={`${w.filter((r) => r.writing === 'done').length} of ${w.length}`} unit="pages completed" chart={chart('writing')} toggle={toggle}
         line={`${sum(w, 'cases').toLocaleString()} cases${nextDue ? ` · due ${fmt(nextDue)} (${Math.max(days(today, nextDue), 0)} days)` : ''}`} />
-      <Card n="②" title="Automate" value={`${pct(automated, cases)}%`} unit={`${automated.toLocaleString()} of ${cases.toLocaleString()} cases`} chart={chart('automation')} toggle={toggle}
+      <FilterCard label="② Automate" value={`${pct(automated, cases)}%`} unit={`${automated.toLocaleString()} of ${cases.toLocaleString()} cases`} chart={chart('automation')} toggle={toggle}
         line={`${autoPassed.toLocaleString()} passing in their latest run (${pct(autoPassed, automated)}%)${skipped ? ` · ${skipped} skipped` : ''}`} />
-      <Card n="③" title="Test by hand" value={`${pct(manualDone, needManual)}%`} unit={`${manualDone.toLocaleString()} of ${needManual.toLocaleString()} cases`} chart={chart('hand')} toggle={toggle}
+      <FilterCard label="③ Test by hand" value={`${pct(manualDone, needManual)}%`} unit={`${manualDone.toLocaleString()} of ${needManual.toLocaleString()} cases`} chart={chart('hand')} toggle={toggle}
         line={<>
           <Link href="/cases?stage=test" className="hover:underline">{untested.toLocaleString()} left</Link> · {pct(manualPassed, manualDone)}% passing
           {mismatches ? <> · <Link href="/cases?mismatch=1" className="text-[var(--warn)] hover:underline">{mismatches} disagree with automation</Link></> : null}
@@ -153,44 +147,5 @@ function Cards({ charts, rowsFor, toggle, today, mismatches, skipped }: {
         </ul>
       </div>
     </section>
-  )
-}
-
-function Card({ n, title, value, unit, line, chart, toggle }: {
-  n: string; title: string; value: string; unit: string; line: React.ReactNode; chart: ChartData; toggle: (key: string, value: string) => void
-}) {
-  const parts = chart.bars.map((b) => ({ value: b.count, tone: TONE[b.label] ?? 'muted', label: b.label }))
-  return (
-    <div className="card px-4 py-3">
-      <div className="label">{n} {title}</div>
-      <div className="mt-1.5 flex items-baseline gap-2">
-        <span className="heading text-[26px] leading-none font-semibold text-[var(--navy-ink)] tabular-nums">{value}</span>
-        <span className="text-[12.5px] text-[var(--muted)]">{unit}</span>
-      </div>
-      <div className="mt-2.5"><Bar parts={parts} /></div>
-      <div className="mt-2 flex flex-wrap gap-1">
-        {chart.bars.map((b) => {
-          const on = chart.selected.includes(b.label)
-          return (
-            <button key={b.label} type="button" onClick={() => toggle(chart.spec.key, b.label)} aria-pressed={on}
-              title={`Show only pages: ${b.label}. Click again to clear.`}
-              className={`inline-flex h-6 items-center gap-1.5 border px-2 text-[11.5px] ${on ? 'border-[var(--navy)] bg-[var(--accent-soft)] font-semibold text-[var(--navy)]' : 'border-[var(--line)] bg-white text-[var(--ink-2)] hover:border-[var(--navy)]'}`}>
-              <span className={`size-2 ${DOT[TONE[b.label] ?? 'muted']}`} />
-              {b.label} <span className="tabular-nums text-[var(--muted)]">{b.count}</span>
-            </button>
-          )
-        })}
-      </div>
-      <p className="mt-2 text-[12px] text-[var(--muted)]">{line}</p>
-    </div>
-  )
-}
-
-function MiniBar({ n, of, parts }: { n: number; of: number; parts: { value: number; tone: Tone; label: string }[] }) {
-  return (
-    <div>
-      <div className="text-[11px] text-[var(--muted)] tabular-nums">{n} of {of} · {pct(n, of)}%</div>
-      <div className="mt-1"><Bar parts={parts} /></div>
-    </div>
   )
 }

@@ -6,7 +6,7 @@ import { startSprint } from './actions'
 import { getMe } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import {
-  currentSprint, loadRelease, daysUntil, fmtDate, loadActivity, loadCases, loadSprintAreas, loadSprintRuns, loadSprints, loadTasks, loadTickets,
+  currentSprint, loadRelease, daysUntil, fmtDate, loadActivity, loadCases, loadSprintAreas, loadSprintRuns, loadSprints, loadTickets,
   timeAgo, toStageInput, type TicketRow,
 } from '@/lib/data'
 import { lastWorkingDayStart } from '@/lib/standup'
@@ -60,8 +60,8 @@ export default async function Home() {
   const [sprints, sprintAreas, release] = await Promise.all([loadSprints(), loadSprintAreas(), loadRelease()])
   const sprint = currentSprint(sprints)
   const areaIds = sprint ? sprintAreas.filter((x) => x.sprint_id === sprint.id).map((x) => x.area_id) : []
-  const [tickets, tasks, activity, cases, runs] = await Promise.all([
-    loadTickets(), loadTasks(), loadActivity(since, 300),
+  const [tickets, activity, cases, runs] = await Promise.all([
+    loadTickets(), loadActivity(since, 300),
     sprint ? loadCases(areaIds) : Promise.resolve([]),
     sprint ? loadSprintRuns(sprint.id) : Promise.resolve(undefined),
   ])
@@ -74,7 +74,6 @@ export default async function Home() {
   const left = stages.filter((s) => s !== 'done').length
 
   const mine = tickets.filter((t) => t.owner_id === me.id)
-  const myTasks = tasks.filter((k) => k.owner_id === me.id && k.status !== 'done')
   // Retests go to the case's tester. QA see theirs and any with no tester yet; the lead sees all.
   const readyForRetest = tickets.filter((t) => t.state === 'ready_for_retest')
   const retestCaseIds = [...new Set(readyForRetest.map((t) => t.case_id).filter((id): id is string => !!id))]
@@ -95,7 +94,6 @@ export default async function Home() {
   const openCrit = tickets.filter((t) => t.severity === 'Critical' && !['closed', 'deferred', 'duplicate'].includes(t.state)).length
   const openHigh = tickets.filter((t) => t.severity === 'High' && !['closed', 'deferred', 'duplicate'].includes(t.state)).length
   const nextSprint = sprint ? null : sprints.find((x) => x.status === 'planned' && x.starts_on >= now.toISOString().slice(0, 10)) ?? null
-  const late = tasks.filter((k) => k.status !== 'done' && k.due_on < now.toISOString().slice(0, 10))
   // Rows with no person behind them (the workbook import) are not news.
   const feed = activity.filter((a) => a.actor_id && (me.role === 'lead' || a.subject_owner_id === me.id || a.actor_id === me.id)).slice(0, 25)
 
@@ -227,32 +225,6 @@ export default async function Home() {
                 </Panel>
               )}
             </>
-          )}
-          <Panel title="My plan tasks" count={myTasks.length} href="/plan" empty="No open plan tasks.">
-            <ul className="divide-y divide-[var(--row)]">
-              {myTasks.map((k) => (
-                <li key={k.id} className="flex items-center gap-3 px-4 py-2 text-[12.5px]">
-                  <span className="mono text-[11px] text-[var(--faint)]">#{k.num}</span>
-                  <span className="min-w-0 flex-1 truncate">{k.title}</span>
-                  <span className={k.due_on < now.toISOString().slice(0, 10) ? 'font-semibold text-[var(--crit)]' : 'text-[var(--faint)]'}>due {fmtDate(k.due_on)}</span>
-                  <span className="text-[11.5px] text-[var(--muted)]">{k.status.replace('_', ' ')}</span>
-                </li>
-              ))}
-            </ul>
-          </Panel>
-          {me.role === 'lead' && late.length > 0 && (
-            <Panel title="Late plan tasks (team)" count={late.length} href="/plan">
-              <ul className="divide-y divide-[var(--row)]">
-                {late.map((k) => (
-                  <li key={k.id} className="flex items-center gap-3 px-4 py-2 text-[12.5px]">
-                    <span className="mono text-[11px] text-[var(--faint)]">#{k.num}</span>
-                    <span className="min-w-0 flex-1 truncate">{k.title}</span>
-                    <span>{k.owner_label}</span>
-                    <span className="font-semibold text-[var(--crit)]">due {fmtDate(k.due_on)}</span>
-                  </li>
-                ))}
-              </ul>
-            </Panel>
           )}
         </div>
 

@@ -31,8 +31,8 @@ export const CASES_TABS = [
 
 export const RELEASE_TABS = [
   { key: 'overview', href: '/release', label: 'Overview' },
-  { key: 'plan', href: '/plan', label: 'Plan' },
-  { key: 'areas', href: '/areas', label: 'Areas' },
+  { key: 'status', href: '/release/status', label: 'Status' },
+  { key: 'plan', href: '/release/plan', label: 'Plan' },
 ]
 
 /** The running sprint's board (or the next one, before any has started), then all sprints. */

@@ -14,6 +14,7 @@ export const WRITING_LABEL: Record<Writing, string> = { done: 'Completed', writi
 export type Counts = {
   cases: number
   automated: number // automation status says automated
+  autoRun: number // of those, with an automated result
   autoPassed: number // of those, passing in their latest run
   needManual: number // Critical/High, not automated, or automation did not pass
   manualDone: number // of those, tested by hand
@@ -22,10 +23,11 @@ export type Counts = {
 }
 
 export function count(cases: ProgressCase[]): Counts {
-  const c: Counts = { cases: cases.length, automated: 0, autoPassed: 0, needManual: 0, manualDone: 0, manualPassed: 0, untested: 0 }
+  const c: Counts = { cases: cases.length, automated: 0, autoRun: 0, autoPassed: 0, needManual: 0, manualDone: 0, manualPassed: 0, untested: 0 }
   for (const x of cases) {
     if (x.automation === 'automated') {
       c.automated++
+      if (x.auto_result) c.autoRun++
       if (x.auto_result === 'passed') c.autoPassed++
     }
     const stage = { ...x, open_fix: 0, awaiting_retest: 0 }

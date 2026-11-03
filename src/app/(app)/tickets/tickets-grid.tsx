@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { DataGrid, type Column } from '@/components/grid/data-grid'
 import { PriorityChip, StateChip } from '@/components/ui'
-import { STATE_LABEL } from '@/lib/workflow/ticket-machine'
+import { OPEN_STATES, STATE_LABEL } from '@/lib/workflow/ticket-machine'
 import type { BoardTicket } from '@/components/board/ticket-board'
 import { deleteRows, setTicketTesters, updateTickets } from '../actions'
 import { rememberTicketList } from '@/components/ticket-nav'
@@ -12,7 +12,7 @@ import { rememberTicketList } from '@/components/ticket-nav'
 type Row = BoardTicket & { kind: 'defect' | 'test_mismatch'; logged_on: string; sprint_id: string | null; tester_name: string | null }
 const SEVERITY = ['Critical', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: p }))
 
-export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, state, remember = true }: { rows: Row[]; people: { value: string; label: string }[]; sprints?: { value: string; label: string }[]; canTriage: boolean; isLead?: boolean; state?: string; remember?: boolean }) {
+export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, state, severity, remember = true }: { rows: Row[]; people: { value: string; label: string }[]; sprints?: { value: string; label: string }[]; canTriage: boolean; isLead?: boolean; state?: string; severity?: string; remember?: boolean }) {
   const router = useRouter()
   const owners = [{ value: '__none', label: 'Unassigned' }, ...people]
   const sprintOptions = [{ value: '__none', label: 'No sprint' }, ...sprints]
@@ -47,7 +47,7 @@ export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, sta
         { key: 'owner', title: 'By owner' },
         { key: 'sprint', title: 'By sprint' },
       ]}
-      defaultFilters={state && state in STATE_LABEL ? { state: [STATE_LABEL[state as keyof typeof STATE_LABEL]] } : undefined}
+      defaultFilters={linkFilters(state, severity)}
       defaultSort={[{ key: 'severity', dir: 1 }]}
       emptyText="No tickets match."
       onSave={(ids, patch) => {
@@ -67,4 +67,13 @@ export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, sta
       bulkActions={isLead ? [{ label: 'Delete', run: (ids) => deleteRows('tickets', ids), confirm: 'Delete {n} tickets for good, with their history and comments? This cannot be undone.' }] : []}
     />
   )
+}
+
+/** Filters from a link: state is a state or "open"; severity is one of Critical/High/Medium/Low. */
+function linkFilters(state?: string, severity?: string): Record<string, string[]> | undefined {
+  const f: Record<string, string[]> = {}
+  if (state === 'open') f.state = OPEN_STATES.map((x) => STATE_LABEL[x])
+  else if (state && state in STATE_LABEL) f.state = [STATE_LABEL[state as keyof typeof STATE_LABEL]]
+  if (severity && SEVERITY.some((x) => x.value === severity)) f.severity = [severity]
+  return Object.keys(f).length ? f : undefined
 }

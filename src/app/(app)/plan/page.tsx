@@ -1,22 +1,6 @@
-import { PlanGrid } from '@/components/grid/list-grids'
-import { RELEASE_TABS, Tabs } from '@/components/tabs'
-import { PageHeader } from '@/components/ui'
-import { getMe } from '@/lib/auth'
-import { loadSprints, loadTasks } from '@/lib/data'
+import { redirect } from 'next/navigation'
 
-export default async function PlanPage() {
-  const [me, tasks, sprints] = await Promise.all([getMe(), loadTasks(), loadSprints()])
-  const today = new Date().toISOString().slice(0, 10)
-  const done = tasks.filter((t) => t.status === 'done').length
-  const late = tasks.filter((t) => t.status !== 'done' && t.due_on < today).length
-  return (
-    <>
-      <Tabs items={RELEASE_TABS} active="plan" />
-      <PageHeader sub={`${done} of ${tasks.length} tasks done${late ? ` · ${late} late` : ''}`} />
-      <PlanGrid rows={tasks.map((t) => ({
-        id: t.id, num: t.num, phase: t.phase, title: t.title, owner: t.owner_label, due_on: t.due_on, status: t.status,
-        late: t.status !== 'done' && t.due_on < today, sprint_id: t.sprint_id,
-      }))} sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ id: s.id, name: s.name }))} isLead={me.role === 'lead'} />
-    </>
-  )
+/** The task plan gave way to Release > Plan: sprints, milestones and each page's dates. */
+export default function PlanPage() {
+  redirect('/release/plan')
 }

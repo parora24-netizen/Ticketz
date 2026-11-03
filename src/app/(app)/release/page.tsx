@@ -1,14 +1,14 @@
-import { sprintHref } from '@/lib/links'
 import Link from 'next/link'
 import { LineChart } from '@/components/charts/line-chart'
 import { ReleaseDateButton } from '@/components/release-controls'
 import { ScheduleLog } from '@/components/schedule-log'
+import { SprintTimeline } from '@/components/sprint-timeline'
 import { getMe } from '@/lib/auth'
 import { RELEASE_TABS, Tabs } from '@/components/tabs'
 import { PageHeader, Stat } from '@/components/ui'
 import {
   runningSprints, loadRelease, loadScheduleChanges, daysUntil, fmtDate,
-  loadAreas, loadCases, loadManualRuns, loadSprints, loadTasks, loadTicketEvents, loadTickets, toStageInput,
+  loadAreas, loadCases, loadManualRuns, loadSprints, loadTicketEvents, loadTickets, toStageInput,
 } from '@/lib/data'
 import { casesTestedByDay, openTicketsByDay } from '@/lib/trends'
 import { mismatch, needsTicket } from '@/lib/workflow/case-stage'
@@ -19,8 +19,8 @@ const TREND_FROM = '2026-10-08' // first tickets were logged on 8 Oct
 /** The executive view: is 26.111 going to make it, and what is in the way. */
 export default async function ReleasePage() {
   const me = await getMe()
-  const [areas, cases, tickets, sprints, tasks, events, manualRuns, release, changes] = await Promise.all([
-    loadAreas(), loadCases(), loadTickets(), loadSprints(), loadTasks(), loadTicketEvents(), loadManualRuns(), loadRelease(), loadScheduleChanges(),
+  const [areas, cases, tickets, sprints, events, manualRuns, release, changes] = await Promise.all([
+    loadAreas(), loadCases(), loadTickets(), loadSprints(), loadTicketEvents(), loadManualRuns(), loadRelease(), loadScheduleChanges(),
   ])
   const RELEASE_DATE = release.release_on
   const slipped = daysUntil(release.release_on) - daysUntil(release.original_release_on)
@@ -47,12 +47,10 @@ export default async function ReleasePage() {
     { label: 'Automation agrees with manual testing', ok: mismatches === 0, detail: `${mismatches} mismatches` },
   ]
   const met = bar.filter((b) => b.ok).length
-  const lateTasks = tasks.filter((t) => t.status !== 'done' && t.due_on < today)
-  const doneTasks = tasks.filter((t) => t.status === 'done').length
   const daysLeft = daysUntil(RELEASE_DATE)
   const verdict =
     met === bar.length ? { label: 'Ready', tone: 'good' as const, why: 'Every release check is met.' }
-    : lateTasks.length > 5 || (daysLeft < 10 && openCrit > 0) ? { label: 'Off track', tone: 'crit' as const, why: `${openCrit} Critical tickets open and ${lateTasks.length} plan tasks late with ${daysLeft} days to go.` }
+    : daysLeft < 10 && openCrit > 0 ? { label: 'Off track', tone: 'crit' as const, why: `${openCrit} Critical tickets open with ${daysLeft} days to go.` }
     : { label: 'At risk', tone: 'warn' as const, why: `${met} of ${bar.length} release checks met; ${openCrit} Critical and ${openHigh} High tickets still open.` }
 
   // Trends
@@ -73,23 +71,6 @@ export default async function ReleasePage() {
       areasWithCases: new Set(zc.map((c) => c.area_id)).size,
     }
   })
-
-  // Plan by phase
-  const phases = [...new Set(tasks.map((t) => t.phase))].map((phase) => {
-    const pt = tasks.filter((t) => t.phase === phase)
-    return {
-      phase, total: pt.length, done: pt.filter((t) => t.status === 'done').length,
-      blocked: pt.filter((t) => t.status === 'blocked').length,
-      late: pt.filter((t) => t.status !== 'done' && t.due_on < today).length,
-      due: pt.reduce((m, t) => (t.due_on > m ? t.due_on : m), ''),
-    }
-  })
-
-  // Sprint timeline, laid out by calendar days
-  const first = [sprints[0]?.starts_on ?? today, today].sort()[0]
-  const lastDay = RELEASE_DATE
-  const span = Math.max(1, (Date.parse(lastDay) - Date.parse(first)) / 864e5 + 1)
-  const pos = (d: string) => ((Date.parse(d) - Date.parse(first)) / 864e5 / span) * 100
 
   const toneText = { good: 'text-[var(--good)]', warn: 'text-[var(--warn)]', crit: 'text-[var(--crit)]' }
   const toneChip = {
@@ -121,7 +102,7 @@ export default async function ReleasePage() {
         <Stat label="Crit/High pass rate" value={`${highPassRate}%`} sub={`${highRun.length} of ${high.length} run manually`} tone={highPassRate >= 90 ? 'good' : 'warn'} />
         <Stat label="Cases tested" value={`${Math.round((cases.filter((c) => c.manual_result).length / Math.max(cases.length, 1)) * 100)}%`} sub={`${cases.filter((c) => c.manual_result).length} of ${cases.length} manually`} />
         <Stat label="Areas with cases" value={`${new Set(cases.map((c) => c.area_id)).size}/${areas.length}`} sub="Framework areas covered" />
-        <Stat label="Plan tasks" value={`${doneTasks}/${tasks.length}`} sub={lateTasks.length ? `${lateTasks.length} late` : 'none late'} tone={lateTasks.length ? 'crit' : 'good'} />
+        <Stat label="Open High" value={openHigh} tone={openHigh ? 'warn' : 'good'} sub="tickets" />
       </div>
 
       <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -149,7 +130,7 @@ export default async function ReleasePage() {
             {zones.map((z) => (
               <li key={z.zone} className="grid grid-cols-[9rem_minmax(0,1fr)_7rem] items-center gap-3 px-4 py-2.5">
                 <div>
-                  <Link href="/areas" className="text-[13px] font-semibold text-[var(--ink)] hover:underline">{z.zone}</Link>
+                  <Link href="/release/status" className="text-[13px] font-semibold text-[var(--ink)] hover:underline">{z.zone}</Link>
                   <div className="text-[11px] text-[var(--faint)]">{z.areasWithCases} of {z.areas} areas have cases</div>
                 </div>
                 {z.total ? (
@@ -182,54 +163,15 @@ export default async function ReleasePage() {
         </section>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <section className="card">
-          <header className="flex items-center justify-between border-b border-[var(--line)] px-4 py-2.5">
-            <h3 className="text-[14px] font-semibold text-[var(--navy-ink)]">Sprints to release</h3>
-            <Link href="/sprints" className="text-[12px] text-[var(--accent)] hover:underline">All sprints</Link>
-          </header>
-          <div className="px-4 py-4">
-            <div className="relative h-14">
-              {sprints.map((s) => (
-                <Link key={s.id} href={sprintHref(s)} title={`${s.name}: ${fmtDate(s.starts_on)} to ${fmtDate(s.ends_on)}${s.goal ? ` · ${s.goal}` : ''}`}
-                  className={`absolute top-0 flex h-8 items-center justify-center border text-[11px] font-semibold ${
-                    s.status === 'closed' ? 'border-[var(--navy)] bg-[var(--navy)] text-white'
-                    : s.status === 'active' ? 'border-[var(--navy)] bg-[var(--accent-soft)] text-[var(--navy)]'
-                    : 'border-[var(--line)] bg-[var(--surface-2)] text-[var(--ink-2)]'}`}
-                  style={{ left: `${pos(s.starts_on)}%`, width: `calc(${pos(s.ends_on) - pos(s.starts_on) + 100 / span}% - 2px)` }}>
-                  {s.name}
-                </Link>
-              ))}
-              <div className="absolute top-0 h-11 w-0.5 bg-[#d03b3b]" style={{ left: `${Math.min(100, Math.max(0, pos(today)))}%` }} title={`Today, ${fmtDate(today)}`} />
-              <div className="absolute top-0 h-11 w-0.5 bg-[var(--navy-ink)]" style={{ left: 'calc(100% - 2px)' }} title={`Release, ${fmtDate(RELEASE_DATE)}`} />
-              <div className="mono absolute top-9 left-0 text-[10.5px] text-[var(--faint)]">{fmtDate(first)}</div>
-              <div className="mono absolute top-9 right-0 text-[10.5px] text-[var(--faint)]">Release {fmtDate(RELEASE_DATE)}</div>
-            </div>
-            <p className="mt-1 text-[11.5px] text-[var(--muted)]"><span className="inline-block h-2.5 w-0.5 bg-[#d03b3b] align-middle" /> today · dark = closed · outlined = running · grey = planned</p>
-          </div>
-        </section>
-
-        <section className="card">
-          <header className="flex items-center justify-between border-b border-[var(--line)] px-4 py-2.5">
-            <h3 className="text-[14px] font-semibold text-[var(--navy-ink)]">Plan by phase</h3>
-            <Link href="/plan" className="text-[12px] text-[var(--accent)] hover:underline">Open plan</Link>
-          </header>
-          <table className="table">
-            <thead><tr><th>Phase</th><th className="text-right">Done</th><th className="text-right">Late</th><th className="text-right">Blocked</th><th>Ends</th></tr></thead>
-            <tbody>
-              {phases.map((p) => (
-                <tr key={p.phase}>
-                  <td className="font-medium text-[var(--ink)]">{p.phase}</td>
-                  <td className="text-right tabular-nums">{p.done}/{p.total}</td>
-                  <td className={`text-right tabular-nums ${p.late ? 'font-semibold text-[var(--crit)]' : ''}`}>{p.late || '·'}</td>
-                  <td className={`text-right tabular-nums ${p.blocked ? 'font-semibold text-[var(--warn)]' : ''}`}>{p.blocked || '·'}</td>
-                  <td className="mono text-[12px]">{fmtDate(p.due)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      </div>
+      <section className="card mb-4">
+        <header className="flex items-center justify-between border-b border-[var(--line)] px-4 py-2.5">
+          <h3 className="text-[14px] font-semibold text-[var(--navy-ink)]">Sprints to release</h3>
+          <Link href="/release/plan" className="text-[12px] text-[var(--accent)] hover:underline">Open plan</Link>
+        </header>
+        <div className="px-4 py-4">
+          <SprintTimeline sprints={sprints} today={today} releaseOn={RELEASE_DATE} goNoGoOn={release.go_no_go_on} />
+        </div>
+      </section>
       <ScheduleLog changes={changes} release={release} limit={6} />
     </>
   )

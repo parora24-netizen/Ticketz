@@ -22,7 +22,7 @@ const TITLES: [string, string][] = [
   ['/search', 'Search'],
 ]
 
-const SEGMENT: Record<string, string> = { new: 'New', import: 'Import', plan: 'Edit plan', progress: 'Progress' }
+const SEGMENT: Record<string, string> = { new: 'New', import: 'Import', plan: 'Edit plan', progress: 'Progress', status: 'Status' }
 const isId = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-/.test(s)
 
 /** Page name and a clickable trail back up, top left, on every screen. */

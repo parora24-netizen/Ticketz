@@ -37,5 +37,6 @@ export async function updatePages(ids: string[], patch: z.infer<typeof Patch>): 
     if (error) return { error: error.message }
   }
   revalidatePath('/cases/progress')
+  revalidatePath('/release/plan')
   return {}
 }

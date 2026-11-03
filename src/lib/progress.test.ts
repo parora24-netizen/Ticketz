@@ -11,7 +11,7 @@ describe('test case progress', () => {
       c({ priority: 'High', automation: 'automated', auto_result: 'passed' }), // High: still needs a person
       c({}),
     ])
-    expect(n).toMatchObject({ cases: 4, automated: 3, autoPassed: 2, needManual: 3, manualDone: 1, manualPassed: 1, untested: 2 })
+    expect(n).toMatchObject({ cases: 4, automated: 3, autoRun: 3, autoPassed: 2, needManual: 3, manualDone: 1, manualPassed: 1, untested: 2 })
   })
 
   it('gives each page a writing status and flags late ones', () => {

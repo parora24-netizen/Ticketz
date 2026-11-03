@@ -13,9 +13,12 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
   const [me, allTickets, people, areas, sprints, cases] = await Promise.all([getMe(), loadTickets(), loadPeople(), loadAreas(), loadSprints(), loadCases()])
   const testerName = new Map(cases.map((c) => [c.id, c.tester_name]))
   // Opened from a sprint (e.g. its open-ticket count): just that sprint's tickets.
+  // Opened from a page on Release > Status: that page's open tickets.
   const scope = sp.sprint ? sprints.find((s) => s.id === sp.sprint) : undefined
-  const tickets = scope ? allTickets.filter((t) => t.current_sprint_id === scope.id && OPEN_STATES.includes(t.state)) : allTickets
-  const withScope = (href: string) => (scope ? `${href}${href.includes('?') ? '&' : '?'}sprint=${scope.id}` : href)
+  const area = sp.area ? areas.find((a) => a.id === sp.area) : undefined
+  const tickets = scope ? allTickets.filter((t) => t.current_sprint_id === scope.id && OPEN_STATES.includes(t.state))
+    : area ? allTickets.filter((t) => t.area_id === area.id && OPEN_STATES.includes(t.state)) : allTickets
+  const withScope = (href: string) => (scope ? `${href}${href.includes('?') ? '&' : '?'}sprint=${scope.id}` : area ? `${href}${href.includes('?') ? '&' : '?'}area=${area.id}` : href)
   const zones = [...new Set(areas.map((a) => a.zone))]
   const open = tickets.filter((t) => OPEN_STATES.includes(t.state)).length
   const unowned = tickets.filter((t) => OPEN_STATES.includes(t.state) && !t.owner_id).length
@@ -26,8 +29,8 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <PageHeader sub={scope
-        ? <>Sprint {scope.name} · {open} open · {unowned} without an owner · <Link href={view === 'grid' ? '/tickets?view=grid' : '/tickets'} className="text-[var(--accent)] hover:underline">show all</Link></>
+      <PageHeader sub={scope || area
+        ? <>{scope ? `Sprint ${scope.name}` : `${area!.zone} · ${area!.page}`} · {open} open · {unowned} without an owner · <Link href={view === 'grid' ? '/tickets?view=grid' : '/tickets'} className="text-[var(--accent)] hover:underline">show all</Link></>
         : `${open} open · ${unowned} without an owner · ${tickets.length} in all`}>
         <div className="flex border border-[var(--line)] bg-white p-0.5" role="tablist" aria-label="View">
           <Link href={withScope('/tickets')} role="tab" aria-selected={view === 'board'}
@@ -41,7 +44,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
       {view === 'board'
         ? <TicketBoard tickets={rows} role={me.role} meId={me.id} zones={zones}
           people={people.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name }))} sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ id: s.id, name: s.name }))} />
-        : <TicketsGrid rows={rows} sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ value: s.id, label: s.name }))} state={sp.state} remember={!scope && !sp.state} canTriage={me.role !== 'dev'} isLead={me.role === 'lead'} people={people.filter((p) => p.active).map((p) => ({ value: p.id, label: p.name }))} />}
+        : <TicketsGrid rows={rows} sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ value: s.id, label: s.name }))} state={sp.state} severity={sp.severity} remember={!scope && !area && !sp.state && !sp.severity} canTriage={me.role !== 'dev'} isLead={me.role === 'lead'} people={people.filter((p) => p.active).map((p) => ({ value: p.id, label: p.name }))} />}
     </>
   )
 }

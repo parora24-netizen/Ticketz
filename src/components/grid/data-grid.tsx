@@ -18,14 +18,16 @@ export type Column<T> = {
   /** Sort by this instead of the shown value (e.g. Critical before High). */
   sortValue?: (row: T) => number | string
   /** Makes the cell editable; `field` is the patch key sent to onSave. */
-  edit?: { field: string; kind: 'text' } | { field: string; kind: 'select'; options: Option[] }
+  edit?: { field: string; kind: 'text' | 'date' } | { field: string; kind: 'select'; options: Option[] }
+  /** Rows whose cell can't be edited (e.g. a completed page's due date). */
+  editable?: (row: T) => boolean
   /** "values" filters by ticking values (default for selects and short lists); "text" by typing. */
   filter?: 'values' | 'text' | false
   mono?: boolean
   align?: 'right'
   muted?: boolean
 }
-export type BulkField = { field: string; label: string; options: Option[] }
+export type BulkField = { field: string; label: string; options: Option[] } | { field: string; label: string; kind: 'date' }
 export type BulkAction = { label: string; run: (ids: string[]) => Promise<{ error?: string }>; confirm?: string }
 
 type Props<T extends { id: string }> = {
@@ -52,6 +54,11 @@ type Props<T extends { id: string }> = {
   remember?: boolean
   /** Told the rows on show, in order, whenever they change (e.g. for Previous / Next on a detail page). */
   onView?: (rows: T[]) => void
+  /**
+   * The page's own cards above the toolbar, in place of the small bar charts: given each chart's
+   * counts, the rows that pass every filter but one column's, and a toggle that filters by a value.
+   */
+  summary?: (s: { charts: ChartData[]; rowsFor: (key: string) => T[]; toggle: (key: string, value: string) => void }) => React.ReactNode
 }
 
 type Sort = { key: string; dir: 1 | -1 }
@@ -67,7 +74,7 @@ const EMPTY = '(blank)'
  */
 export function DataGrid<T extends { id: string }>({
   rows, columns, onSave, bulkFields = [], bulkActions = [], csvName = 'export', toolbar, actions,
-  defaultSort = [], defaultFilters, searchPlaceholder = 'Search', emptyText = 'No rows.', selectable = true, footerNote, charts, remember = true, onView,
+  defaultSort = [], defaultFilters, searchPlaceholder = 'Search', emptyText = 'No rows.', selectable = true, footerNote, charts, remember = true, onView, summary,
 }: Props<T>) {
   const [overrides, setOverrides] = useState<Record<string, Record<string, string | null>>>({})
   const [filters, setFilters] = useState<Record<string, Filter>>(() =>
@@ -230,7 +237,7 @@ export function DataGrid<T extends { id: string }>({
 
   function startEdit(r: number, c: number, initial?: string) {
     const col = columns[c]
-    if (!col?.edit || !onSave) return
+    if (!col?.edit || !onSave || col.editable?.(shown[r]) === false) return
     setEditing({ r, c, value: initial ?? rawValue(shown[r], col) })
   }
 
@@ -307,13 +314,14 @@ export function DataGrid<T extends { id: string }>({
 
   return (
     <div className="flex min-h-0 flex-col">
+      {summary?.({ charts: chartData, rowsFor: (key) => rows.filter((r) => matches(r, key)), toggle: toggleChartValue })}
       {/* Toolbar: search and scope on the left, the page's buttons on the right. */}
       <div className="flex flex-wrap items-center gap-2 pb-3">
         <SearchInput value={query} onChange={setQuery} placeholder={searchPlaceholder} label="Search" className="w-64" />
         {toolbar}
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {actions}
-          {charts && charts.length > 0 && (
+          {charts && charts.length > 0 && !summary && (
             <button type="button" onClick={toggleCharts} className="btn" aria-pressed={!showCharts}>{showCharts ? 'Hide charts' : 'Show charts'}</button>
           )}
           <div className="relative">
@@ -335,7 +343,7 @@ export function DataGrid<T extends { id: string }>({
         </div>
       </div>
 
-      {charts && charts.length > 0 && showCharts && <GridCharts charts={chartData} onToggle={toggleChartValue} />}
+      {charts && charts.length > 0 && showCharts && !summary && <GridCharts charts={chartData} onToggle={toggleChartValue} />}
 
       {/* Sort and filter summary, like "Sorted by Name ▲ × + then by…" */}
       <div className="flex flex-wrap items-center gap-1.5 pb-2 text-[12px] text-[var(--muted)]">
@@ -372,7 +380,16 @@ export function DataGrid<T extends { id: string }>({
       {ids.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 border border-b-0 border-[var(--accent-line)] bg-[var(--accent-soft)] px-3 py-2">
           <span className="text-[12.5px] font-semibold text-[var(--navy)]">{ids.length} selected</span>
-          {bulkFields.map((f) => (
+          {bulkFields.map((f) => 'kind' in f ? (
+            <label key={f.field} className="inline-flex items-center gap-1.5 text-[12.5px] text-[var(--navy)]">
+              {f.label}
+              <input type="date" disabled={busy} className="input h-8 w-[9.5rem]" aria-label={f.label}
+                onChange={(e) => {
+                  const v = e.target.value
+                  if (v) void save(ids, { [f.field]: v }, `${f.label}: ${v} on ${ids.length} rows`)
+                }} />
+            </label>
+          ) : (
             <select key={f.field} defaultValue="" disabled={busy} className="select" aria-label={f.label}
               onChange={(e) => {
                 const v = e.target.value
@@ -466,7 +483,7 @@ export function DataGrid<T extends { id: string }>({
                       onClick={() => setActive({ r, c })}
                       onDoubleClick={() => startEdit(r, c)}
                       className={`${col.align === 'right' ? 'text-right tabular-nums' : ''} ${col.mono ? 'mono text-[12px]' : ''} ${col.muted ? 'text-[var(--faint)]' : ''} ${
-                        col.edit && onSave ? 'cursor-cell' : ''} ${isActive ? 'shadow-[inset_0_0_0_2px_var(--navy)]' : ''} ${edited ? 'bg-[var(--warn-soft)]' : ''}`}>
+                        col.edit && onSave && col.editable?.(row) !== false ? 'cursor-cell' : ''} ${isActive ? 'shadow-[inset_0_0_0_2px_var(--navy)]' : ''} ${edited ? 'bg-[var(--warn-soft)]' : ''}`}>
                       {isEditing && col.edit ? (
                         col.edit.kind === 'select' ? (
                           <select autoFocus defaultValue={editing.value} className="select h-7 w-full"
@@ -474,6 +491,13 @@ export function DataGrid<T extends { id: string }>({
                             onKeyDown={(e) => { if (e.key === 'Escape') { setEditing(null); gridRef.current?.focus() } }}>
                             {col.edit.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                           </select>
+                        ) : col.edit.kind === 'date' ? (
+                          <input type="date" autoFocus defaultValue={editing.value} className="input h-7 w-full"
+                            onBlur={(e) => commitEdit(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') commitEdit((e.target as HTMLInputElement).value)
+                              if (e.key === 'Escape') { setEditing(null); gridRef.current?.focus() }
+                            }} />
                         ) : (
                           <input autoFocus defaultValue={editing.value} className="input h-7 w-full"
                             onBlur={(e) => commitEdit(e.target.value)}

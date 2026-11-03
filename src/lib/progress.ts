@@ -54,3 +54,12 @@ export function pageProgress(areas: ProgressArea[], cases: ProgressCase[], today
 }
 
 export const pct = (n: number, of: number) => (of ? Math.round((n / of) * 100) : 0)
+
+/** Where a page stands at each step, as the grid's filter values: late pages are their own value. */
+export function pageStatus(p: PageProgress) {
+  return {
+    writing: p.late ? 'Late' : WRITING_LABEL[p.writing],
+    automation: !p.cases ? 'No cases' : p.automated === p.cases ? 'Fully automated' : p.automateLate ? 'Late' : p.automated ? 'Partly' : 'Not started',
+    hand: !p.needManual ? 'Nothing to test' : !p.untested ? 'Done' : p.manualDone ? 'In progress' : 'Not started',
+  }
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { count, pageProgress, pct, type ProgressCase } from './progress'
+import { count, pageProgress, pageStatus, pct, type ProgressCase } from './progress'
 
 const c = (x: Partial<ProgressCase>): ProgressCase => ({ area_id: 'a1', priority: 'Medium', automation: 'not_automated', auto_result: null, manual_result: null, ...x })
 
@@ -30,6 +30,9 @@ describe('test case progress', () => {
     const auto = pageProgress([{ id: 'a1', zone: 'E', page: 'P', sort: 1, automate_due_on: '2026-11-07' }, { id: 'a2', zone: 'E', page: 'Q', sort: 2, automate_due_on: '2026-11-07' }],
       [c({ area_id: 'a1', automation: 'automated' }), c({ area_id: 'a2' })], '2026-11-10')
     expect(auto.map((p) => p.automateLate)).toEqual([false, true])
+    expect(auto.map((p) => pageStatus(p).automation)).toEqual(['Fully automated', 'Late'])
+    expect(pages.map((p) => pageStatus(p).writing)).toEqual(['Completed', 'Late', 'Late'])
+    expect(pages.map((p) => pageStatus(p).hand)).toEqual(['Not started', 'Not started', 'Nothing to test'])
     expect(pct(1, 3)).toBe(33)
     expect(pct(1, 0)).toBe(0)
   })

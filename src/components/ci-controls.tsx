@@ -81,7 +81,7 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
     },
     {
       title: 'Raise a ticket',
-      what: 'For a failing test case. If its ticket is open, the failure is added to it instead (200, created: false) so repeats never duplicate. With defect_id, the open ticket for that defect is the one, whichever case raised it: one defect failing nine cases is one ticket. New tickets go to the next fix sprint. kind: defect (DEV-) or test_mismatch (MM-).',
+      what: 'For a failing test case. If its ticket is open, the failure is added to it instead (200, created: false) so repeats never duplicate. With defect_id, the open ticket for that defect is the one, whichever case raised it: one defect failing nine cases is one ticket. If the case has a closed ticket, that ticket is reopened (200, reopened: true) rather than a -2 opened. New tickets go to the next fix sprint. kind: defect (DEV-) or test_mismatch (MM-).',
       curl: `curl -X POST "${appUrl}/api/tickets" \\
   ${auth} \\
   -H "Content-Type: application/json" \\

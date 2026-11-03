@@ -144,12 +144,12 @@ export async function POST(request: NextRequest) {
 
   // With raise_tickets, each failure gets a ticket, or a comment on the one already open (for its
   // defect_id when sent). Only failed results raise: known_defect, skipped and passed never do.
-  const tickets: { tc_id: string; key?: string; created?: boolean; error?: string }[] = []
+  const tickets: { tc_id: string; key?: string; created?: boolean; reopened?: boolean; error?: string }[] = []
   if (parsed.data.raise_tickets) {
     const caller = { db: supabase, tokenId: tok.id, actorId: await ciActor(supabase, tok.created_by as string | null) }
     for (const r of results.filter((x) => x.status === 'failed' && caseIds.has(x.tc_id)).slice(0, 200)) {
       const res = await raiseTicket(caller, { tc_id: r.tc_id, kind: 'defect', build, run_id, error: r.error, url: r.url, defect_id: r.defect_id })
-      tickets.push('error' in res ? { tc_id: r.tc_id, error: res.error } : { tc_id: r.tc_id, key: res.key, created: res.created })
+      tickets.push('error' in res ? { tc_id: r.tc_id, error: res.error } : { tc_id: r.tc_id, key: res.key, created: res.created, ...(res.reopened ? { reopened: true } : {}) })
     }
   }
 

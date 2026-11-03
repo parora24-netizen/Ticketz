@@ -55,10 +55,11 @@ const NO_OWNER = 'There is no CI person to post comments as; run the ci_identity
  * Raise a ticket for a failing test case, or add the new failure to the ticket already open for it
  * as a comment, so repeat failures never make duplicates. With a defect_id, the open ticket for that
  * defect is the one, whichever case it was raised from (one defect failing nine cases is one
- * ticket); without, it is the case's open ticket of the same kind. New tickets are found in the
- * running test sprint and go to the next fix sprint, like a fail recorded in the app.
+ * ticket); without, it is the case's open ticket of the same kind. With nothing open, the case's
+ * closed ticket is reopened (the fix did not hold), so its whole history stays on one ticket.
+ * Otherwise a new ticket is found in the running test sprint and goes to the page's fix sprint.
  */
-export async function raiseTicket(c: Caller, p: RaisePayload): Promise<{ key: string; created: boolean; url: string } | { error: string; status: number }> {
+export async function raiseTicket(c: Caller, p: RaisePayload): Promise<{ key: string; created: boolean; reopened?: boolean; url: string } | { error: string; status: number }> {
   const { data: tc } = await c.db.from('test_cases').select('id, tc_id, title, priority, area_id').eq('tc_id', p.tc_id).maybeSingle()
   if (!tc) return { error: `No test case ${p.tc_id}`, status: 404 }
   const text = failureText(p)
@@ -86,6 +87,23 @@ export async function raiseTicket(c: Caller, p: RaisePayload): Promise<{ key: st
   const base = `${p.kind === 'defect' ? 'DEV' : 'MM'}-${tc.tc_id}`
   const { data: taken } = await c.db.from('tickets').select('key').like('key', `${base}%`)
   const key = nextKey(p.kind, tc.tc_id, new Set((taken ?? []).map((t) => t.key as string)))
+
+  // Closed before and failing again: reopen it (QA's move), into the page's fix sprint when its
+  // own sprint has closed.
+  const { data: closed } = await c.db.from('tickets').select('id, key, current_sprint_id, defect_id').eq('case_id', tc.id).eq('kind', p.kind)
+    .eq('state', 'closed').order('logged_on', { ascending: false }).order('key', { ascending: false }).limit(1).maybeSingle()
+  if (closed) {
+    const sprintOpen = sprints.some((s) => s.id === closed.current_sprint_id && s.status !== 'closed')
+    const { error } = await c.db.from('tickets').update({
+      state: 'reopened',
+      ...(sprintOpen ? {} : { current_sprint_id: fixSprint?.id ?? null }),
+      ...(p.defect_id && !closed.defect_id ? { defect_id: p.defect_id } : {}),
+    }).eq('id', closed.id).eq('state', 'closed')
+    if (error) return { error: error.message, status: 500 }
+    const err = await addComment(c, closed.id, `Failed again after it was closed, so it is reopened.${text ? `\n${text}` : ''}`)
+    if (err) return { error: err, status: 500 }
+    return { key: closed.key, created: false, reopened: true, url: ticketUrl(closed.key) }
+  }
 
   const { error } = await c.db.from('tickets').insert({
     key, case_id: tc.id, kind: p.kind, title: p.title ?? tc.title, description: text || null,

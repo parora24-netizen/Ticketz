@@ -51,7 +51,7 @@ export default async function PlanPage() {
       <Tabs items={RELEASE_TABS} active="plan" />
       <PageHeader sub={`Ships ${fmtDate(release.release_on)} · go/no-go ${fmtDate(release.go_no_go_on)}`} />
 
-      <div className="mb-4 grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+      <div className="mb-4 grid gap-4">
         <section className="card">
           <header className="flex items-center justify-between border-b border-[var(--line)] px-4 py-2.5">
             <h2 className="text-[14px] font-semibold text-[var(--navy-ink)]">Sprints to release</h2>

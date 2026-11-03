@@ -38,7 +38,7 @@ export function StatusGrid({ rows }: { rows: StatusRow[] }) {
     { key: 'cases', header: 'Cases', width: 70, align: 'right', value: (r) => r.cases },
     { key: 'automated', header: 'Automated', width: 150, value: (r) => pct(r.automated, r.cases), sortValue: (r) => (r.cases ? r.automated / r.cases : -1),
       render: (r) => r.cases ? <MiniBar n={r.automated} of={r.cases} parts={[{ value: r.automated, tone: 'accent', label: 'Automated' }, { value: r.cases - r.automated, tone: 'muted', label: 'Not automated' }]} /> : null },
-    { key: 'autoRun', header: 'Automated, run', width: 150, value: (r) => pct(r.autoPassed, r.autoRun), sortValue: (r) => (r.autoRun ? r.autoPassed / r.autoRun : -1),
+    { key: 'autoRun', header: 'Automation passing', width: 150, value: (r) => pct(r.autoPassed, r.autoRun), sortValue: (r) => (r.autoRun ? r.autoPassed / r.autoRun : -1),
       render: (r) => r.automated ? <MiniBar n={r.autoPassed} of={r.autoRun} parts={[{ value: r.autoPassed, tone: 'good', label: 'Passing' }, { value: r.autoRun - r.autoPassed, tone: 'crit', label: 'Not passing' }, { value: r.automated - r.autoRun, tone: 'muted', label: 'Not run' }]} /> : null },
     { key: 'manual', header: 'Tested by hand', width: 150, value: (r) => pct(r.manualDone, r.needManual), sortValue: (r) => (r.needManual ? r.manualDone / r.needManual : -1),
       render: (r) => r.needManual ? <MiniBar n={r.manualDone} of={r.needManual} parts={[{ value: r.manualPassed, tone: 'good', label: 'Passed' }, { value: r.manualDone - r.manualPassed, tone: 'crit', label: 'Not passed' }, { value: r.untested, tone: 'muted', label: 'Left' }]} /> : null },

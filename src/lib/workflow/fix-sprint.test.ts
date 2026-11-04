@@ -24,5 +24,9 @@ describe('fix sprint after a test sprint', () => {
     const sa = [{ sprint_id: 'S2', area_id: 'a' }, { sprint_id: 'S6', area_id: 'a' }]
     expect(fixSprintForArea('a', plan, sa)?.name).toBe('S2')
     expect(fixSprintForArea('a', [s('S2', 'fix', 'closed'), s('S6', 'regression')], sa)).toBeNull()
+    // Fixes that start early, in S0, go there until S0 closes.
+    const early = [...sa, { sprint_id: 'S0', area_id: 'a' }]
+    expect(fixSprintForArea('a', plan, early)?.name).toBe('S0')
+    expect(fixSprintForArea('a', [s('S0', 'triage', 'closed'), ...plan.slice(1)], early)?.name).toBe('S2')
   })
 })

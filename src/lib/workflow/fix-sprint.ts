@@ -15,6 +15,10 @@ export function fixSprintAfter<T extends S>(test: S | undefined | null, sprints:
 export const followsPage = (t: { current_sprint_id: string | null }, sprints: { id: string; status: string }[]) =>
   sprints.find((s) => s.id === t.current_sprint_id)?.status !== 'active'
 
+/** Of open tickets, those that go with these pages to sprint `to`. */
+export const ticketsFollowing = <T extends { current_sprint_id: string | null; area_id: string | null }>(open: T[], pageIds: string[], to: string, sprints: { id: string; status: string }[]) =>
+  open.filter((t) => t.current_sprint_id !== to && followsPage(t, sprints) && !!t.area_id && pageIds.includes(t.area_id))
+
 /**
  * Where a page's tickets are fixed: the open triage or fix sprint the plan gives the page (S0 takes
  * pages whose fixes start early, then S1–S5), else the fix sprint after the open test sprint that

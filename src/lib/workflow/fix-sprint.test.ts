@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fixSprintAfter, fixSprintForArea, followsPage } from './fix-sprint'
+import { fixSprintAfter, fixSprintForArea, followsPage, ticketsFollowing } from './fix-sprint'
 
 const s = (id: string, kind: string, status = 'planned') => ({ id, name: id, kind, status })
 const sprints = [s('T1', 'test', 'active'), s('F1', 'fix', 'active'), s('T2', 'test'), s('F2', 'fix'), s('T3', 'test'), s('F3', 'fix', 'closed'), s('R1', 'regression')]
@@ -10,6 +10,12 @@ describe('tickets following a moved page', () => {
     expect(followsPage({ current_sprint_id: 'S1' }, plan)).toBe(false)
     expect(followsPage({ current_sprint_id: 'S2' }, plan)).toBe(true)
     expect(followsPage({ current_sprint_id: null }, plan)).toBe(true)
+  })
+  it('takes only the tickets on those pages, not already there', () => {
+    const plan = [s('S1', 'fix', 'active'), s('S2', 'fix'), s('S3', 'fix')]
+    const t = (id: string, current_sprint_id: string | null, area_id: string | null) => ({ id, current_sprint_id, area_id })
+    const open = [t('moves', 'S2', 'a'), t('running', 'S1', 'a'), t('there', 'S3', 'a'), t('other page', 'S2', 'b'), t('no page', 'S2', null)]
+    expect(ticketsFollowing(open, ['a'], 'S3', plan).map((x) => x.id)).toEqual(['moves'])
   })
 })
 

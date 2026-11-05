@@ -1,15 +1,17 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 
-type Msg = { role: 'user' | 'assistant'; text: string }
+type Proposal = { id: string; action: string; input: unknown; fingerprint: string; title: string; lines: string[]; note?: string; status?: 'working' | 'done' | 'cancelled' | 'failed'; result?: string }
+type Msg = { role: 'user' | 'assistant'; text: string; proposals?: Proposal[] }
 const KEY = 'assistant-chat'
 const EXAMPLES = [
-  'What is open on F1, by owner?',
+  'What is open on S1, by owner?',
   'Which Critical tickets are blocked or reopened?',
-  'How far along is T1? What is left to test?',
   'What is Uday retesting right now?',
+  'Move all of Data Exporter to sprint 4',
 ]
 
 /** Light formatting for answers: paragraphs, bullet and numbered lists, **bold**, `code` and [links](/tickets/…). */
@@ -88,8 +90,34 @@ function Answer({ text }: { text: string }) {
   )
 }
 
-/** The in-app assistant: free-form questions about the release, answered from the tracker's data. */
+/** What the assistant knows of a card when it reads the conversation back. */
+const asText = (m: Msg) => [m.text, ...(m.proposals ?? []).map((p) =>
+  p.status === 'done' ? `[Done: ${p.result}]` : p.status === 'cancelled' ? `[They cancelled: ${p.title}]` : p.status === 'failed' ? `[Failed: ${p.title}: ${p.result}]` : `[Waiting for them to confirm: ${p.title}]`)].filter(Boolean).join('\n\n')
+
+/** A proposed change: exactly what would happen, and nothing until Confirm. */
+function ProposalCard({ p, onConfirm, onCancel }: { p: Proposal; onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <div className="mt-2 border border-[var(--line)] bg-[var(--surface-3)] px-3 py-2.5">
+      <p className="font-semibold text-[var(--navy-ink)]">{p.title}</p>
+      <ul className="mt-1 space-y-0.5 text-[12.5px] text-[var(--ink-2)]">{p.lines.map((l, i) => <li key={i} className="whitespace-pre-wrap">{l}</li>)}</ul>
+      {p.note && <p className="mt-1 text-[12px] text-[var(--muted)]">{p.note}</p>}
+      {!p.status && (
+        <div className="mt-2 flex gap-2">
+          <button type="button" onClick={onConfirm} className="btn btn-primary btn-sm">Confirm</button>
+          <button type="button" onClick={onCancel} className="btn btn-sm">Cancel</button>
+        </div>
+      )}
+      {p.status === 'working' && <p className="mt-2 text-[12px] text-[var(--muted)]">Working…</p>}
+      {p.status === 'cancelled' && <p className="mt-2 text-[12px] text-[var(--muted)]">Cancelled. Nothing changed.</p>}
+      {p.status === 'done' && <p className="mt-2 text-[12.5px] font-semibold text-[var(--good)]">✓ {p.result}</p>}
+      {p.status === 'failed' && <p className="mt-2 text-[12.5px] font-semibold text-[var(--crit)]">{p.result}</p>}
+    </div>
+  )
+}
+
+/** The in-app assistant: questions about the release, answered from the tracker's data, and directions, proposed for the person to confirm. */
 export function AssistantButton() {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [draft, setDraft] = useState('')
@@ -121,6 +149,24 @@ export function AssistantButton() {
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
 
+  const setProposal = (id: string, patch: Partial<Proposal>) => setMsgs((ms) => ms.map((m) => (m.proposals?.some((p) => p.id === id)
+    ? { ...m, proposals: m.proposals.map((p) => (p.id === id ? { ...p, ...patch } : p)) } : m)))
+
+  async function confirm(p: Proposal) {
+    setProposal(p.id, { status: 'working' })
+    try {
+      const res = await fetch('/api/assistant/apply', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: p.action, input: p.input, fingerprint: p.fingerprint }),
+      })
+      const out = await res.json() as { error?: string; done?: string }
+      if (out.error) setProposal(p.id, { status: 'failed', result: out.error })
+      else { setProposal(p.id, { status: 'done', result: out.done ?? 'Done.' }); router.refresh() }
+    } catch {
+      setProposal(p.id, { status: 'failed', result: 'The connection dropped, so this may not have gone through. Check before trying again.' })
+    }
+  }
+
   async function ask(question: string) {
     const q = question.trim()
     if (!q || busy) return
@@ -137,7 +183,7 @@ export function AssistantButton() {
     try {
       const res = await fetch('/api/assistant', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: history.filter((m) => m.text) }),
+        body: JSON.stringify({ messages: history.map((m) => ({ role: m.role, text: asText(m) })).filter((m) => m.text) }),
       })
       if (!res.ok || !res.body) {
         const err = await res.json().catch(() => ({ error: 'Something went wrong' }))
@@ -156,9 +202,18 @@ export function AssistantButton() {
           const raw = buf.slice(0, nl)
           buf = buf.slice(nl + 1)
           if (!raw.trim()) continue
-          const ev = JSON.parse(raw) as { t: string; d?: string; label?: string; message?: string }
+          const ev = JSON.parse(raw) as { t: string; d?: string; label?: string; message?: string; proposal?: Proposal }
           if (ev.t === 'text' && ev.d) { setStatus(null); append(ev.d) }
           else if (ev.t === 'tool') setStatus(ev.label ?? 'Looking things up')
+          else if (ev.t === 'proposal' && ev.proposal) {
+            const proposal = ev.proposal
+            setMsgs((m) => {
+              const copy = [...m]
+              const last = copy[copy.length - 1]
+              copy[copy.length - 1] = { ...last, proposals: [...(last.proposals ?? []), proposal] }
+              return copy
+            })
+          }
           else if (ev.t === 'error') append(`\n\n${ev.message}`)
         }
       }
@@ -190,7 +245,7 @@ export function AssistantButton() {
             <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4 text-[13px] leading-relaxed">
               {msgs.length === 0 && (
                 <div className="space-y-2">
-                  <p className="text-[var(--muted)]">Ask anything about the tickets, test cases, sprints or team. Answers come from the tracker, as you see it.</p>
+                  <p className="text-[var(--muted)]">Ask anything about the tickets, test cases, sprints or team, or tell it what to change. It shows you exactly what would happen, and changes nothing until you confirm.</p>
                   {EXAMPLES.map((e) => (
                     <button key={e} type="button" onClick={() => void ask(e)} className="block w-full border border-[var(--line)] px-3 py-2 text-left hover:border-[var(--navy)] hover:bg-[var(--surface-3)]">{e}</button>
                   ))}
@@ -198,16 +253,19 @@ export function AssistantButton() {
               )}
               {msgs.map((m, i) => m.role === 'user'
                 ? <div key={i} className="ml-8 bg-[var(--accent-soft)] px-3 py-2 whitespace-pre-wrap">{m.text}</div>
-                : <div key={i}>{m.text ? <Answer text={m.text} /> : null}</div>)}
+                : <div key={i}>
+                  {m.text ? <Answer text={m.text} /> : null}
+                  {m.proposals?.map((p) => <ProposalCard key={p.id} p={p} onConfirm={() => void confirm(p)} onCancel={() => setProposal(p.id, { status: 'cancelled' })} />)}
+                </div>)}
               {status && <p className="text-[12px] text-[var(--muted)]"><span className="mr-1.5 inline-block animate-pulse">●</span>{status}…</p>}
               <div ref={end} />
             </div>
             <form className="border-t border-[var(--line)] p-3" onSubmit={(e) => { e.preventDefault(); void ask(draft) }}>
               <textarea ref={input} rows={2} value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={4000}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void ask(draft) } }}
-                placeholder="Ask a question (Enter to send, Shift+Enter for a new line)" className="input w-full" />
+                placeholder="Ask a question or give a direction (Enter to send, Shift+Enter for a new line)" className="input w-full" />
               <div className="mt-2 flex items-center justify-between text-[11px] text-[var(--faint)]">
-                <span>Read-only · Claude Opus 5.5 · {shortcut} to open or close</span>
+                <span>Changes only what you confirm · Claude Opus 5.5 · {shortcut} to open or close</span>
                 <button disabled={busy || !draft.trim()} className="btn btn-primary btn-sm">{busy ? 'Answering…' : 'Ask'}</button>
               </div>
             </form>

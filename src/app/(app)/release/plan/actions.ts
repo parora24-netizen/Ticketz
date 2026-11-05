@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { getMe } from '@/lib/auth'
 import { fmtDate, loadAreas, loadSprints, loadTickets } from '@/lib/data'
 import { createClient } from '@/lib/supabase/server'
-import { followsPage } from '@/lib/workflow/fix-sprint'
+import { ticketsFollowing } from '@/lib/workflow/fix-sprint'
 import { OPEN_STATES } from '@/lib/workflow/ticket-machine'
 
 /** Sprints that fix pages and can still change; closed ones keep their history, regression keeps every page. */
@@ -35,8 +35,7 @@ export async function movePagesToSprint(pageIds: string[], sprintId: string | nu
 
   let moved = 0
   if (to) {
-    const pages = new Set(ids.data)
-    const following = tickets.filter((t) => OPEN_STATES.includes(t.state) && t.current_sprint_id !== to.id && followsPage(t, sprints) && !!t.area_id && pages.has(t.area_id))
+    const following = ticketsFollowing(tickets.filter((t) => OPEN_STATES.includes(t.state)), ids.data, to.id, sprints)
     if (following.length) {
       const { error } = await supabase.from('tickets').update({ current_sprint_id: to.id }).in('id', following.map((t) => t.id))
       if (error) return { error: error.message }

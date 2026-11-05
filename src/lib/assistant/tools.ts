@@ -14,12 +14,12 @@ const OPEN = ['new', 'triaged', 'in_fix', 'reopened', 'ready_for_retest']
 const has = (hay: string | null | undefined, needle?: string) => !needle || (hay ?? '').toLowerCase().includes(needle.toLowerCase())
 const inList = (v: string | null | undefined, list?: string[]) => !list?.length || list.map((x) => x.toLowerCase()).includes((v ?? '').toLowerCase())
 
-const TicketFilters = z.object({
+export const TicketFilters = z.object({
   text: z.string().optional().describe('Words in the key or title'),
   states: z.array(z.enum(['new', 'triaged', 'in_fix', 'ready_for_retest', 'reopened', 'closed', 'deferred', 'duplicate'])).optional(),
   open_only: z.boolean().optional().describe('Only tickets not yet closed, deferred or duplicate'),
   severities: z.array(z.enum(['Critical', 'High', 'Medium', 'Low'])).optional(),
-  sprint: z.string().optional().describe('Sprint name, e.g. F1'),
+  sprint: z.string().optional().describe('Sprint name, e.g. S2'),
   owner: z.string().optional().describe('Owner name (part of it is fine), or "none" for unassigned'),
   zone: z.string().optional(),
   page: z.string().optional(),
@@ -32,7 +32,7 @@ const CaseFilters = z.object({
   text: z.string().optional().describe('Words in the ID or title'),
   zone: z.string().optional(),
   page: z.string().optional(),
-  sprint: z.string().optional().describe('Test sprint name, e.g. T1: its areas'),
+  sprint: z.string().optional().describe('Sprint name, e.g. S2: the cases on its pages'),
   priorities: z.array(z.enum(['Critical', 'High', 'Medium', 'Low'])).optional(),
   automation: z.enum(['automated', 'not_automated', 'manual_only']).optional(),
   tester: z.string().optional().describe('Tester name (part of it is fine), or "none"'),
@@ -42,16 +42,17 @@ const CaseFilters = z.object({
 })
 type CaseFilter = z.infer<typeof CaseFilters>
 
-async function context() {
+export async function loadToolContext() {
   const [tickets, cases, sprints, sprintAreas, people, areas] = await Promise.all([loadTickets(), loadCases(), loadSprints(), loadSprintAreas(), loadPeople(), loadAreas()])
   const sprintByName = new Map(sprints.map((s) => [s.name.toLowerCase(), s]))
   const sprintName = new Map(sprints.map((s) => [s.id, s.name]))
   const personByName = (q: string) => people.filter((p) => p.name.toLowerCase().includes(q.toLowerCase())).map((p) => p.id)
   return { tickets, cases, sprints, sprintAreas, people, areas, sprintByName, sprintName, personByName }
 }
-type Ctx = Awaited<ReturnType<typeof context>>
+type Ctx = Awaited<ReturnType<typeof loadToolContext>>
+export type ToolContext = Ctx
 
-function filterTickets(ctx: Ctx, f: TicketFilter): TicketRow[] {
+export function filterTickets(ctx: Ctx, f: TicketFilter): TicketRow[] {
   const sprint = f.sprint ? ctx.sprintByName.get(f.sprint.toLowerCase()) : undefined
   const owners = f.owner && f.owner.toLowerCase() !== 'none' ? ctx.personByName(f.owner) : null
   return ctx.tickets.filter((t) =>
@@ -100,14 +101,14 @@ function countBy<T>(rows: T[], key: (r: T) => string | null | undefined) {
 
 type ToolDef = { tool: Anthropic.Beta.BetaTool; input: z.ZodType; run: (ctx: Ctx, input: never) => Promise<unknown> | unknown; label: string }
 
-const schema = (s: z.ZodType) => {
+export const toolSchema = (s: z.ZodType) => {
   const json = z.toJSONSchema(s) as Record<string, unknown>
   delete json.$schema
   return json as Anthropic.Beta.BetaTool['input_schema']
 }
 
 function def<S extends z.ZodType>(name: string, label: string, description: string, input: S, run: (ctx: Ctx, input: z.infer<S>) => unknown): ToolDef {
-  return { tool: { name, description, input_schema: schema(input), eager_input_streaming: true }, input, run: run as ToolDef['run'], label }
+  return { tool: { name, description, input_schema: toolSchema(input), eager_input_streaming: true }, input, run: run as ToolDef['run'], label }
 }
 
 export const TOOLS: ToolDef[] = [
@@ -181,7 +182,7 @@ export const TOOLS: ToolDef[] = [
       }
     }),
   def('sprints', 'Checking sprints',
-    'Every sprint: type (triage, test, fix, regression), dates, status, areas and open tickets. Test and fix sprints run side by side.',
+    'Every sprint: type (triage, test, fix, regression), dates, status, pages and open tickets.',
     z.object({}),
     (ctx) => ctx.sprints.map((s) => {
       const areaIds = ctx.sprintAreas.filter((x) => x.sprint_id === s.id).map((x) => x.area_id)
@@ -210,7 +211,7 @@ export async function runTool(name: string, input: unknown, ctx: { value?: Ctx }
   const parsed = t.input.safeParse(input)
   if (!parsed.success) return { content: JSON.stringify({ INVALID_INPUT: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`) }), isError: true }
   try {
-    ctx.value ??= await context()
+    ctx.value ??= await loadToolContext()
     const out = await t.run(ctx.value, parsed.data as never)
     return { content: JSON.stringify(out), isError: false }
   } catch (e) {

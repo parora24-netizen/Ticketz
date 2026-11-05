@@ -225,7 +225,7 @@ export function parseScenarios(rows: Record<string, string>[]): Scenario[] {
 
 /**
  * Fill each case's scenario and requirement from the scenario ranges, where its row has none.
- * With scenarios to go on, both fields count as present: a case no scenario covers is cleared.
+ * With scenarios to go on, both fields count as present; a case no scenario covers keeps what it has (see diffCases).
  * `otherIds` gives a case's other ID (current for old, old for current), since a sheet's rows and
  * ranges may use either; without it a mix would match nothing and clear good scenarios.
  */
@@ -290,9 +290,11 @@ export function diffCases(cases: CaseInput[], existing: Existing[], present: rea
   const byId = new Map(existing.map((e) => [e.tc_id, e]))
   // Only columns the file has can change; a missing column never blanks what is stored.
   const fields = ['title', 'area_id', 'priority', ...present] as const
-  return cases.map((c) => {
-    const e = c.tc_id ? byId.get(c.tc_id) : undefined
-    if (!e) return { case: c, status: 'new' as const, changed: [] as string[] }
+  return cases.map((upload) => {
+    const e = upload.tc_id ? byId.get(upload.tc_id) : undefined
+    if (!e) return { case: upload, status: 'new' as const, changed: [] as string[] }
+    // A blank scenario or requirement keeps what is stored, so a sheet missing them can't wipe them.
+    const c = { ...upload, scenario_id: upload.scenario_id ?? e.scenario_id ?? null, requirement_id: upload.requirement_id ?? e.requirement_id ?? null }
     const changed = fields.filter((f) => (e[f] ?? null) !== (c[f] ?? null))
     return { case: c, status: changed.length ? ('updated' as const) : ('unchanged' as const), changed: changed as string[] }
   })

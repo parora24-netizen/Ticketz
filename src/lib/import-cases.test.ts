@@ -113,6 +113,20 @@ describe('case import', () => {
     expect(held.errors).toEqual([{ row: 4, message: expect.stringContaining('already TC_FN_001') }])
   })
 
+  it('keeps a stored scenario and requirement when the upload is blank, and takes a new value', () => {
+    const base = { title: 'Same', area_id: 'a', priority: 'High' as const, preconditions: null, steps: null, test_data: null, expected: null, test_type: null }
+    const upload = (scenario_id: string | null, requirement_id: string | null) => ({ ...base, tc_id: 'TC_1', zone: 'z', page: 'p', source_page: 'p', scenario_id, requirement_id })
+    const existing = [{ ...base, tc_id: 'TC_1', scenario_id: 'TS_1', requirement_id: 'REQ_1' }]
+    const blank = diffCases([upload(null, null)], existing)[0]
+    expect(blank.status).toBe('unchanged')
+    expect([blank.case.scenario_id, blank.case.requirement_id]).toEqual(['TS_1', 'REQ_1'])
+    const changed = diffCases([upload('TS_2', null)], existing)[0]
+    expect(changed.changed).toEqual(['scenario_id'])
+    expect([changed.case.scenario_id, changed.case.requirement_id]).toEqual(['TS_2', 'REQ_1'])
+    const filled = diffCases([upload('TS_9', 'REQ_9')], [{ ...base, tc_id: 'TC_1', scenario_id: null, requirement_id: null }])[0]
+    expect(filled.changed).toEqual(['scenario_id', 'requirement_id'])
+  })
+
   it('adds blank IDs, updates IDs we have (old ones too) and refuses the rest', () => {
     const c = (tc_id: string | null, row: number) => ({ tc_id, row, title: 't', area_id: 'a', zone: 'z', page: 'p', source_page: 'p', priority: 'High', preconditions: null, steps: null, test_data: null, expected: null, test_type: null, scenario_id: null, requirement_id: null }) as Parameters<typeof resolveUploadIds>[0][number]
     const existing = [{ tc_id: 'TC_1', legacy_tc_id: 'TC_FN_070' }, { tc_id: 'TC_2', legacy_tc_id: null }]

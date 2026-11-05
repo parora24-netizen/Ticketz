@@ -41,7 +41,6 @@ export function PayloadExample({ appUrl }: { appUrl: string }) {
   -d '{
     "build": "b39a5eab1",
     "run_id": "codebuild-1234",
-    "raise_tickets": true,
     "results": [
       { "tc_id": "TC_FN_070", "status": "passed", "duration_ms": 5400 },
       { "tc_id": "TC_FN_071", "status": "failed", "defect_id": "DEF-12", "error": "Expected error text not shown", "url": "https://reports.example/1234#TC_FN_071" },
@@ -62,8 +61,8 @@ export function PayloadExample({ appUrl }: { appUrl: string }) {
         <dt className="mono text-[var(--muted)]">build, run_id</dt><dd>optional; shown on each result</dd>
         <dt className="mono text-[var(--muted)]">limits</dt><dd>up to 5,000 results per call; a test reported twice keeps its last result</dd>
         <dt className="mono text-[var(--muted)]">lands in</dt><dd>the running test sprint; the response lists recorded, sprint and unmatched</dd>
-        <dt className="mono text-[var(--muted)]">defect_id</dt><dd>optional; your id for the recorded defect behind a result. Stored on the result; with raise_tickets, all results with the same defect_id share one ticket</dd>
-        <dt className="mono text-[var(--muted)]">raise_tickets</dt><dd>optional; true raises a ticket for each failed result, or adds the failure to its open ticket. Only failed raises: known_defect, skipped and passed never do. The response lists the tickets</dd>
+        <dt className="mono text-[var(--muted)]">defect_id</dt><dd>optional; your id for the recorded defect behind a result. Stored on the result; all results with the same defect_id share one ticket</dd>
+        <dt className="mono text-[var(--muted)]">tickets</dt><dd>every failed result raises a ticket, adds to the open one, or reopens the closed one, and the response lists them. known_defect raises nothing. Up to 200 per call; tickets_not_raised counts any beyond that. raise_tickets is no longer needed</dd>
       </dl>
     </section>
   )

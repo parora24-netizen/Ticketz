@@ -19,6 +19,7 @@ export const ResultsPayload = z.object({
     .min(1)
     .max(5000),
   /** Raise a ticket for each failed result (or add to its open ticket). Off unless asked for. */
+  /** Ignored: every failed result now raises a ticket. Accepted so existing callers keep working. */
   raise_tickets: z.boolean().optional(),
 })
 export type ResultsPayload = z.infer<typeof ResultsPayload>

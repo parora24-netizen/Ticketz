@@ -126,7 +126,7 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
     },
     {
       title: 'Set automation state',
-      what: 'Runner tokens only; a case\'s text stays with the testers. automation_status: not_automated, in_progress, automated, blocked or not_automatable. automation_note says why it is blocked or not automatable; automation_owner is who claimed it; automation_ref is the spec file or PR. A posted result moves not_automated and in_progress to automated, and leaves blocked and not_automatable alone. To spot stale tests, read /api/cases with text_updated_since and compare revision: both move only when the wording changes, unlike updated_at. /api/cases also filters by automation, priority and type.',
+      what: 'Runner tokens only; a case\'s text stays with the testers. automation_status: not_automated, in_progress, automated, blocked or not_automatable. automation_note says why it is blocked or not automatable; automation_owner is who claimed it; automation_ref is the spec file or PR. A posted result moves not_automated and in_progress to automated, and leaves blocked and not_automatable alone. To spot stale tests, read /api/cases with text_updated_since and compare revision: both move only when the wording changes, unlike updated_at. /api/cases also filters by automation, priority and type. Each case there carries automation_due_on (YYYY-MM-DD, or null if none is set), which is set per page on the Plan tab; changing it does not move updated_at, so read it fresh rather than through updated_since.',
       curl: `curl -X PATCH "${appUrl}/api/cases/TC_71" \\
   ${auth} \\
   -H "Content-Type: application/json" \\

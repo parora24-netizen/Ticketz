@@ -14,18 +14,24 @@ import { InfoTip } from '@/components/info-tip'
 import { SprintDatesButton, ZonesInRelease } from './plan-controls'
 import { PlanGrid, type PlanRow } from './plan-grid'
 
-/** The number columns of the sprint table, with what each one counts. */
-const COLUMNS = [
-  { label: 'Test cases', info: 'All test cases on the sprint’s pages. Passed + Failed + No result add up to this.' },
-  { label: 'Automated', info: 'Test cases with an automated test. Overlaps with Manual tested: a case can be both.' },
-  { label: 'Manual tested', info: 'Test cases that need a manual test and have a manual result, as on the Status tab. Needing one means Critical or High, not automated, or automation did not pass.' },
-  { label: 'Passed', info: 'The latest automated or manual result passed, and neither one failed.' },
-  { label: 'Failed', info: 'The latest automated or manual result failed or is a known defect. A failure on either side counts here.' },
-  { label: 'No result', info: 'Neither passed nor failed yet: not run, or only skipped or blocked.' },
-  { label: 'Critical', info: 'Open Critical tickets sitting in this sprint.' },
-  { label: 'High', info: 'Open High tickets sitting in this sprint.' },
-  { label: 'Open tickets', info: 'All open tickets sitting in this sprint, at any severity. These are tickets, not cases, so this won’t match Failed: one ticket can cover several cases.' },
+/** The number columns of the sprint table, in their groups, with what each one counts. */
+const COLUMN_GROUPS = [
+  { group: 'Results', info: 'Passed + Failed + No result add up to Test cases.', columns: [
+    { label: 'Passed', info: 'The latest automated or manual result passed, and neither one failed.' },
+    { label: 'Failed', info: 'The latest automated or manual result failed or is a known defect. A failure on either side counts here.' },
+    { label: 'No result', info: 'Neither passed nor failed yet: not run, or only skipped or blocked.' },
+  ] },
+  { group: 'Testing', info: 'How the cases get tested. These overlap, since a case can be both, so they do not add up to Test cases.', columns: [
+    { label: 'Automated', info: 'Test cases with an automated test.' },
+    { label: 'Manual tested', info: 'Test cases that need a manual test and have a manual result, as on the Status tab. Needing one means Critical or High, not automated, or automation did not pass.' },
+  ] },
+  { group: 'Open tickets', info: 'Tickets, not cases, sitting in this sprint. They will not match Failed: one ticket can cover several cases, and some failed cases have no open ticket.', columns: [
+    { label: 'All', info: 'All open tickets in this sprint, at any severity.' },
+    { label: 'Critical', info: 'Open Critical tickets in this sprint.' },
+    { label: 'High', info: 'Open High tickets in this sprint.' },
+  ] },
 ]
+const GROUP_START = 'border-l border-[var(--line)]'
 const STATUS: Record<string, { label: string; tone: 'accent' | 'good' | 'muted' }> = {
   active: { label: 'Running', tone: 'accent' }, closed: { label: 'Closed', tone: 'good' }, planned: { label: 'Planned', tone: 'muted' },
 }
@@ -97,11 +103,19 @@ export default async function PlanPage() {
           </span>
         </header>
         <table className="table w-full text-[12.5px]">
-          <thead><tr>
-            <th>Sprint</th><th className="whitespace-nowrap">Dates</th><th>Status</th>
-            <th>Pages<InfoTip text="The pages this sprint fixes. Green means writing their test cases is completed." /></th>
-            {COLUMNS.map((c) => <th key={c.label} className="text-right whitespace-nowrap">{c.label}<InfoTip text={c.info} /></th>)}
-          </tr></thead>
+          <thead>
+            <tr>
+              <th rowSpan={2}>Sprint</th><th rowSpan={2} className="whitespace-nowrap">Dates</th><th rowSpan={2}>Status</th>
+              <th rowSpan={2}>Pages<InfoTip text="The pages this sprint fixes. Green means writing their test cases is completed." /></th>
+              <th rowSpan={2} className={`text-right whitespace-nowrap ${GROUP_START}`}>Test cases<InfoTip text="All test cases on the sprint’s pages." /></th>
+              {COLUMN_GROUPS.map((g) => <th key={g.group} colSpan={g.columns.length} className={`text-center whitespace-nowrap ${GROUP_START}`}>{g.group}<InfoTip text={g.info} /></th>)}
+            </tr>
+            <tr>
+              {COLUMN_GROUPS.flatMap((g) => g.columns.map((c, i) => (
+                <th key={c.label} className={`text-right whitespace-nowrap ${i === 0 ? GROUP_START : ''}`}>{c.label}<InfoTip text={c.info} /></th>
+              )))}
+            </tr>
+          </thead>
           <tbody>
             {sprintRows.map(({ s, covered, zones, ...n }) => (
               <tr key={s.id}>
@@ -118,15 +132,15 @@ export default async function PlanPage() {
                   ))}
                   {!covered.length && <span className="text-[var(--faint)]">—</span>}
                 </td>
-                <td className="text-right tabular-nums">{num(n.cases, casesHref({ sprint: s.id }))}</td>
-                <td className="text-right tabular-nums">{num(n.automated, casesHref({ sprint: s.id, automation: 'automated' }))}</td>
-                <td className="text-right tabular-nums">{num(n.manual, casesHref({ sprint: s.id, hand: 'tested' }))}</td>
-                <td className="text-right tabular-nums">{num(n.passed, casesHref({ sprint: s.id, outcome: 'passed' }))}</td>
+                <td className={`text-right tabular-nums ${GROUP_START}`}>{num(n.cases, casesHref({ sprint: s.id }))}</td>
+                <td className={`text-right tabular-nums ${GROUP_START}`}>{num(n.passed, casesHref({ sprint: s.id, outcome: 'passed' }))}</td>
                 <td className="text-right tabular-nums">{num(n.failed, casesHref({ sprint: s.id, outcome: 'failed' }), 'text-[var(--crit)]')}</td>
                 <td className="text-right tabular-nums">{num(n.cases - n.passed - n.failed, casesHref({ sprint: s.id, outcome: 'none' }))}</td>
+                <td className={`text-right tabular-nums ${GROUP_START}`}>{num(n.automated, casesHref({ sprint: s.id, automation: 'automated' }))}</td>
+                <td className="text-right tabular-nums">{num(n.manual, casesHref({ sprint: s.id, hand: 'tested' }))}</td>
+                <td className={`text-right tabular-nums ${GROUP_START}`}>{ticketsLink(s.id, n.open)}</td>
                 <td className="text-right tabular-nums">{ticketsLink(s.id, n.critical, 'Critical', 'text-[var(--crit)]')}</td>
                 <td className="text-right tabular-nums">{ticketsLink(s.id, n.high, 'High', 'text-[var(--warn)]')}</td>
-                <td className="text-right tabular-nums">{ticketsLink(s.id, n.open)}</td>
               </tr>
             ))}
           </tbody>

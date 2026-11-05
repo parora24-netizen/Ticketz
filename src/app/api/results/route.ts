@@ -147,6 +147,7 @@ export async function POST(request: NextRequest) {
   // Every automated failure gets a ticket, or a comment on the one already open (for its defect, or
   // its case), or reopens its closed one. A known_defect result raises nothing. Past MAX_RAISED in
   // one call the rest are counted, not raised, so a mass failure cannot time the call out.
+  const tickets: { tc_id: string; key?: string; created?: boolean; reopened?: boolean; error?: string }[] = []
   const failures = results.filter((x) => x.status === 'failed' && caseIds.has(x.tc_id))
   const caller = { db: supabase, tokenId: tok.id, actorId: await ciActor(supabase, tok.created_by as string | null) }
   for (const r of failures.slice(0, MAX_RAISED)) {

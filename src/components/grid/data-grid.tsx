@@ -489,6 +489,8 @@ export function DataGrid<T extends { id: string }>({
                           <select autoFocus defaultValue={editing.value} className="select h-7 w-full"
                             onChange={(e) => commitEdit(e.target.value)} onBlur={() => setEditing(null)}
                             onKeyDown={(e) => { if (e.key === 'Escape') { setEditing(null); gridRef.current?.focus() } }}>
+                            {/* A value not on the list (a page still "Writing") must not show as its first option, or picking that option changes nothing. */}
+                            {!col.edit.options.some((o) => o.value === editing.value) && <option value={editing.value} hidden>Choose…</option>}
                             {col.edit.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                           </select>
                         ) : col.edit.kind === 'date' ? (

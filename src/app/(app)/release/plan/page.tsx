@@ -10,9 +10,22 @@ import { sprintHref } from '@/lib/links'
 import { pageProgress, pageStatus, passFail } from '@/lib/progress'
 import { fixSprintForArea, followsPage } from '@/lib/workflow/fix-sprint'
 import { OPEN_STATES } from '@/lib/workflow/ticket-machine'
+import { InfoTip } from '@/components/info-tip'
 import { SprintDatesButton, ZonesInRelease } from './plan-controls'
 import { PlanGrid, type PlanRow } from './plan-grid'
 
+/** The number columns of the sprint table, with what each one counts. */
+const COLUMNS = [
+  { label: 'Test cases', info: 'All test cases on the sprint’s pages. Passed + Failed + No result add up to this.' },
+  { label: 'Automated', info: 'Test cases with an automated test. Overlaps with Manual tested: a case can be both.' },
+  { label: 'Manual tested', info: 'Test cases that need a manual test and have a manual result, as on the Status tab. Needing one means Critical or High, not automated, or automation did not pass.' },
+  { label: 'Passed', info: 'The latest automated or manual result passed, and neither one failed.' },
+  { label: 'Failed', info: 'The latest automated or manual result failed or is a known defect. A failure on either side counts here.' },
+  { label: 'No result', info: 'Neither passed nor failed yet: not run, or only skipped or blocked.' },
+  { label: 'Critical', info: 'Open Critical tickets sitting in this sprint.' },
+  { label: 'High', info: 'Open High tickets sitting in this sprint.' },
+  { label: 'Open tickets', info: 'All open tickets sitting in this sprint, at any severity. These are tickets, not cases, so this won’t match Failed: one ticket can cover several cases.' },
+]
 const STATUS: Record<string, { label: string; tone: 'accent' | 'good' | 'muted' }> = {
   active: { label: 'Running', tone: 'accent' }, closed: { label: 'Closed', tone: 'good' }, planned: { label: 'Planned', tone: 'muted' },
 }
@@ -85,13 +98,9 @@ export default async function PlanPage() {
         </header>
         <table className="table w-full text-[12.5px]">
           <thead><tr>
-            <th>Sprint</th><th className="whitespace-nowrap">Dates</th><th>Status</th><th>Pages</th>
-            <th className="text-right whitespace-nowrap" title="Test cases on the sprint's pages">Test cases</th><th className="text-right">Automated</th>
-            <th className="text-right whitespace-nowrap" title="Cases that need a manual test and have a manual result, as on Status">Manual tested</th>
-            <th className="text-right" title="Latest automated or manual result passed, and neither fails">Passed</th>
-            <th className="text-right" title="Latest automated or manual result failed, or a known defect">Failed</th>
-            <th className="text-right whitespace-nowrap" title="Neither passed nor failed yet. Passed + Failed + No result = Test cases">No result</th>
-            <th className="text-right" title="Open tickets in this sprint">Critical</th><th className="text-right" title="Open tickets in this sprint">High</th><th className="text-right whitespace-nowrap">Open tickets</th>
+            <th>Sprint</th><th className="whitespace-nowrap">Dates</th><th>Status</th>
+            <th>Pages<InfoTip text="The pages this sprint fixes. Green means writing their test cases is completed." /></th>
+            {COLUMNS.map((c) => <th key={c.label} className="text-right whitespace-nowrap">{c.label}<InfoTip text={c.info} /></th>)}
           </tr></thead>
           <tbody>
             {sprintRows.map(({ s, covered, zones, ...n }) => (

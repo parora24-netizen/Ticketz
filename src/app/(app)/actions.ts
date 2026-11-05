@@ -775,8 +775,20 @@ export async function recordCaseResult(input: {
     if (c) {
       const { data: open } = await supabase.from('tickets').select('key').eq('case_id', v.data.case_id)
         .in('state', ['new', 'triaged', 'in_fix', 'reopened', 'ready_for_retest']).limit(1)
+      // Failed again after it was closed: reopen it, as the API does, so its history stays on one ticket.
+      const { data: closed } = open?.length ? { data: null } : await supabase.from('tickets').select('id, key, current_sprint_id').eq('case_id', v.data.case_id)
+        .eq('kind', 'defect').eq('state', 'closed').order('logged_on', { ascending: false }).order('key', { ascending: false }).limit(1).maybeSingle()
       if (open?.length) ticketKey = open[0].key // already tracked; don't open a second ticket
-      else {
+      else if (closed) {
+        const sprints = await loadSprints()
+        const sprintOpen = sprints.some((s) => s.id === closed.current_sprint_id && s.status !== 'closed')
+        const { error: rErr } = await supabase.from('tickets').update({ state: 'reopened', ...(sprintOpen ? {} : { current_sprint_id: await fixSprintId(c.area_id) }) }).eq('id', closed.id).eq('state', 'closed')
+        if (rErr) return { error: `Result saved, but the ticket was not reopened: ${rErr.message}` }
+        const { error: cErr } = await supabase.from('ticket_comments').insert({ ticket_id: closed.id, author_id: me.id, body: `Failed again by hand after it was closed, so it is reopened.${v.data.note ? `
+${v.data.note}` : ''}` })
+        if (cErr) return { error: `Ticket reopened, but the comment was not saved: ${cErr.message}` }
+        ticketKey = closed.key
+      } else {
         ticketKey = await nextTicketKey(supabase, c.tc_id)
         const { error: tErr } = await supabase.from('tickets').insert({
           key: ticketKey, case_id: v.data.case_id, title: c.title, description: v.data.note || null, severity: c.priority,

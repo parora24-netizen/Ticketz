@@ -1,9 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { count, pageProgress, pageStatus, pct, type ProgressCase } from './progress'
+import { count, pageProgress, pageStatus, passFail, pct, type ProgressCase } from './progress'
 
 const c = (x: Partial<ProgressCase>): ProgressCase => ({ area_id: 'a1', priority: 'Medium', automation: 'not_automated', auto_result: null, manual_result: null, ...x })
 
 describe('test case progress', () => {
+  it('fails a case if either result fails, and passes it if one passed and neither fails', () => {
+    expect(passFail([
+      c({ auto_result: 'passed' }),
+      c({ manual_result: 'passed' }),
+      c({ auto_result: 'failed', manual_result: 'passed' }),
+      c({ auto_result: 'passed', manual_result: 'known_defect' }),
+      c({ manual_result: 'blocked' }),
+      c({}),
+    ])).toEqual({ passed: 2, failed: 2 })
+  })
+
   it('counts what is automated and what is left to test by hand', () => {
     const n = count([
       c({ automation: 'automated', auto_result: 'passed' }), // covered by automation

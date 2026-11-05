@@ -7,11 +7,13 @@ export function SprintTimeline({ sprints, today, releaseOn, goNoGoOn }: { sprint
   const first = [sprints[0]?.starts_on ?? today, today].sort()[0]
   const span = Math.max(1, (Date.parse(releaseOn) - Date.parse(first)) / 864e5 + 1)
   const pos = (d: string) => ((Date.parse(d) - Date.parse(first)) / 864e5 / span) * 100
-  // Test and fix sprints run side by side, so they get a lane each.
-  const lane = (s: Sprint) => (s.kind === 'fix' ? 1 : 0)
+  // Test and fix sprints run side by side, so they get a lane each; one after another, one lane does.
+  const sideBySide = sprints.some((a) => sprints.some((b) => a !== b && a.starts_on <= b.ends_on && b.starts_on <= a.ends_on))
+  const lane = (s: Sprint) => (sideBySide && s.kind === 'fix' ? 1 : 0)
+  const bar = sideBySide ? 'h-[4.6rem]' : 'h-[2.2rem]'
   return (
     <div>
-      <div className="relative h-[5.5rem]">
+      <div className={`relative ${sideBySide ? 'h-[5.5rem]' : 'h-[3.1rem]'}`}>
         {sprints.map((s) => (
           <Link key={s.id} href={sprintHref(s)} title={`${s.name}: ${fmtDate(s.starts_on)} to ${fmtDate(s.ends_on)}${s.goal ? ` · ${s.goal}` : ''}`}
             className={`absolute flex h-8 items-center justify-center border text-[11px] font-semibold ${
@@ -22,16 +24,16 @@ export function SprintTimeline({ sprints, today, releaseOn, goNoGoOn }: { sprint
             {s.name}
           </Link>
         ))}
-        <div className="absolute top-0 h-[4.6rem] w-0.5 bg-[#d03b3b]" style={{ left: `${Math.min(100, Math.max(0, pos(today)))}%` }} title={`Today, ${fmtDate(today)}`} />
-        {goNoGoOn && <div className="absolute top-0 h-[4.6rem] w-0.5 bg-[var(--warn)]" style={{ left: `${Math.min(100, pos(goNoGoOn))}%` }} title={`Go/no-go, ${fmtDate(goNoGoOn)}`} />}
-        <div className="absolute top-0 h-[4.6rem] w-0.5 bg-[var(--navy-ink)]" style={{ left: 'calc(100% - 2px)' }} title={`Release, ${fmtDate(releaseOn)}`} />
-        <div className="mono absolute top-[4.7rem] left-0 text-[10.5px] text-[var(--faint)]">{fmtDate(first)}</div>
-        <div className="mono absolute top-[4.7rem] right-0 text-[10.5px] text-[var(--faint)]">Release {fmtDate(releaseOn)}</div>
+        <div className={`absolute top-0 ${bar} w-0.5 bg-[#d03b3b]`} style={{ left: `${Math.min(100, Math.max(0, pos(today)))}%` }} title={`Today, ${fmtDate(today)}`} />
+        {goNoGoOn && <div className={`absolute top-0 ${bar} w-0.5 bg-[var(--warn)]`} style={{ left: `${Math.min(100, pos(goNoGoOn))}%` }} title={`Go/no-go, ${fmtDate(goNoGoOn)}`} />}
+        <div className={`absolute top-0 ${bar} w-0.5 bg-[var(--navy-ink)]`} style={{ left: 'calc(100% - 2px)' }} title={`Release, ${fmtDate(releaseOn)}`} />
+        <div className={`mono absolute ${sideBySide ? 'top-[4.7rem]' : 'top-[2.3rem]'} left-0 text-[10.5px] text-[var(--faint)]`}>{fmtDate(first)}</div>
+        <div className={`mono absolute ${sideBySide ? 'top-[4.7rem]' : 'top-[2.3rem]'} right-0 text-[10.5px] text-[var(--faint)]`}>Release {fmtDate(releaseOn)}</div>
       </div>
       <p className="mt-1 text-[11.5px] text-[var(--muted)]">
         <span className="inline-block h-2.5 w-0.5 bg-[#d03b3b] align-middle" /> today
         {goNoGoOn && <> · <span className="inline-block h-2.5 w-0.5 bg-[var(--warn)] align-middle" /> go/no-go {fmtDate(goNoGoOn)}</>}
-        {' '}· top row testing, bottom row fixing · dark = closed · outlined = running · grey = planned
+        {' '}{sideBySide && '· top row testing, bottom row fixing '}· dark = closed · outlined = running · grey = planned
       </p>
     </div>
   )

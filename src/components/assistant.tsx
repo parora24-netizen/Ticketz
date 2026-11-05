@@ -177,7 +177,7 @@ export function AssistantButton() {
     setStatus('Thinking')
     const append = (d: string) => setMsgs((m) => {
       const copy = [...m]
-      copy[copy.length - 1] = { role: 'assistant', text: copy[copy.length - 1].text + d }
+      copy[copy.length - 1] = { ...copy[copy.length - 1], text: copy[copy.length - 1].text + d }
       return copy
     })
     try {

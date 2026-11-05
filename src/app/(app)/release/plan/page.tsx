@@ -52,6 +52,7 @@ export default async function PlanPage() {
     return {
       s, covered, zones: [...new Set(covered.map((p) => p.zone))], cases: inSprint.length,
       automated: inSprint.filter((c) => c.automation === 'automated').length, ...passFail(inSprint),
+      manual: covered.reduce((sum, p) => sum + p.manualDone, 0),
       critical: inIt.filter((t) => t.severity === 'Critical').length, high: inIt.filter((t) => t.severity === 'High').length, open: inIt.length,
     }
   })
@@ -86,8 +87,10 @@ export default async function PlanPage() {
           <thead><tr>
             <th>Sprint</th><th className="whitespace-nowrap">Dates</th><th>Status</th><th>Pages</th>
             <th className="text-right whitespace-nowrap" title="Test cases on the sprint's pages">Test cases</th><th className="text-right">Automated</th>
+            <th className="text-right whitespace-nowrap" title="Cases that need a manual test and have a manual result, as on Status">Manual tested</th>
             <th className="text-right" title="Latest automated or manual result passed, and neither fails">Passed</th>
             <th className="text-right" title="Latest automated or manual result failed, or a known defect">Failed</th>
+            <th className="text-right whitespace-nowrap" title="Neither passed nor failed yet. Passed + Failed + No result = Test cases">No result</th>
             <th className="text-right" title="Open tickets in this sprint">Critical</th><th className="text-right" title="Open tickets in this sprint">High</th><th className="text-right whitespace-nowrap">Open tickets</th>
           </tr></thead>
           <tbody>
@@ -108,8 +111,10 @@ export default async function PlanPage() {
                 </td>
                 <td className="text-right tabular-nums">{num(n.cases, casesHref({ sprint: s.id }))}</td>
                 <td className="text-right tabular-nums">{num(n.automated, casesHref({ sprint: s.id, automation: 'automated' }))}</td>
+                <td className="text-right tabular-nums">{num(n.manual, casesHref({ sprint: s.id, hand: 'tested' }))}</td>
                 <td className="text-right tabular-nums">{num(n.passed, casesHref({ sprint: s.id, outcome: 'passed' }))}</td>
                 <td className="text-right tabular-nums">{num(n.failed, casesHref({ sprint: s.id, outcome: 'failed' }), 'text-[var(--crit)]')}</td>
+                <td className="text-right tabular-nums">{num(n.cases - n.passed - n.failed, casesHref({ sprint: s.id, outcome: 'none' }))}</td>
                 <td className="text-right tabular-nums">{ticketsLink(s.id, n.critical, 'Critical', 'text-[var(--crit)]')}</td>
                 <td className="text-right tabular-nums">{ticketsLink(s.id, n.high, 'High', 'text-[var(--warn)]')}</td>
                 <td className="text-right tabular-nums">{ticketsLink(s.id, n.open)}</td>

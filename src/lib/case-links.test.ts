@@ -9,6 +9,8 @@ describe('links to the cases behind a number', () => {
     expect(matchesCaseLink(failing, { outcome: 'failed' })).toBe(true)
     expect(matchesCaseLink(failing, { outcome: 'passed' })).toBe(false)
     expect(matchesCaseLink(c({ manual_result: 'blocked' }), { outcome: 'failed' })).toBe(false)
+    expect(matchesCaseLink(c({ manual_result: 'blocked' }), { outcome: 'none' })).toBe(true)
+    expect(matchesCaseLink(failing, { outcome: 'none' })).toBe(false)
   })
   it('counts hand testing only for cases that need it', () => {
     const covered = c({ automation: 'automated', auto_result: 'passed', manual_result: 'passed' })

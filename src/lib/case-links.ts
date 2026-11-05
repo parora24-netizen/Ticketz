@@ -10,7 +10,7 @@ type LinkableCase = ProgressCase & { open_fix: number; awaiting_retest: number }
 
 export function matchesCaseLink(c: LinkableCase, l: CaseLink): boolean {
   const need = needsManual({ ...c, open_fix: 0, awaiting_retest: 0 })
-  if (l.outcome && caseOutcome(c) !== l.outcome) return false
+  if (l.outcome && caseOutcome(c) !== (l.outcome === 'none' ? null : l.outcome)) return false
   if (l.automation && c.automation !== l.automation) return false
   if (l.auto === 'passed' && !(c.automation === 'automated' && c.auto_result === 'passed')) return false
   if (l.hand === 'tested' && !(need && c.manual_result)) return false
@@ -27,6 +27,7 @@ export function caseLinkLabel(l: CaseLink): string {
     l.priority === 'high' && 'Critical and High',
     l.outcome === 'passed' && 'Passed',
     l.outcome === 'failed' && 'Failed',
+    l.outcome === 'none' && 'No result',
     l.automation === 'automated' && 'Automated',
     l.auto === 'passed' && 'Automation passing',
     l.hand === 'tested' && 'Tested by hand',

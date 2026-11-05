@@ -1,3 +1,4 @@
+import { currentTicketKey } from '@/lib/ids'
 import { NextResponse, type NextRequest } from 'next/server'
 import { addComment, authenticate, ticketUrl } from '@/lib/ci-api'
 import { RetestPayload, retestMove, failureText } from '@/lib/tickets-api'
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { key } = await params
   const p = RetestPayload.safeParse(await request.json().catch(() => null))
   if (!p.success) return NextResponse.json({ error: 'Invalid payload', issues: p.error.issues.slice(0, 10) }, { status: 400 })
-  const { data: t } = await caller.db.from('tickets').select('id, key, state').ilike('key', decodeURIComponent(key)).maybeSingle()
+  const { data: t } = await caller.db.from('tickets').select('id, key, state').eq('key', (await currentTicketKey(caller.db, decodeURIComponent(key))) ?? '').maybeSingle()
   if (!t) return NextResponse.json({ error: `No ticket ${key}` }, { status: 404 })
 
   const move = retestMove(t.state as TicketState, p.data.result)

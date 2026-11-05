@@ -1,9 +1,11 @@
+import { casesByAnyId } from '@/lib/ids'
 import { NextResponse, type NextRequest } from 'next/server'
 import { addCaseComment, authenticate } from '@/lib/ci-api'
 import { CommentPayload } from '@/lib/tickets-api'
 
 async function findCase(caller: Exclude<Awaited<ReturnType<typeof authenticate>>, NextResponse>, tcId: string) {
-  const { data } = await caller.db.from('test_cases').select('id, tc_id').eq('tc_id', decodeURIComponent(tcId).toUpperCase()).maybeSingle()
+  const asked = decodeURIComponent(tcId).toUpperCase()
+  const data = (await casesByAnyId(caller.db, [asked])).get(asked)
   return data
 }
 

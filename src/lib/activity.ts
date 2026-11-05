@@ -38,7 +38,7 @@ export const KIND_LABEL: Record<EntryKind, string> = { session: 'Session', edit:
 export type Field = { field: string; before: string; after: string }
 export type Entry = {
   key: string; kind: EntryKind; at: string; actor_id: string | null
-  /** What it is about, e.g. TC_FN_070, DEV-TC_FN_070, Sprint T1. */
+  /** What it is about, e.g. TC_70, DEV-70, Sprint T1. */
   ref: string | null; href: string | null
   what: string
   fields?: Field[]

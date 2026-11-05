@@ -37,7 +37,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <div className="ml-auto flex items-center gap-3">
             <form action="/search" role="search" className="relative hidden md:block">
               <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-[var(--faint)]" />
-              <input id="global-search" name="q" placeholder="Jump to TC_FN_070, DEV-…   ( / )" aria-label="Search tickets and test cases" className="input h-8 w-72 pl-8" />
+              <input id="global-search" name="q" placeholder="Jump to TC_70, DEV-…   ( / )" aria-label="Search tickets and test cases" className="input h-8 w-72 pl-8" />
             </form>
             <AssistantButton />
             <NotificationBell />

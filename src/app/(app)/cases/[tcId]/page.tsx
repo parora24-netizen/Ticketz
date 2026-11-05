@@ -1,9 +1,10 @@
 import { SubmitButton } from '@/components/submit-button'
 import { MentionTextarea, WithMentions } from '@/components/mentions'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { Chip, PageHeader, PriorityChip, ResultChip, StateChip, TicketLink } from '@/components/ui'
 import { Flash } from '@/components/flash'
 import { getMe } from '@/lib/auth'
+import { casesByAnyId } from '@/lib/ids'
 import { createClient } from '@/lib/supabase/server'
 import { loadAreas, loadPeople, loadSprints } from '@/lib/data'
 import { MARKERS, Timeline, type TimelineItem } from '@/components/timeline'
@@ -21,7 +22,13 @@ export default async function CasePage({
   const me = await getMe()
   const supabase = await createClient()
   const { data: c } = await supabase.from('test_cases').select('*, areas(zone, page)').eq('tc_id', decodeURIComponent(tcId)).maybeSingle()
-  if (!c) notFound()
+  if (!c) {
+    // An ID from before the renumbering goes to the case's page.
+    const asked = decodeURIComponent(tcId).toUpperCase()
+    const found = (await casesByAnyId(supabase, [asked])).get(asked)
+    if (found) redirect(`/cases/${encodeURIComponent(found.tc_id)}`)
+    notFound()
+  }
   const [{ data: runs }, { data: tickets }, sprints, { data: edits }, people, areas, { data: comments }] = await Promise.all([
     supabase.from('test_runs').select('*, people(name)').eq('case_id', c.id).order('recorded_at', { ascending: false }),
     supabase.from('tickets').select('id, key, title, state, severity').eq('case_id', c.id).order('logged_on', { ascending: false }),
@@ -58,7 +65,7 @@ export default async function CasePage({
 
   return (
     <>
-      <PageHeader title={c.title} sub={<><span className="mono">{c.tc_id}</span> · {c.areas?.zone} · {c.areas?.page}{c.source_page && c.source_page !== c.areas?.page ? ` (${c.source_page})` : ''}</>}>
+      <PageHeader title={c.title} sub={<><span className="mono">{c.tc_id}</span>{c.legacy_tc_id && <span className="text-[var(--faint)]"> (was <span className="mono">{c.legacy_tc_id}</span>)</span>} · {c.areas?.zone} · {c.areas?.page}{c.source_page && c.source_page !== c.areas?.page ? ` (${c.source_page})` : ''}</>}>
         {mm && <Chip tone="warn">{mm === 'type_ii' ? 'Automation passed, manual failed' : 'Automation failed, manual passed'}</Chip>}
         {canTest && <CaseResultActions caseId={c.id} />}
       </PageHeader>

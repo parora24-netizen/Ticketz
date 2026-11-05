@@ -1,3 +1,4 @@
+import { currentTcIds } from '@/lib/ids'
 import { NextResponse, type NextRequest } from 'next/server'
 import { authenticate } from '@/lib/ci-api'
 import { CasesQuery, readQuery } from '@/lib/tickets-api'
@@ -15,9 +16,9 @@ export async function GET(request: NextRequest) {
   const f = q.data
 
   let query = caller.db.from('test_cases')
-    .select('tc_id, scenario_id, requirement_id, title, priority, test_type, automation, preconditions, steps, test_data, expected, source_page, created_at, updated_at, areas(zone, page), tester:people!test_cases_tester_id_fkey(name)', { count: 'exact' })
+    .select('tc_id, legacy_tc_id, scenario_id, requirement_id, title, priority, test_type, automation, preconditions, steps, test_data, expected, source_page, created_at, updated_at, areas(zone, page), tester:people!test_cases_tester_id_fkey(name)', { count: 'exact' })
     .order('updated_at').order('tc_id').range(f.offset, f.offset + f.limit - 1)
-  if (f.tc_id?.length) query = query.in('tc_id', f.tc_id)
+  if (f.tc_id?.length) query = query.in('tc_id', await currentTcIds(caller.db, f.tc_id))
   if (f.scenario_id?.length) query = query.in('scenario_id', f.scenario_id)
   if (f.requirement_id?.length) query = query.in('requirement_id', f.requirement_id)
   if (f.updated_since) query = query.gte('updated_at', f.updated_since)
@@ -37,7 +38,7 @@ export async function GET(request: NextRequest) {
     cases: data.map((c) => {
       const area = one<{ zone: string; page: string }>(c.areas)
       return {
-        tc_id: c.tc_id, scenario_id: c.scenario_id, requirement_id: c.requirement_id, title: c.title, zone: area?.zone ?? null, page: area?.page ?? null, source_page: c.source_page,
+        tc_id: c.tc_id, legacy_tc_id: c.legacy_tc_id, scenario_id: c.scenario_id, requirement_id: c.requirement_id, title: c.title, zone: area?.zone ?? null, page: area?.page ?? null, source_page: c.source_page,
         priority: c.priority, type: c.test_type, automation: c.automation, tester: one<{ name: string }>(c.tester)?.name ?? null,
         preconditions: c.preconditions, steps: c.steps, test_data: c.test_data, expected: c.expected,
         created_at: c.created_at, updated_at: c.updated_at,

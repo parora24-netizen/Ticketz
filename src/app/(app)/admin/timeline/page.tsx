@@ -85,7 +85,7 @@ export default async function TimelinePage({ searchParams }: { searchParams: Pro
           </select>
         </label>
         <label><span className="label">Ticket, case or sprint</span>
-          <input name="q" defaultValue={sp.q ?? ''} placeholder="e.g. TC_FN_070, DEV-, T1" className="input mt-1 block w-56" />
+          <input name="q" defaultValue={sp.q ?? ''} placeholder="e.g. TC_70, DEV-, T1" className="input mt-1 block w-56" />
         </label>
         <label><span className="label">Period</span>
           <select name="days" defaultValue={String(days)} className="select mt-1 block w-36">

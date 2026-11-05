@@ -100,7 +100,7 @@ export function parseCases(rows: Record<string, string>[], areas: AreaRef[], fir
     const priority = toPriority(get(r, 'priority'))
     const area = areaByKey.get(`${norm(zone)}|${norm(areaPage(sourcePage))}`)
     const problems: string[] = []
-    if (tcRaw && !/^TC_[A-Z0-9_]+$/.test(tcRaw)) problems.push(`ID "${tcRaw}" should look like TC_FN_070`)
+    if (tcRaw && !/^TC_[A-Z0-9_]+$/.test(tcRaw)) problems.push(`ID "${tcRaw}" should look like TC_70`)
     if (tcRaw && seen.has(tcRaw)) problems.push(`ID ${tcRaw} appears twice`)
     if (!title) problems.push('no title')
     if (!area) problems.push(`no Framework area "${zone} · ${sourcePage}"`)
@@ -179,7 +179,7 @@ export function parseDelimited(text: string, sep: string): string[][] {
   return out.filter((r) => r.some((c) => c.trim() !== ''))
 }
 
-export type Existing = Pick<CaseInput, 'title' | 'area_id' | 'priority' | 'preconditions' | 'steps' | 'test_data' | 'expected' | 'test_type' | 'scenario_id' | 'requirement_id'> & { tc_id: string }
+export type Existing = Pick<CaseInput, 'title' | 'area_id' | 'priority' | 'preconditions' | 'steps' | 'test_data' | 'expected' | 'test_type' | 'scenario_id' | 'requirement_id'> & { tc_id: string } & { legacy_tc_id?: string | null }
 
 /**
  * The workbook's Framework tab: pages and whether their cases are Completed. The tab holds the old
@@ -206,7 +206,7 @@ export function parseFramework(rows: string[][]): { zone: string; page: string; 
  */
 export type Scenario = { scenario_id: string; requirement_id: string | null; prefix: string; from: number; to: number }
 const tcNumber = (id: string) => {
-  const m = /^(TC_[A-Z0-9]+_)(\d+)$/.exec(id.trim().toUpperCase())
+  const m = /^(TC_(?:[A-Z0-9]+_)?)(\d+)$/.exec(id.trim().toUpperCase())
   return m ? { prefix: m[1], n: Number(m[2]) } : null
 }
 export function parseScenarios(rows: Record<string, string>[]): Scenario[] {
@@ -257,6 +257,32 @@ export function holdUnlabelledDuplicates(cases: CaseInput[], existing: Existing[
   return { cases: kept, errors }
 }
 
+/**
+ * Launchpad makes the IDs. A row with no ID is a new case; a row with an ID updates that case, by
+ * its current ID or, for now, its old one. An ID we do not have is refused: it never creates a case.
+ */
+export function resolveUploadIds(cases: CaseInput[], existing: Pick<Existing, 'tc_id' | 'legacy_tc_id'>[]): { cases: CaseInput[]; errors: { row: number; message: string }[] } {
+  const current = new Set(existing.map((e) => e.tc_id))
+  const old = new Map(existing.filter((e) => e.legacy_tc_id).map((e) => [e.legacy_tc_id!, e.tc_id]))
+  const seen = new Set<string>()
+  const errors: { row: number; message: string }[] = []
+  const kept = cases.flatMap((c) => {
+    if (!c.tc_id) return [c]
+    const tc_id = current.has(c.tc_id) ? c.tc_id : old.get(c.tc_id)
+    if (!tc_id) {
+      errors.push({ row: c.row ?? 0, message: `ID ${c.tc_id} is not in Launchpad. Leave the ID blank to add a new case, or use the ID Launchpad shows` })
+      return []
+    }
+    if (seen.has(tc_id)) {
+      errors.push({ row: c.row ?? 0, message: `${c.tc_id} is ${tc_id}, which is already in this upload` })
+      return []
+    }
+    seen.add(tc_id)
+    return [{ ...c, tc_id }]
+  })
+  return { cases: kept, errors }
+}
+
 /** Compare parsed cases with what the tracker holds. */
 export function diffCases(cases: CaseInput[], existing: Existing[], present: readonly OptionalField[] = OPTIONAL_FIELDS) {
   const byId = new Map(existing.map((e) => [e.tc_id, e]))
@@ -270,7 +296,3 @@ export function diffCases(cases: CaseInput[], existing: Existing[], present: rea
   })
 }
 
-/** Next free ids after `maxNumber`, e.g. TC_FN_932, TC_FN_933. */
-export function nextIds(maxNumber: number, count: number): string[] {
-  return Array.from({ length: count }, (_, i) => `TC_FN_${String(maxNumber + 1 + i).padStart(3, '0')}`)
-}

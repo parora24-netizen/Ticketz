@@ -1,3 +1,4 @@
+import { currentTicketKey } from '@/lib/ids'
 import { NextResponse, type NextRequest } from 'next/server'
 import { authenticate, ticketUrl } from '@/lib/ci-api'
 
@@ -6,7 +7,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const caller = await authenticate(request)
   if (caller instanceof NextResponse) return caller
   const { key } = await params
-  const { data: t } = await caller.db.from('ticket_list').select('*').ilike('key', decodeURIComponent(key)).maybeSingle()
+  const { data: t } = await caller.db.from('ticket_list').select('*').eq('key', (await currentTicketKey(caller.db, decodeURIComponent(key))) ?? '').maybeSingle()
   if (!t) return NextResponse.json({ error: `No ticket ${key}` }, { status: 404 })
   const [{ data: events }, { data: comments }, { data: sprint }] = await Promise.all([
     caller.db.from('ticket_events').select('from_state, to_state, note, at, people(name)').eq('ticket_id', t.id).order('at'),
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   ])
   const who = (p: unknown) => (p as { name: string } | null)?.name ?? null
   return NextResponse.json({
-    key: t.key, title: t.title, kind: t.kind, state: t.state, severity: t.severity, owner: t.owner_name,
+    key: t.key, legacy_key: t.legacy_key, title: t.title, kind: t.kind, state: t.state, severity: t.severity, owner: t.owner_name,
     tc_id: t.tc_id, defect_id: t.defect_id, area: t.zone ? `${t.zone} · ${t.page}` : null, sprint: sprint?.name ?? null,
     description: t.description, fixed_in_build: t.fixed_in_build, blocked: t.blocked_reason, defer_reason: t.defer_reason,
     logged_on: t.logged_on, updated_at: t.updated_at, url: ticketUrl(t.key),

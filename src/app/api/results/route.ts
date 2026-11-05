@@ -1,10 +1,11 @@
+import { casesByAnyId, currentTcIds } from '@/lib/ids'
 import { createHash } from 'node:crypto'
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { currentSprint, type Sprint } from '@/lib/data'
 import { ResultsPayload, bearer, lastPerCase } from '@/lib/results'
 import { authenticate, ciActor, raiseTicket } from '@/lib/ci-api'
-import { ResultsQuery, readQuery } from '@/lib/tickets-api'
+import { ResultsQuery, failureKind, readQuery } from '@/lib/tickets-api'
 import { mismatch, type RunResult } from '@/lib/workflow/case-stage'
 
 // The mismatch kinds as PostgREST filters, matching mismatch() in case-stage.
@@ -31,9 +32,9 @@ export async function GET(request: NextRequest) {
 
   if (f.latest) {
     let query = caller.db.from('case_latest')
-      .select('tc_id, zone, page, tester_name, auto_result, auto_at, auto_sprint_id, manual_result, manual_at, manual_sprint_id, open_fix, awaiting_retest', { count: 'exact' })
+      .select('tc_id, legacy_tc_id, zone, page, tester_name, auto_result, auto_at, auto_sprint_id, manual_result, manual_at, manual_sprint_id, open_fix, awaiting_retest', { count: 'exact' })
       .order('tc_id').range(...range)
-    if (f.tc_id?.length) query = query.in('tc_id', f.tc_id)
+    if (f.tc_id?.length) query = query.in('tc_id', await currentTcIds(caller.db, f.tc_id))
     if (f.updated_since) query = query.or(`auto_at.gte.${f.updated_since},manual_at.gte.${f.updated_since}`)
     if (f.mismatch === 'type_i') query = query.or(`and(${TYPE_I})`)
     if (f.mismatch === 'type_ii') query = query.or(`and(${TYPE_II})`)
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
       total: count ?? data.length,
       offset: f.offset,
       cases: data.map((c) => ({
-        tc_id: c.tc_id, area: `${c.zone} · ${c.page}`, tester: c.tester_name,
+        tc_id: c.tc_id, legacy_tc_id: c.legacy_tc_id, area: `${c.zone} · ${c.page}`, tester: c.tester_name,
         auto: latest(c.auto_result, c.auto_at, c.auto_sprint_id), manual: latest(c.manual_result, c.manual_at, c.manual_sprint_id),
         open_tickets: c.open_fix + c.awaiting_retest,
         mismatch: mismatch(c.auto_result as RunResult | null, c.manual_result as RunResult | null),
@@ -56,7 +57,7 @@ export async function GET(request: NextRequest) {
   let query = caller.db.from('test_runs')
     .select('kind, result, build, run_id, defect_id, note, url, duration_ms, sprint_id, recorded_at, test_cases!inner(tc_id), people(name)', { count: 'exact' })
     .order('recorded_at').order('id').range(...range)
-  if (f.tc_id?.length) query = query.in('test_cases.tc_id', f.tc_id)
+  if (f.tc_id?.length) query = query.in('test_cases.tc_id', await currentTcIds(caller.db, f.tc_id))
   if (f.kind) query = query.eq('kind', f.kind)
   if (f.result?.length) query = query.in('result', f.result)
   if (f.run_id) query = query.eq('run_id', f.run_id)
@@ -109,12 +110,9 @@ export async function POST(request: NextRequest) {
   const results = lastPerCase(parsed.data.results)
 
   const ids = results.map((r) => r.tc_id)
-  const caseIds = new Map<string, { id: string; automation: string }>()
-  for (let i = 0; i < ids.length; i += 500) {
-    const { data, error } = await supabase.from('test_cases').select('id, tc_id, automation').in('tc_id', ids.slice(i, i + 500))
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    for (const c of data ?? []) caseIds.set(String(c.tc_id).toUpperCase(), { id: c.id, automation: c.automation })
-  }
+  // By current ID or, for now, the old one the suite's tags still carry.
+  const caseIds = await casesByAnyId(supabase, ids).catch((e: Error) => e)
+  if (caseIds instanceof Error) return NextResponse.json({ error: caseIds.message }, { status: 500 })
 
   const { data: sprints } = await supabase.from('sprints').select('*')
   const sprint = currentSprint((sprints ?? []) as Sprint[])
@@ -145,13 +143,19 @@ export async function POST(request: NextRequest) {
   await supabase.from('ci_tokens').update({ last_used_at: new Date().toISOString() }).eq('id', tok.id)
 
   // Every automated failure gets a ticket, or a comment on the one already open (for its defect, or
-  // its case), or reopens its closed one. A known_defect result raises nothing. Past MAX_RAISED in
+  // its case), or reopens its closed one of the same kind: a mismatch if the latest manual test
+  // passed, else a defect. A known_defect result raises nothing. Past MAX_RAISED in
   // one call the rest are counted, not raised, so a mass failure cannot time the call out.
   const tickets: { tc_id: string; key?: string; created?: boolean; reopened?: boolean; error?: string }[] = []
   const failures = results.filter((x) => x.status === 'failed' && caseIds.has(x.tc_id))
   const caller = { db: supabase, tokenId: tok.id, actorId: await ciActor(supabase, tok.created_by as string | null) }
-  for (const r of failures.slice(0, MAX_RAISED)) {
-    const res = await raiseTicket(caller, { tc_id: r.tc_id, kind: 'defect', build, run_id, error: r.error, url: r.url, defect_id: r.defect_id })
+  const raising = failures.slice(0, MAX_RAISED)
+  const { data: latest } = raising.length
+    ? await supabase.from('case_latest').select('id, manual_result').in('id', raising.map((r) => caseIds.get(r.tc_id)!.id))
+    : { data: [] }
+  const manual = new Map((latest ?? []).map((c) => [c.id as string, c.manual_result as string | null]))
+  for (const r of raising) {
+    const res = await raiseTicket(caller, { tc_id: r.tc_id, kind: failureKind(manual.get(caseIds.get(r.tc_id)!.id)), build, run_id, error: r.error, url: r.url, defect_id: r.defect_id }, { anyOpenTicket: true })
     tickets.push('error' in res ? { tc_id: r.tc_id, error: res.error } : { tc_id: r.tc_id, key: res.key, created: res.created, ...(res.reopened ? { reopened: true } : {}) })
   }
 

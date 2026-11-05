@@ -33,7 +33,7 @@ type Lane = 'none' | 'owner' | 'severity'
 const INPUT_LABEL = {
   fixed_in_build: { title: 'Which build has the fix?', placeholder: 'e.g. b39a5eab1' },
   defer_reason: { title: 'Why can this wait past 26.111?', placeholder: 'Reason' },
-  duplicate_of: { title: 'Which ticket does this duplicate?', placeholder: 'e.g. DEV-TC_FN_070' },
+  duplicate_of: { title: 'Which ticket does this duplicate?', placeholder: 'e.g. DEV-70' },
 } as const
 
 const ROLE_NAME: Record<Role, string> = { lead: 'lead', dev: 'dev', qa: 'QA' }

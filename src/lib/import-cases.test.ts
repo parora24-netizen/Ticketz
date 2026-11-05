@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyScenarios, areaPage, diffCases, holdUnlabelledDuplicates, mapHeaders, nextIds, parseCases, parseCsv, parseDelimited, parseFramework, parseScenarios, parseTsv } from './import-cases'
+import { applyScenarios, areaPage, diffCases, holdUnlabelledDuplicates, mapHeaders, parseCases, parseCsv, parseDelimited, parseFramework, parseScenarios, parseTsv, resolveUploadIds } from './import-cases'
 
 const areas = [
   { id: 'a-signon', zone: 'Engine', page: 'Sign-On' },
@@ -113,9 +113,17 @@ describe('case import', () => {
     expect(held.errors).toEqual([{ row: 4, message: expect.stringContaining('already TC_FN_001') }])
   })
 
-  it('numbers new cases after the highest id', () => {
-    expect(nextIds(931, 2)).toEqual(['TC_FN_932', 'TC_FN_933'])
-    expect(nextIds(7, 1)).toEqual(['TC_FN_008'])
+  it('adds blank IDs, updates IDs we have (old ones too) and refuses the rest', () => {
+    const c = (tc_id: string | null, row: number) => ({ tc_id, row, title: 't', area_id: 'a', zone: 'z', page: 'p', source_page: 'p', priority: 'High', preconditions: null, steps: null, test_data: null, expected: null, test_type: null, scenario_id: null, requirement_id: null }) as Parameters<typeof resolveUploadIds>[0][number]
+    const existing = [{ tc_id: 'TC_1', legacy_tc_id: 'TC_FN_070' }, { tc_id: 'TC_2', legacy_tc_id: null }]
+    const r = resolveUploadIds([c(null, 2), c('TC_2', 3), c('TC_FN_070', 4), c('TC_1', 5), c('TC_FN_999', 6), c('TC_500', 7)], existing)
+    expect(r.cases.map((x) => x.tc_id)).toEqual([null, 'TC_2', 'TC_1'])
+    expect(r.errors.map((e) => e.row)).toEqual([5, 6, 7])
+    expect(r.errors[1].message).toContain('not in Launchpad')
+  })
+
+  it('reads scenario ranges over the new IDs', () => {
+    expect(parseScenarios([{ 'Scenario ID': 'TS_1', 'First TC ID': 'TC_5', 'Last TC ID': 'TC_9' }])).toMatchObject([{ prefix: 'TC_', from: 5, to: 9 }])
   })
 
   it('links cases to scenarios and requirements by the Test Scenarios sheet ranges', () => {

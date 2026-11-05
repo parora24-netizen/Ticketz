@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { CaseLink, PageHeader, PriorityChip, StateChip, TicketLink } from '@/components/ui'
+import { casesByAnyId, currentTicketKey } from '@/lib/ids'
 import { createClient } from '@/lib/supabase/server'
 
 /** Jump straight to an exact test case id or ticket key; otherwise list title matches. */
@@ -9,19 +10,16 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   if (!q) redirect('/')
   const supabase = await createClient()
   const up = q.toUpperCase()
-  const [{ data: exactCase }, { data: exactTicket }] = await Promise.all([
-    supabase.from('test_cases').select('tc_id').eq('tc_id', up).maybeSingle(),
-    supabase.from('tickets').select('key').eq('key', up).maybeSingle(),
-  ])
-  if (exactTicket) redirect(`/tickets/${encodeURIComponent(exactTicket.key)}`)
+  const [exactCase, exactTicket] = await Promise.all([casesByAnyId(supabase, [up]).then((m) => m.get(up)), currentTicketKey(supabase, up)])
+  if (exactTicket) redirect(`/tickets/${encodeURIComponent(exactTicket)}`)
   if (exactCase) redirect(`/cases/${encodeURIComponent(exactCase.tc_id)}`)
 
   // Characters that mean something in a PostgREST filter are dropped rather than escaped.
   const term = q.replace(/[%_,().*\\]/g, ' ').trim()
   const like = `%${term}%`
   const [{ data: cases }, { data: tickets }] = await Promise.all([
-    supabase.from('test_cases').select('tc_id, title, priority').or(`title.ilike.${like},tc_id.ilike.${like}`).limit(50),
-    supabase.from('tickets').select('key, title, severity, state').or(`title.ilike.${like},key.ilike.${like}`).limit(50),
+    supabase.from('test_cases').select('tc_id, title, priority').or(`title.ilike.${like},tc_id.ilike.${like},legacy_tc_id.ilike.${like}`).limit(50),
+    supabase.from('tickets').select('key, title, severity, state').or(`title.ilike.${like},key.ilike.${like},legacy_key.ilike.${like}`).limit(50),
   ])
   return (
     <>

@@ -4,7 +4,6 @@ import { Flash } from '@/components/flash'
 import { SubmitButton } from '@/components/submit-button'
 import { PageHeader } from '@/components/ui'
 import { getMe } from '@/lib/auth'
-import { createClient } from '@/lib/supabase/server'
 import { loadAreas } from '@/lib/data'
 import { createTestCase } from '../../actions'
 
@@ -12,8 +11,7 @@ export default async function NewCasePage({ searchParams }: { searchParams: Prom
   const me = await getMe()
   if (me.role === 'dev') redirect('/cases')
   const sp = await searchParams
-  const supabase = await createClient()
-  const [areas, { data: nextId }] = await Promise.all([loadAreas(), supabase.rpc('next_tc_id')])
+  const areas = await loadAreas()
   const zones = [...new Set(areas.map((a) => a.zone))]
   return (
     <>
@@ -22,11 +20,10 @@ export default async function NewCasePage({ searchParams }: { searchParams: Prom
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
       <form action={createTestCase} className="card grid max-w-4xl gap-4 p-5 md:grid-cols-6">
-        <label className="md:col-span-2">
+        <div className="md:col-span-2">
           <span className="label">Test case ID</span>
-          <input name="tc_id" placeholder={String(nextId ?? 'TC_FN_…')} className="input mono mt-1 w-full" />
-          <span className="mt-1 block text-[11.5px] text-[var(--faint)]">Leave blank for {String(nextId ?? 'the next id')}</span>
-        </label>
+          <p className="mt-2 text-[12.5px] text-[var(--muted)]">Launchpad assigns it when you save</p>
+        </div>
         <label className="md:col-span-2">
           <span className="label">Area</span>
           <select name="area_id" required defaultValue={sp.area ?? ''} className="select mt-1 w-full">

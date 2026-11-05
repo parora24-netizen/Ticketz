@@ -9,6 +9,7 @@ import { deleteRows, recordResults, updateCases } from '../actions'
 export type CaseGridRow = {
   id: string
   tc_id: string
+  legacy_tc_id?: string | null
   title: string
   area: string
   priority: Priority
@@ -35,6 +36,7 @@ export function CasesGrid({ rows, areas, people, canEdit, isLead, inSprint, reme
   const columns: Column<CaseGridRow>[] = [
     { key: 'tc_id', header: 'ID', width: 130, mono: true, value: (r) => r.tc_id,
       render: (r) => <Link href={`/cases/${r.tc_id}`} className="font-medium text-[var(--accent)] hover:underline">{r.tc_id}</Link> },
+    { key: 'legacy_tc_id', header: 'Old ID', width: 120, mono: true, muted: true, filter: 'text', value: (r) => r.legacy_tc_id ?? '' },
     { key: 'title', header: 'Title', width: 380, value: (r) => r.title, edit: canEdit ? { field: 'title', kind: 'text' } : undefined },
     { key: 'area', header: 'Area', width: 220, value: (r) => r.area, edit: canEdit ? { field: 'area_id', kind: 'select', options: areas } : undefined },
     { key: 'priority', header: 'Priority', width: 110, sortValue: (r) => ['Critical', 'High', 'Medium', 'Low'].indexOf(r.priority), value: (r) => r.priority, render: (r) => <PriorityChip p={r.priority} />,

@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { getMe, safeNext } from '@/lib/auth'
+import { currentTicketKey } from '@/lib/ids'
 import { createClient } from '@/lib/supabase/server'
 import { currentSprint, loadSprintAreas, loadSprints, trackOf } from '@/lib/data'
 import { fixSprintForArea } from '@/lib/workflow/fix-sprint'
@@ -45,15 +46,11 @@ async function fixSprintId(areaId?: string | null): Promise<string | null> {
   return (fix.find((s) => s.starts_on > today && s.status === 'planned') ?? fix.find((s) => s.ends_on >= today))?.id ?? null
 }
 
-async function nextTicketKey(supabase: Awaited<ReturnType<typeof createClient>>, tcId: string | null): Promise<string> {
-  const base = tcId ? `DEV-${tcId}` : 'DEV'
-  const { data } = await supabase.from('tickets').select('key').like('key', `${base}%`)
-  const taken = new Set((data ?? []).map((r) => r.key as string))
-  if (tcId && !taken.has(base)) return base
-  for (let n = tcId ? 2 : taken.size + 1; ; n++) {
-    const k = `${base}-${n}`
-    if (!taken.has(k)) return k
-  }
+/** The next ticket key from Launchpad's own numbering: DEV-<n>, or MM-<n> for a mismatch. */
+async function nextTicketKey(supabase: Awaited<ReturnType<typeof createClient>>, kind: 'defect' | 'test_mismatch' = 'defect'): Promise<string> {
+  const { data, error } = await supabase.rpc('next_ticket_key', { prefix: kind === 'test_mismatch' ? 'MM' : 'DEV' })
+  if (error) throw new Error(error.message)
+  return String(data)
 }
 
 // ---- Test cases -------------------------------------------------------------------------
@@ -90,7 +87,7 @@ export async function recordManualResult(formData: FormData) {
   if (v.result === 'failed' && v.raise_ticket) {
     const { data: c } = await supabase.from('test_cases').select('tc_id, title, priority, area_id').eq('id', v.case_id).single()
     if (c) {
-      const key = await nextTicketKey(supabase, c.tc_id)
+      const key = await nextTicketKey(supabase)
       const { error: tErr } = await supabase.from('tickets').insert({
         key,
         case_id: v.case_id,
@@ -145,17 +142,15 @@ export async function raiseTicket(formData: FormData) {
   if (!files.success) fail(path, 'Those screenshots could not be attached')
   const v = parsed.data
   const supabase = await createClient()
-  let tcId: string | null = null
   let caseArea: string | null = null
   if (v.case_id) {
-    const { data } = await supabase.from('test_cases').select('tc_id, area_id').eq('id', v.case_id).single()
-    tcId = data?.tc_id ?? null
+    const { data } = await supabase.from('test_cases').select('area_id').eq('id', v.case_id).single()
     caseArea = data?.area_id ?? null
   }
   const sprintId = await activeSprintId()
-  const key = await nextTicketKey(supabase, tcId)
+  const key = await nextTicketKey(supabase, v.kind)
   const { error } = await supabase.from('tickets').insert({
-    key: v.kind === 'test_mismatch' ? key.replace(/^DEV/, 'MM') : key,
+    key,
     kind: v.kind,
     case_id: v.case_id || null,
     title: v.title,
@@ -202,7 +197,8 @@ async function applyMove(me: Awaited<ReturnType<typeof getMe>>, v: MoveInput): P
     patch.defer_reason = v.defer_reason
   }
   if (need === 'duplicate_of') {
-    const { data: dup } = await supabase.from('tickets').select('id').eq('key', (v.duplicate_key ?? '').toUpperCase()).maybeSingle()
+    const dupKey = await currentTicketKey(supabase, v.duplicate_key ?? '')
+    const { data: dup } = dupKey ? await supabase.from('tickets').select('id').eq('key', dupKey).maybeSingle() : { data: null }
     if (!dup) return 'Enter the key of the ticket this duplicates'
     if (dup.id === t.id) return 'A ticket cannot duplicate itself'
     patch.duplicate_of = dup.id
@@ -566,7 +562,6 @@ export async function createTestCase(formData: FormData) {
   if (me.role === 'dev') fail(path, 'Only QA or the lead add test cases')
   const v = z
     .object({
-      tc_id: z.string().trim().toUpperCase().regex(/^TC_[A-Z0-9_]+$/, 'IDs look like TC_FN_070').or(z.literal('')),
       area_id: z.uuid(),
       title: z.string().trim().min(3).max(300),
       priority: z.enum(['Critical', 'High', 'Medium', 'Low']),
@@ -580,11 +575,9 @@ export async function createTestCase(formData: FormData) {
     .safeParse(Object.fromEntries(formData))
   if (!v.success) fail(path, v.error.issues[0]?.message ?? 'Check the form')
   const supabase = await createClient()
-  let tcId = v.data.tc_id
-  if (!tcId) {
-    const { data } = await supabase.rpc('next_tc_id')
-    tcId = String(data)
-  }
+  const { data: nextId, error: idError } = await supabase.rpc('next_tc_id')
+  if (idError) fail(path, idError.message)
+  const tcId = String(nextId)
   const { data: area } = await supabase.from('areas').select('page').eq('id', v.data.area_id).single()
   const { error } = await supabase.from('test_cases').insert({
     tc_id: tcId,
@@ -789,7 +782,7 @@ ${v.data.note}` : ''}` })
         if (cErr) return { error: `Ticket reopened, but the comment was not saved: ${cErr.message}` }
         ticketKey = closed.key
       } else {
-        ticketKey = await nextTicketKey(supabase, c.tc_id)
+        ticketKey = await nextTicketKey(supabase)
         const { error: tErr } = await supabase.from('tickets').insert({
           key: ticketKey, case_id: v.data.case_id, title: c.title, description: v.data.note || null, severity: c.priority,
           found_in_sprint_id: sprintId, current_sprint_id: await fixSprintId(c.area_id), created_by: me.id,

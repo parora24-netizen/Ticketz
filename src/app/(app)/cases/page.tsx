@@ -28,6 +28,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
     .map((c) => ({
       id: c.id,
       tc_id: c.tc_id,
+      legacy_tc_id: c.legacy_tc_id,
       title: c.title,
       area: `${c.zone} · ${c.page}`,
       priority: c.priority,

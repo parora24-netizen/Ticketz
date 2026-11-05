@@ -72,7 +72,7 @@ function filterCases(ctx: Ctx, f: CaseFilter): CaseRow[] {
   const testers = f.tester && f.tester.toLowerCase() !== 'none' ? ctx.personByName(f.tester) : null
   const result = (v: string | null, want?: string) => !want || (want === 'none' ? v === null : v === want)
   return ctx.cases.filter((c) =>
-    (has(c.tc_id, f.text) || has(c.title, f.text)) &&
+    (has(c.tc_id, f.text) || has(c.legacy_tc_id, f.text) || has(c.title, f.text)) &&
     has(c.zone, f.zone) && has(c.page, f.page) &&
     (!f.sprint || !!sprintAreaIds?.has(c.area_id)) &&
     inList(c.priority, f.priorities) &&
@@ -131,9 +131,9 @@ export const TOOLS: ToolDef[] = [
     }),
   def('get_ticket', 'Opening a ticket',
     'One ticket in full: description, history of moves, comments, and its test case steps.',
-    z.object({ key: z.string().describe('Ticket key, e.g. DEV-TC_FN_074') }),
+    z.object({ key: z.string().describe('Ticket key, e.g. DEV-74') }),
     async (ctx, { key }) => {
-      const t = ctx.tickets.find((x) => x.key.toLowerCase() === key.toLowerCase())
+      const t = ctx.tickets.find((x) => x.key.toLowerCase() === key.toLowerCase()) ?? ctx.tickets.find((x) => x.legacy_key?.toLowerCase() === key.toLowerCase())
       if (!t) return { error: `No ticket ${key}` }
       const supabase = await createClient()
       const [{ data: events }, { data: comments }, { data: tc }] = await Promise.all([
@@ -166,9 +166,9 @@ export const TOOLS: ToolDef[] = [
     }),
   def('get_test_case', 'Opening a test case',
     'One test case in full: steps, expected result, and its latest results.',
-    z.object({ tc_id: z.string().describe('Test case ID, e.g. TC_FN_070') }),
+    z.object({ tc_id: z.string().describe('Test case ID, e.g. TC_70') }),
     async (ctx, { tc_id }) => {
-      const c = ctx.cases.find((x) => x.tc_id.toLowerCase() === tc_id.toLowerCase())
+      const c = ctx.cases.find((x) => x.tc_id.toLowerCase() === tc_id.toLowerCase()) ?? ctx.cases.find((x) => x.legacy_tc_id?.toLowerCase() === tc_id.toLowerCase())
       if (!c) return { error: `No test case ${tc_id}` }
       const supabase = await createClient()
       const [{ data: detail }, { data: runs }] = await Promise.all([

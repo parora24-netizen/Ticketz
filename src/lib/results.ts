@@ -7,7 +7,7 @@ export const ResultsPayload = z.object({
   results: z
     .array(
       z.object({
-        tc_id: z.string().trim().regex(/^TC_[A-Za-z0-9_]+$/, 'tc_id looks like TC_FN_070'),
+        tc_id: z.string().trim().regex(/^TC_[A-Za-z0-9_]+$/, 'tc_id looks like TC_70'),
         status: z.enum(['passed', 'failed', 'skipped', 'known_defect']),
         duration_ms: z.number().int().nonnegative().max(86_400_000).optional(),
         error: z.string().max(4000).optional(),

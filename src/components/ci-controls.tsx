@@ -42,10 +42,10 @@ export function PayloadExample({ appUrl }: { appUrl: string }) {
     "build": "b39a5eab1",
     "run_id": "codebuild-1234",
     "results": [
-      { "tc_id": "TC_FN_070", "status": "passed", "duration_ms": 5400 },
-      { "tc_id": "TC_FN_071", "status": "failed", "defect_id": "DEF-12", "error": "Expected error text not shown", "url": "https://reports.example/1234#TC_FN_071" },
-      { "tc_id": "TC_FN_072", "status": "skipped" },
-      { "tc_id": "TC_FN_073", "status": "known_defect" }
+      { "tc_id": "TC_70", "status": "passed", "duration_ms": 5400 },
+      { "tc_id": "TC_71", "status": "failed", "defect_id": "DEF-12", "error": "Expected error text not shown", "url": "https://reports.example/1234#TC_71" },
+      { "tc_id": "TC_72", "status": "skipped" },
+      { "tc_id": "TC_73", "status": "known_defect" }
     ]
   }'`
   return (
@@ -57,12 +57,12 @@ export function PayloadExample({ appUrl }: { appUrl: string }) {
       <pre className="mono overflow-x-auto bg-[var(--surface-3)] px-4 py-3 text-[12px] leading-relaxed">{curl}</pre>
       <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 border-t border-[var(--line)] px-4 py-3 text-[12.5px]">
         <dt className="mono text-[var(--muted)]">status</dt><dd>passed, failed, skipped or known_defect</dd>
-        <dt className="mono text-[var(--muted)]">tc_id</dt><dd>the Test Case ID, e.g. TC_FN_070; unknown ids come back as unmatched</dd>
+        <dt className="mono text-[var(--muted)]">tc_id</dt><dd>the Test Case ID, e.g. TC_70. Old IDs like TC_FN_070 still work for now; unknown ids come back as unmatched</dd>
         <dt className="mono text-[var(--muted)]">build, run_id</dt><dd>optional; shown on each result</dd>
         <dt className="mono text-[var(--muted)]">limits</dt><dd>up to 5,000 results per call; a test reported twice keeps its last result</dd>
         <dt className="mono text-[var(--muted)]">lands in</dt><dd>the running test sprint; the response lists recorded, sprint and unmatched</dd>
         <dt className="mono text-[var(--muted)]">defect_id</dt><dd>optional; your id for the recorded defect behind a result. Stored on the result; all results with the same defect_id share one ticket</dd>
-        <dt className="mono text-[var(--muted)]">tickets</dt><dd>every failed result raises a ticket, adds to the open one, or reopens the closed one, and the response lists them. known_defect raises nothing. Up to 200 per call; tickets_not_raised counts any beyond that. raise_tickets is no longer needed</dd>
+        <dt className="mono text-[var(--muted)]">tickets</dt><dd>every failed result raises a ticket, adds to the open one, or reopens the closed one, and the response lists them. It is a mismatch (MM-) if the latest manual test passed, else a defect (DEV-). known_defect raises nothing. Up to 200 per call; tickets_not_raised counts any beyond that. raise_tickets is no longer needed</dd>
       </dl>
     </section>
   )
@@ -75,7 +75,7 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
     {
       title: 'List tickets',
       what: 'Filters: state (comma list, or "open"), tc_id (comma list), defect_id (comma list), sprint, severity, kind, updated_since, limit. E.g. which failing tests already have an open ticket.',
-      curl: `curl "${appUrl}/api/tickets?state=open&tc_id=TC_FN_070,TC_FN_071" \\
+      curl: `curl "${appUrl}/api/tickets?state=open&tc_id=TC_70,TC_71" \\
   ${auth}`,
     },
     {
@@ -84,8 +84,8 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
       curl: `curl -X POST "${appUrl}/api/tickets" \\
   ${auth} \\
   -H "Content-Type: application/json" \\
-  -d '{ "tc_id": "TC_FN_071", "defect_id": "DEF-12", "build": "b39a5eab1", "run_id": "codebuild-1234",
-        "error": "Expected error text not shown", "url": "https://reports.example/1234#TC_FN_071" }'`,
+  -d '{ "tc_id": "TC_71", "defect_id": "DEF-12", "build": "b39a5eab1", "run_id": "codebuild-1234",
+        "error": "Expected error text not shown", "url": "https://reports.example/1234#TC_71" }'`,
     },
     {
       title: 'Raise a ticket without a test case',
@@ -99,13 +99,13 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
     {
       title: 'One ticket',
       what: 'With its history of moves and its comments.',
-      curl: `curl "${appUrl}/api/tickets/DEV-TC_FN_071" \\
+      curl: `curl "${appUrl}/api/tickets/DEV-71" \\
   ${auth}`,
     },
     {
       title: 'Comment',
       what: 'Shown on the ticket as a comment by CI, or by the person a personal token acts as.',
-      curl: `curl -X POST "${appUrl}/api/tickets/DEV-TC_FN_071/comments" \\
+      curl: `curl -X POST "${appUrl}/api/tickets/DEV-71/comments" \\
   ${auth} \\
   -H "Content-Type: application/json" \\
   -d '{ "body": "Logs: https://reports.example/1234" }'`,
@@ -113,7 +113,7 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
     {
       title: 'Automated retest',
       what: 'Only for a ticket ready for retest: passed closes it, failed reopens it (409 otherwise). The build goes on the ticket.',
-      curl: `curl -X POST "${appUrl}/api/tickets/DEV-TC_FN_071/retest" \\
+      curl: `curl -X POST "${appUrl}/api/tickets/DEV-71/retest" \\
   ${auth} \\
   -H "Content-Type: application/json" \\
   -d '{ "result": "passed", "build": "b39a5eab2" }'`,
@@ -139,7 +139,7 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
     {
       title: 'Comment on a case',
       what: 'A question or note on a test case, by CI, where the testers read it. @Name (a name from /api/team) notifies that person; the case\'s tester hears of the rest. GET the same path to read them.',
-      curl: `curl -X POST "${appUrl}/api/cases/TC_FN_071/comments" \\
+      curl: `curl -X POST "${appUrl}/api/cases/TC_71/comments" \\
   ${auth} \\
   -H "Content-Type: application/json" \\
   -d '{ "body": "@Niten is step 3 still right after the new import screen?" }'`,

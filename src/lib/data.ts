@@ -18,6 +18,7 @@ export type Sprint = {
 export type CaseRow = {
   id: string
   tc_id: string
+  legacy_tc_id: string | null // the ID before the renumbering, for now
   title: string
   priority: Priority
   automation: Automation
@@ -40,6 +41,7 @@ export type CaseRow = {
 export type TicketRow = {
   id: string
   key: string
+  legacy_key: string | null // the key before the renumbering, for now
   kind: 'defect' | 'test_mismatch'
   case_id: string | null
   title: string
@@ -106,11 +108,13 @@ export const loadPeople = cache(async function loadPeople(): Promise<Person[]> {
 
 export async function loadCases(areaIds?: string[]): Promise<CaseRow[]> {
   const supabase = await createClient()
-  return fetchAll<CaseRow>((from, to) => {
+  const rows = await fetchAll<CaseRow>((from, to) => {
     let q = supabase.from('case_latest').select('*').order('area_sort').order('tc_id').range(from, to)
     if (areaIds) q = q.in('area_id', areaIds.length ? areaIds : ['00000000-0000-0000-0000-000000000000'])
     return q
   })
+  // TC_9 before TC_10, which the database's text order would not give.
+  return rows.sort((a, b) => a.area_sort - b.area_sort || a.tc_id.localeCompare(b.tc_id, undefined, { numeric: true }))
 }
 
 export const loadTickets = cache(async function loadTickets(): Promise<TicketRow[]> {

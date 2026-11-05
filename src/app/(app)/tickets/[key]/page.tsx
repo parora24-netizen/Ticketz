@@ -2,10 +2,11 @@ import { MentionTextarea } from '@/components/mentions'
 import { TicketTimeline } from '@/components/ticket-timeline'
 import { changeEntries, type ChangeRow } from '@/lib/activity'
 import { SubmitButton } from '@/components/submit-button'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { CaseLink, Chip, PageHeader, StateChip } from '@/components/ui'
 import { Flash } from '@/components/flash'
 import { getMe } from '@/lib/auth'
+import { currentTicketKey } from '@/lib/ids'
 import { createClient } from '@/lib/supabase/server'
 import { fmtDate, loadPeople, loadSprints, loadTickets } from '@/lib/data'
 import { TicketNav } from '@/components/ticket-nav'
@@ -21,7 +22,12 @@ export default async function TicketPage({
   const me = await getMe()
   const supabase = await createClient()
   const { data: t } = await supabase.from('ticket_list').select('*').eq('key', decodeURIComponent(key)).maybeSingle()
-  if (!t) notFound()
+  if (!t) {
+    // A key from before the renumbering goes to the ticket's page.
+    const found = await currentTicketKey(supabase, decodeURIComponent(key))
+    if (found) redirect(`/tickets/${encodeURIComponent(found)}`)
+    notFound()
+  }
   const [{ data: edits }, { data: events }, { data: comments }, { data: tc }, { data: lastFail }, people, sprints, allTickets] = await Promise.all([
     // Field edits (severity, title, description…); the change log is readable by the lead only.
     supabase.from('change_log').select('*').eq('row_id', t.id).eq('action', 'update').order('at', { ascending: false }).limit(200),
@@ -57,7 +63,7 @@ export default async function TicketPage({
   return (
     <>
       <TicketNav current={t.key} fallback={fallback.includes(t.key) ? fallback : [t.key, ...fallback]} />
-      <PageHeader title={t.title} sub={<><span className="mono">{t.key}</span>{t.tc_id && <> · <CaseLink tcId={t.tc_id} /></>}{t.zone && ` · ${t.zone} · ${t.page}`}</>}>
+      <PageHeader title={t.title} sub={<><span className="mono">{t.key}</span>{t.legacy_key && <span className="text-[var(--faint)]"> (was <span className="mono">{t.legacy_key}</span>)</span>}{t.tc_id && <> · <CaseLink tcId={t.tc_id} /></>}{t.zone && ` · ${t.zone} · ${t.page}`}</>}>
         {t.owner_id !== me.id && !resolved && (
           <form action={assignToMe}>
             <input type="hidden" name="ticket_id" value={t.id} />

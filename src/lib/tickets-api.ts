@@ -7,7 +7,7 @@ import { canMove, type TicketState } from '@/lib/workflow/ticket-machine'
  * Pure parts here; the route handlers do the database work.
  */
 
-const TcId = z.string().trim().regex(/^TC_[A-Za-z0-9_]+$/i, 'tc_id looks like TC_FN_070').transform((s) => s.toUpperCase())
+const TcId = z.string().trim().regex(/^TC_[A-Za-z0-9_]+$/i, 'tc_id looks like TC_70').transform((s) => s.toUpperCase())
 const Url = z.url({ protocol: /^https?$/ }).max(1000)
 /** Your id for a recorded defect, e.g. DEF-12. One defect can fail several cases; it keeps them on one ticket. */
 export const DefectId = z.string().trim().min(1).max(100)
@@ -124,13 +124,6 @@ export function readQuery<T extends z.ZodObject>(schema: T, params: URLSearchPar
   for (const [k, v] of params) q[SINCE_ALIASES.includes(k) ? 'updated_since' : k] ??= v
   if (params.has('updated_since')) q.updated_since = params.get('updated_since')!
   return schema.strict().safeParse(q) as z.ZodSafeParseResult<z.output<T>>
-}
-
-/** Ticket keys follow the workbook: DEV-TC_FN_070 for a defect, MM-TC_FN_070 for a mismatch; -2, -3 when taken. */
-export function nextKey(kind: 'defect' | 'test_mismatch', tcId: string, taken: Set<string>): string {
-  const base = `${kind === 'defect' ? 'DEV' : 'MM'}-${tcId}`
-  if (!taken.has(base)) return base
-  for (let n = 2; ; n++) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`
 }
 
 /**

@@ -4,8 +4,9 @@ import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { serverEnv } from '@/lib/env'
 import { currentSprint, type Sprint } from '@/lib/data'
+import { casesByAnyId } from '@/lib/ids'
 import { bearer } from '@/lib/results'
-import { OPEN, failureText, nextKey, type RaisePayload } from '@/lib/tickets-api'
+import { OPEN, failureText, type RaisePayload } from '@/lib/tickets-api'
 import { fixSprintForArea } from '@/lib/workflow/fix-sprint'
 
 type Db = ReturnType<typeof createServiceClient>
@@ -62,16 +63,19 @@ const NO_OWNER = 'There is no CI person to post comments as; run the ci_identity
  */
 type Raised = { key: string; created: boolean; reopened?: boolean; url: string } | { error: string; status: number }
 
-export async function raiseTicket(c: Caller, p: RaisePayload): Promise<Raised> {
+export async function raiseTicket(c: Caller, p: RaisePayload, opts: { anyOpenTicket?: boolean } = {}): Promise<Raised> {
   if (!p.tc_id) return raiseLoose(c, p)
-  const { data: tc } = await c.db.from('test_cases').select('id, tc_id, title, priority, area_id').eq('tc_id', p.tc_id).maybeSingle()
+  const ref = (await casesByAnyId(c.db, [p.tc_id])).get(p.tc_id)
+  const { data: tc } = ref ? await c.db.from('test_cases').select('id, tc_id, title, priority, area_id').eq('id', ref.id).maybeSingle() : { data: null }
   if (!tc) return { error: `No test case ${p.tc_id}`, status: 404 }
   const text = failureText(p)
 
   // The defect's open ticket first, then the case's own (which may predate defect ids).
   const same = () => c.db.from('tickets').select('id, key, case_id').in('state', OPEN).order('logged_on', { ascending: false }).limit(1)
   const { data: forDefect } = p.defect_id ? await same().eq('defect_id', p.defect_id).maybeSingle() : { data: null }
-  const open = forDefect ?? (await same().eq('case_id', tc.id).eq('kind', p.kind).maybeSingle()).data
+  // anyOpenTicket: any open ticket on the case will do, so a case never gets a second one just for its kind.
+  const forCase = same().eq('case_id', tc.id)
+  const open = forDefect ?? (await (opts.anyOpenTicket ? forCase : forCase.eq('kind', p.kind)).maybeSingle()).data
   if (open) {
     const where = open.case_id === tc.id ? 'Failed again' : `${tc.tc_id} failed too`
     const err = await addComment(c, open.id, `${where}.${text ? `\n${text}` : ''}`)
@@ -80,9 +84,6 @@ export async function raiseTicket(c: Caller, p: RaisePayload): Promise<Raised> {
   }
 
   const { sprints, fixSprint } = await route(c, tc.area_id)
-  const base = `${p.kind === 'defect' ? 'DEV' : 'MM'}-${tc.tc_id}`
-  const { data: taken } = await c.db.from('tickets').select('key').like('key', `${base}%`)
-  const key = nextKey(p.kind, tc.tc_id, new Set((taken ?? []).map((t) => t.key as string)))
 
   // Closed before and failing again: reopen it (QA's move), into the page's fix sprint when its
   // own sprint has closed.
@@ -101,6 +102,8 @@ export async function raiseTicket(c: Caller, p: RaisePayload): Promise<Raised> {
     return { key: closed.key, created: false, reopened: true, url: ticketUrl(closed.key) }
   }
 
+  const { data: key, error: keyError } = await c.db.rpc('next_ticket_key', { prefix: p.kind === 'defect' ? 'DEV' : 'MM' })
+  if (keyError) return { error: keyError.message, status: 500 }
   const { error } = await c.db.from('tickets').insert({
     key, case_id: tc.id, kind: p.kind, title: p.title ?? tc.title, description: text || null,
     severity: p.severity ?? tc.priority, found_in_sprint_id: currentSprint(sprints)?.id ?? null,
@@ -151,9 +154,8 @@ async function raiseLoose(c: Caller, p: RaisePayload): Promise<Raised> {
     areaId = areas[0].id
   }
   const { sprints, fixSprint } = await route(c, areaId)
-  const { data: taken } = await c.db.from('tickets').select('key').like('key', 'DEV-%')
-  const n = Math.max(0, ...(taken ?? []).map((t) => /^DEV-(\d+)$/.exec(t.key as string)?.[1]).filter(Boolean).map(Number)) + 1
-  const key = `DEV-${n}`
+  const { data: key, error: keyError } = await c.db.rpc('next_ticket_key', { prefix: 'DEV' })
+  if (keyError) return { error: keyError.message, status: 500 }
   const { error } = await c.db.from('tickets').insert({
     key, case_id: null, area_id: areaId, kind: 'defect', title: p.title!, description: text || null,
     severity: p.severity ?? 'Medium', found_in_sprint_id: currentSprint(sprints)?.id ?? null,

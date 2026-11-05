@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { getMe } from '@/lib/auth'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/data'
-import { OPTIONAL_FIELDS, applyScenarios, diffCases, holdUnlabelledDuplicates, nextIds, parseCases, parseCsv, parseFramework, parseScenarios, parseTsv, type CaseInput, type Existing, type OptionalField, type Scenario } from '@/lib/import-cases'
+import { OPTIONAL_FIELDS, applyScenarios, diffCases, holdUnlabelledDuplicates, parseCases, resolveUploadIds, parseCsv, parseFramework, parseScenarios, parseTsv, type CaseInput, type Existing, type OptionalField, type Scenario } from '@/lib/import-cases'
 import { xlsxRecords, xlsxSheetRows } from '@/lib/xlsx-records'
 
 export type PreviewRow = {
@@ -76,11 +76,12 @@ export async function previewImport(_prev: ImportState, formData: FormData): Pro
   const parsed = applyScenarios(parseCases(records, areas ?? [], 2, rowNumbers), scenarios)
   const { present } = parsed
   const existing = await fetchAll<Existing>((from, to) =>
-    supabase.from('test_cases').select('tc_id, title, area_id, priority, preconditions, steps, test_data, expected, test_type, scenario_id, requirement_id').range(from, to),
+    supabase.from('test_cases').select('tc_id, legacy_tc_id, title, area_id, priority, preconditions, steps, test_data, expected, test_type, scenario_id, requirement_id').range(from, to),
   )
   const held = holdUnlabelledDuplicates(parsed.cases, existing)
-  const errors = [...parsed.errors, ...held.errors].sort((a, b) => a.row - b.row)
-  const diff = diffCases(held.cases, existing, present)
+  const ours = resolveUploadIds(held.cases, existing)
+  const errors = [...parsed.errors, ...held.errors, ...ours.errors].sort((a, b) => a.row - b.row)
+  const diff = diffCases(ours.cases, existing, present)
   const areaName = new Map((areas ?? []).map((a) => [a.id, `${a.zone} · ${a.page}`]))
   const counts = { new: 0, updated: 0, unchanged: 0 }
   for (const d of diff) counts[d.status]++
@@ -149,8 +150,12 @@ export async function commitImport(_prev: ImportState, formData: FormData): Prom
   const supabase = await createClient()
   const ids = await fetchAll<{ tc_id: string }>((from, to) => supabase.from('test_cases').select('tc_id').range(from, to))
   const taken = new Set(ids.map((r) => r.tc_id))
-  const maxFn = Math.max(0, ...ids.map((r) => Number(/^TC_FN_(\d+)$/.exec(r.tc_id)?.[1] ?? 0)))
-  const fresh = nextIds(maxFn, parsed.filter((c) => !c.tc_id).length)
+  const unknown = parsed.find((c) => c.tc_id && !taken.has(c.tc_id))
+  if (unknown) return { error: `${unknown.tc_id} is not in Launchpad, so nothing was saved. Preview the file again.` }
+  const newCount = parsed.filter((c) => !c.tc_id).length
+  const { data: reserved, error: idError } = newCount ? await supabase.rpc('next_tc_ids', { how_many: newCount }) : { data: [], error: null }
+  if (idError) return { error: idError.message }
+  const fresh = [...((reserved ?? []) as string[])]
 
   // New and existing cases go in separate batches: one bulk upsert sends the same columns for
   // every row, and existing cases must keep their created_by.

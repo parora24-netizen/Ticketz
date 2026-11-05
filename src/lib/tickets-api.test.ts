@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CasesQuery, ListQuery, RaisePayload, ResultsQuery, RunsQuery, failureText, nextKey, readQuery, retestMove } from './tickets-api'
+import { CasesQuery, ListQuery, RaisePayload, ResultsQuery, RunsQuery, failureKind, failureText, readQuery, retestMove } from './tickets-api'
 
 describe('tickets API', () => {
   it('raises without a test case when there is a title', () => {
@@ -9,10 +9,9 @@ describe('tickets API', () => {
     expect(RaisePayload.safeParse({ tc_id: 'tc_fn_070' }).data?.tc_id).toBe('TC_FN_070')
   })
 
-  it('names tickets like the workbook and steps past taken keys', () => {
-    expect(nextKey('defect', 'TC_FN_070', new Set())).toBe('DEV-TC_FN_070')
-    expect(nextKey('test_mismatch', 'TC_FN_070', new Set())).toBe('MM-TC_FN_070')
-    expect(nextKey('defect', 'TC_FN_070', new Set(['DEV-TC_FN_070', 'DEV-TC_FN_070-2']))).toBe('DEV-TC_FN_070-3')
+  it('calls an automated failure a mismatch when the latest manual test passed', () => {
+    expect(failureKind('passed')).toBe('test_mismatch')
+    for (const manual of ['failed', 'blocked', null, undefined]) expect(failureKind(manual)).toBe('defect')
   })
 
   it('reads a raise request, defaulting to a defect', () => {

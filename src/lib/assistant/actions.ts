@@ -39,8 +39,8 @@ function chooseTickets(ctx: ToolContext, f: z.infer<typeof TicketSelection>) {
   const { keys, ...filters } = f
   if (keys?.length) {
     const wanted = keys.map((k) => k.trim().toLowerCase())
-    const found = ctx.tickets.filter((t) => wanted.includes(t.key.toLowerCase()))
-    const missing = keys.filter((k) => !found.some((t) => t.key.toLowerCase() === k.trim().toLowerCase()))
+    const found = ctx.tickets.filter((t) => wanted.includes(t.key.toLowerCase()) || wanted.includes(t.legacy_key?.toLowerCase() ?? ''))
+    const missing = keys.filter((k) => !found.some((t) => t.key.toLowerCase() === k.trim().toLowerCase() || t.legacy_key?.toLowerCase() === k.trim().toLowerCase()))
     return missing.length ? { error: `No ticket ${some(missing)}.` } : { tickets: found }
   }
   const narrowed = Object.values(filters).some((v) => v !== undefined && v !== false)

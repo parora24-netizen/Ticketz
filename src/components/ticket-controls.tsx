@@ -10,7 +10,7 @@ import { moveTicketFromBoard, setTicketBlocked, updateTickets } from '@/app/(app
 const ASK = {
   fixed_in_build: { title: 'Which build has the fix?', placeholder: 'e.g. b39a5eab1', field: 'fixed_in_build', required: true },
   defer_reason: { title: 'Why can this wait past 26.111?', placeholder: 'Reason', field: 'defer_reason', required: true },
-  duplicate_of: { title: 'Which ticket does this duplicate?', placeholder: 'e.g. DEV-TC_FN_070', field: 'duplicate_key', required: true },
+  duplicate_of: { title: 'Which ticket does this duplicate?', placeholder: 'e.g. DEV-70', field: 'duplicate_key', required: true },
   retest: { title: 'What did the retest show?', placeholder: 'Optional note for the developer', field: 'note', required: false },
 } as const
 

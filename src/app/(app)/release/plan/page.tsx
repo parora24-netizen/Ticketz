@@ -100,7 +100,9 @@ export default async function PlanPage() {
                 <td><Chip tone={STATUS[s.status].tone}>{STATUS[s.status].label}</Chip></td>
                 <td className="text-[12px] leading-snug">
                   {covered.length === pages.length && pages.length ? `All ${pages.length} pages` : zones.map((z) => (
-                    <span key={z} className="mr-2.5"><b className="font-semibold">{z}:</b> {covered.filter((p) => p.zone === z).map((p) => p.page).join(', ')}</span>
+                    <span key={z} className="mr-2.5"><b className="font-semibold">{z}:</b> {covered.filter((p) => p.zone === z).map((p, i) => (
+                      <span key={p.id}>{i > 0 && ', '}<span className={p.writing === 'done' ? 'font-medium text-[var(--good)]' : undefined} title={p.writing === 'done' ? 'Writing completed' : undefined}>{p.page}</span></span>
+                    ))}</span>
                   ))}
                   {!covered.length && <span className="text-[var(--faint)]">—</span>}
                 </td>

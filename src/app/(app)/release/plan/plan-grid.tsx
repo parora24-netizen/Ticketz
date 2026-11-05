@@ -61,12 +61,6 @@ export function PlanGrid({ rows, team, sprints, isLead }: { rows: PlanRow[]; tea
   ] : []
   return (
     <DataGrid rows={rows} columns={cols} csvName="release-plan-pages" searchPlaceholder="Search pages" selectable={isLead}
-      charts={[
-        { key: 'writing', title: 'Writing', order: ['Completed', 'Writing', 'Late', 'Not started'] },
-        { key: 'automation', title: 'Automation', order: ['Fully automated', 'Partly', 'Late', 'Not started', 'No cases'] },
-        { key: 'test', title: 'Tested' },
-        { key: 'fix', title: 'Sprint' },
-      ]}
       bulkFields={bulk}
       onSave={isLead ? (ids, patch) => {
         if ('sprint_id' in patch) {

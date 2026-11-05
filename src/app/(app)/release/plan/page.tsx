@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { ReleaseDateButton } from '@/components/release-controls'
 import { ScheduleLog } from '@/components/schedule-log'
-import { SprintTimeline } from '@/components/sprint-timeline'
 import { RELEASE_TABS, Tabs } from '@/components/tabs'
 import { Chip } from '@/components/ui'
 import { getMe } from '@/lib/auth'
@@ -71,56 +70,49 @@ export default async function PlanPage() {
   return (
     <>
       <Tabs items={RELEASE_TABS} active="plan" />
-      <div className="mb-4 grid gap-3">
-        <section className="card">
-          <header className="flex items-center justify-between border-b border-[var(--line)] px-4 py-2">
-            <h2 className="text-[14px] font-semibold text-[var(--navy-ink)]">Sprints to release</h2>
-            <span className="flex items-center gap-3 text-[12px] text-[var(--muted)]">
-              {milestones.map((m) => <span key={m.label}>{m.label} <b className="mono text-[var(--ink)]">{fmtDate(m.on)}</b></span>)}
-              {lead && <ReleaseDateButton release_on={release.release_on} go_no_go_on={release.go_no_go_on} />}
-              {lead && <Link href="/sprints/new" data-create className="btn">+ New sprint</Link>}
-            </span>
-          </header>
-          <div className="px-4 py-3">
-            <SprintTimeline sprints={planned} today={today} releaseOn={release.release_on} goNoGoOn={release.go_no_go_on} />
-          </div>
-        </section>
-        <section className="card overflow-x-auto">
-          <table className="table w-full text-[12.5px]">
-            <thead><tr>
-              <th>Sprint</th><th className="whitespace-nowrap">Dates</th><th>Status</th><th>Pages</th>
-              <th className="text-right whitespace-nowrap" title="Test cases on the sprint's pages">Test cases</th><th className="text-right">Automated</th>
-              <th className="text-right" title="Latest automated or manual result passed, and neither fails">Passed</th>
-              <th className="text-right" title="Latest automated or manual result failed, or a known defect">Failed</th>
-              <th className="text-right" title="Open tickets in this sprint">Critical</th><th className="text-right" title="Open tickets in this sprint">High</th><th className="text-right whitespace-nowrap">Open tickets</th>
-            </tr></thead>
-            <tbody>
-              {sprintRows.map(({ s, covered, zones, ...n }) => (
-                <tr key={s.id}>
-                  <td><Link href={sprintHref(s)} className="font-semibold text-[var(--accent)] hover:underline">{s.name}</Link></td>
-                  <td className="mono text-[12px] whitespace-nowrap">{lead && s.status !== 'closed'
-                    ? <SprintDatesButton sprint={{ id: s.id, name: s.name, status: s.status, starts_on: s.starts_on, ends_on: s.ends_on, goal: s.goal }} label={dates(s)} goNoGo={release.go_no_go_on} />
-                    : dates(s)}</td>
-                  <td><Chip tone={STATUS[s.status].tone}>{STATUS[s.status].label}</Chip></td>
-                  <td className="text-[12px] leading-snug">
-                    {covered.length === pages.length && pages.length ? `All ${pages.length} pages` : zones.map((z) => (
-                      <span key={z} className="mr-2.5"><b className="font-semibold">{z}:</b> {covered.filter((p) => p.zone === z).map((p) => p.page).join(', ')}</span>
-                    ))}
-                    {!covered.length && <span className="text-[var(--faint)]">—</span>}
-                  </td>
-                  <td className="text-right tabular-nums">{num(n.cases)}</td>
-                  <td className="text-right tabular-nums">{num(n.automated)}</td>
-                  <td className="text-right tabular-nums">{num(n.passed)}</td>
-                  <td className="text-right tabular-nums">{n.failed ? <span className="font-semibold text-[var(--crit)]">{n.failed.toLocaleString()}</span> : num(0)}</td>
-                  <td className="text-right tabular-nums">{ticketsLink(s.id, n.critical, 'Critical', 'text-[var(--crit)]')}</td>
-                  <td className="text-right tabular-nums">{ticketsLink(s.id, n.high, 'High', 'text-[var(--warn)]')}</td>
-                  <td className="text-right tabular-nums">{ticketsLink(s.id, n.open)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      </div>
+      <section className="card mb-4 overflow-x-auto">
+        <header className="flex items-center justify-between border-b border-[var(--line)] px-4 py-2">
+          <h2 className="text-[14px] font-semibold text-[var(--navy-ink)]">Sprints to release</h2>
+          <span className="flex items-center gap-3 text-[12px] text-[var(--muted)]">
+            {milestones.map((m) => <span key={m.label}>{m.label} <b className="mono text-[var(--ink)]">{fmtDate(m.on)}</b></span>)}
+            {lead && <ReleaseDateButton release_on={release.release_on} go_no_go_on={release.go_no_go_on} />}
+            {lead && <Link href="/sprints/new" data-create className="btn">+ New sprint</Link>}
+          </span>
+        </header>
+        <table className="table w-full text-[12.5px]">
+          <thead><tr>
+            <th>Sprint</th><th className="whitespace-nowrap">Dates</th><th>Status</th><th>Pages</th>
+            <th className="text-right whitespace-nowrap" title="Test cases on the sprint's pages">Test cases</th><th className="text-right">Automated</th>
+            <th className="text-right" title="Latest automated or manual result passed, and neither fails">Passed</th>
+            <th className="text-right" title="Latest automated or manual result failed, or a known defect">Failed</th>
+            <th className="text-right" title="Open tickets in this sprint">Critical</th><th className="text-right" title="Open tickets in this sprint">High</th><th className="text-right whitespace-nowrap">Open tickets</th>
+          </tr></thead>
+          <tbody>
+            {sprintRows.map(({ s, covered, zones, ...n }) => (
+              <tr key={s.id}>
+                <td><Link href={sprintHref(s)} className="font-semibold text-[var(--accent)] hover:underline">{s.name}</Link></td>
+                <td className="mono text-[12px] whitespace-nowrap">{lead && s.status !== 'closed'
+                  ? <SprintDatesButton sprint={{ id: s.id, name: s.name, status: s.status, starts_on: s.starts_on, ends_on: s.ends_on, goal: s.goal }} label={dates(s)} goNoGo={release.go_no_go_on} />
+                  : dates(s)}</td>
+                <td><Chip tone={STATUS[s.status].tone}>{STATUS[s.status].label}</Chip></td>
+                <td className="text-[12px] leading-snug">
+                  {covered.length === pages.length && pages.length ? `All ${pages.length} pages` : zones.map((z) => (
+                    <span key={z} className="mr-2.5"><b className="font-semibold">{z}:</b> {covered.filter((p) => p.zone === z).map((p) => p.page).join(', ')}</span>
+                  ))}
+                  {!covered.length && <span className="text-[var(--faint)]">—</span>}
+                </td>
+                <td className="text-right tabular-nums">{num(n.cases)}</td>
+                <td className="text-right tabular-nums">{num(n.automated)}</td>
+                <td className="text-right tabular-nums">{num(n.passed)}</td>
+                <td className="text-right tabular-nums">{n.failed ? <span className="font-semibold text-[var(--crit)]">{n.failed.toLocaleString()}</span> : num(0)}</td>
+                <td className="text-right tabular-nums">{ticketsLink(s.id, n.critical, 'Critical', 'text-[var(--crit)]')}</td>
+                <td className="text-right tabular-nums">{ticketsLink(s.id, n.high, 'High', 'text-[var(--warn)]')}</td>
+                <td className="text-right tabular-nums">{ticketsLink(s.id, n.open)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
 
       <h2 className="mb-2 text-[14px] font-semibold text-[var(--navy-ink)]">Pages</h2>
       <PlanGrid rows={rows} team={team} sprints={movable} isLead={lead} />

@@ -2,7 +2,7 @@ import { SubmitButton } from '@/components/submit-button'
 import { saveSprint } from '../actions'
 import type { Area, Sprint } from '@/lib/data'
 
-/** Create or edit a sprint: dates, goal and which Framework areas it covers. */
+/** Create a sprint: dates, goal and which pages it covers. */
 export function SprintForm({ areas, sprint, selected }: { areas: Area[]; sprint?: Sprint; selected?: Set<string> }) {
   const zones = [...new Set(areas.map((a) => a.zone))]
   return (
@@ -10,9 +10,9 @@ export function SprintForm({ areas, sprint, selected }: { areas: Area[]; sprint?
       <input type="hidden" name="id" value={sprint?.id ?? ''} />
       <input type="hidden" name="back" value={sprint ? `/sprints/${sprint.id}` : '/sprints/new'} />
       <div className="grid gap-3 sm:grid-cols-5">
-        <label className="block text-sm">Name<input name="name" required defaultValue={sprint?.name} className="input mt-1 w-full" placeholder="T5" /></label>
+        <label className="block text-sm">Name<input name="name" required defaultValue={sprint?.name} className="input mt-1 w-full" placeholder="S6" /></label>
         <label className="block text-sm">Type
-          <select name="kind" defaultValue={sprint?.kind ?? 'test'} className="select mt-1 w-full">
+          <select name="kind" defaultValue={sprint?.kind ?? 'fix'} className="select mt-1 w-full">
             <option value="test">Test</option><option value="fix">Fix</option><option value="regression">Regression</option><option value="triage">Triage</option>
           </select>
         </label>
@@ -21,7 +21,7 @@ export function SprintForm({ areas, sprint, selected }: { areas: Area[]; sprint?
         <label className="block text-sm">Goal<input name="goal" defaultValue={sprint?.goal ?? ''} className="input mt-1 w-full" /></label>
       </div>
       <fieldset>
-        <legend className="label">Framework areas in this sprint</legend>
+        <legend className="label">Pages in this sprint</legend>
         <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {zones.map((z) => (
             <div key={z}>

@@ -9,17 +9,6 @@ import { extendSprint, finishSprint } from '@/app/(app)/schedule-actions'
 
 const fmt = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
 
-/** "Edit sprint" in the header: the dates-and-areas form in a dialog. */
-export function EditSprintButton({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <>
-      <button type="button" onClick={() => setOpen(true)} className="btn">Edit sprint</button>
-      <Dialog open={open} onClose={() => setOpen(false)} title="Edit sprint" wide>{children}</Dialog>
-    </>
-  )
-}
-
 /** Extend by working days, with a live preview of what else moves (later sprints, the release). */
 export function ExtendSprintButton({ sprintId, sprints, release, holidays = [] }: {
   /** Office holidays, skipped like weekends. */

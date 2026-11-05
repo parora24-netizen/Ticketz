@@ -146,6 +146,9 @@ export function toStageInput(c: CaseRow, _runs?: { auto: Set<string>; manual: Se
 }
 
 /** Testing and fixing run side by side: QA's track (triage, test, regression) and the devs' (fix). */
+/** The first test and fix sprints (T1, F1): history, kept for their results and tickets. */
+export const isEarlierSprint = (s: { name: string }) => /^[TF]\d+$/.test(s.name)
+
 export type Track = 'qa' | 'dev'
 export const trackOf = (s: { kind: Sprint['kind'] }): Track => (s.kind === 'fix' ? 'dev' : 'qa')
 

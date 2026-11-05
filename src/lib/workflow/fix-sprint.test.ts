@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { fixSprintAfter, fixSprintForArea } from './fix-sprint'
+import { fixSprintAfter, fixSprintForArea, followsPage } from './fix-sprint'
 
 const s = (id: string, kind: string, status = 'planned') => ({ id, name: id, kind, status })
 const sprints = [s('T1', 'test', 'active'), s('F1', 'fix', 'active'), s('T2', 'test'), s('F2', 'fix'), s('T3', 'test'), s('F3', 'fix', 'closed'), s('R1', 'regression')]
+
+describe('tickets following a moved page', () => {
+  it('leaves tickets in the running sprint where they are', () => {
+    const plan = [s('S1', 'fix', 'active'), s('S2', 'fix'), s('F1', 'fix', 'closed')]
+    expect(followsPage({ current_sprint_id: 'S1' }, plan)).toBe(false)
+    expect(followsPage({ current_sprint_id: 'S2' }, plan)).toBe(true)
+    expect(followsPage({ current_sprint_id: null }, plan)).toBe(true)
+  })
+})
 
 describe('fix sprint after a test sprint', () => {
   it('pairs Tn with F(n+1)', () => {

@@ -11,6 +11,10 @@ export function fixSprintAfter<T extends S>(test: S | undefined | null, sprints:
   return sprints.find((s) => s.kind === 'fix' && s.name === `F${n + 1}` && s.status !== 'closed') ?? null
 }
 
+/** Tickets in the running sprint stay put when their page moves: no one's current work moves under them. */
+export const followsPage = (t: { current_sprint_id: string | null }, sprints: { id: string; status: string }[]) =>
+  sprints.find((s) => s.id === t.current_sprint_id)?.status !== 'active'
+
 /**
  * Where a page's tickets are fixed: the open triage or fix sprint the plan gives the page (S0 takes
  * pages whose fixes start early, then S1–S5), else the fix sprint after the open test sprint that

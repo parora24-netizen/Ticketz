@@ -11,7 +11,7 @@ export default async function NewSprintPage({ searchParams }: { searchParams: Pr
   const sp = await searchParams
   return (
     <>
-      <PageHeader sub="Pick 2 to 4 working days and the Framework areas to test in them." />
+      <PageHeader sub="Dates and goal, and the pages it covers. You can change all of these on Release › Plan." />
       <Flash error={sp.error} ok={sp.ok} />
       <div className="card max-w-5xl p-5"><SprintForm areas={await loadAreas()} /></div>
     </>

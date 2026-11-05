@@ -1,7 +1,7 @@
 import { sprintHref } from '@/lib/links'
 import { notFound } from 'next/navigation'
 import { SprintBoard } from '@/components/board/sprint-board'
-import { EditSprintButton, ExtendSprintButton, FinishSprintButton } from '@/components/board/sprint-controls'
+import { ExtendSprintButton, FinishSprintButton } from '@/components/board/sprint-controls'
 import { SprintProgress } from '@/components/board/sprint-progress'
 import { LineChart } from '@/components/charts/line-chart'
 import { Flash } from '@/components/flash'
@@ -19,7 +19,6 @@ import { STAGES, TEST_STAGES, caseStage, needsTicket, testBy, testStage } from '
 import { gateFor } from '@/lib/workflow/sprint-gate'
 import { FIX_STAGES, fixStage } from '@/lib/workflow/board-moves'
 import { startSprint } from '../../actions'
-import { SprintForm } from '../sprint-form'
 
 export default async function SprintPage({
   params, searchParams,
@@ -94,9 +93,6 @@ export default async function SprintPage({
         <Chip tone={sprint.status === 'active' ? 'accent' : sprint.status === 'closed' ? 'good' : 'muted'}>
           {sprint.status === 'active' ? `Running · ${daysLeft(sprint.ends_on)}` : sprint.status === 'closed' ? 'Closed' : `Planned · starts in ${Math.max(daysUntil(sprint.starts_on), 0)} days`}
         </Chip>
-        {lead && sprint.status !== 'closed' && (
-          <EditSprintButton><SprintForm areas={areas} sprint={sprint} selected={new Set(areaIds)} /></EditSprintButton>
-        )}
         {lead && sprint.status !== 'closed' && (
           <ExtendSprintButton sprintId={id} sprints={sprints} holidays={holidays.map((h) => h.day)} release={{ release_on: release.release_on, go_no_go_on: release.go_no_go_on }} />
         )}

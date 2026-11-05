@@ -1,13 +1,10 @@
 import Link from 'next/link'
 import { LineChart } from '@/components/charts/line-chart'
-import { ReleaseDateButton } from '@/components/release-controls'
-import { ScheduleLog } from '@/components/schedule-log'
 import { SprintTimeline } from '@/components/sprint-timeline'
-import { getMe } from '@/lib/auth'
 import { RELEASE_TABS, Tabs } from '@/components/tabs'
 import { PageHeader, Stat } from '@/components/ui'
 import {
-  runningSprints, loadRelease, loadScheduleChanges, daysUntil, fmtDate,
+  runningSprints, loadRelease, daysUntil, fmtDate, isEarlierSprint,
   loadAreas, loadCases, loadManualRuns, loadSprints, loadTicketEvents, loadTickets, toStageInput,
 } from '@/lib/data'
 import { casesTestedByDay, openTicketsByDay } from '@/lib/trends'
@@ -18,9 +15,8 @@ const TREND_FROM = '2026-10-08' // first tickets were logged on 8 Oct
 
 /** The executive view: is 26.111 going to make it, and what is in the way. */
 export default async function ReleasePage() {
-  const me = await getMe()
-  const [areas, cases, tickets, sprints, events, manualRuns, release, changes] = await Promise.all([
-    loadAreas(), loadCases(), loadTickets(), loadSprints(), loadTicketEvents(), loadManualRuns(), loadRelease(), loadScheduleChanges(),
+  const [areas, cases, tickets, sprints, events, manualRuns, release] = await Promise.all([
+    loadAreas(), loadCases(), loadTickets(), loadSprints(), loadTicketEvents(), loadManualRuns(), loadRelease(),
   ])
   const RELEASE_DATE = release.release_on
   const slipped = daysUntil(release.release_on) - daysUntil(release.original_release_on)
@@ -83,7 +79,6 @@ export default async function ReleasePage() {
     <>
       <Tabs items={RELEASE_TABS} active="overview" />
       <PageHeader sub={`Ships ${fmtDate(release.release_on)} · go/no-go ${fmtDate(release.go_no_go_on)}`}>
-        {me.role === 'lead' && <ReleaseDateButton release_on={release.release_on} go_no_go_on={release.go_no_go_on} />}
       </PageHeader>
 
       {/* Verdict */}
@@ -169,10 +164,9 @@ export default async function ReleasePage() {
           <Link href="/release/plan" className="text-[12px] text-[var(--accent)] hover:underline">Open plan</Link>
         </header>
         <div className="px-4 py-4">
-          <SprintTimeline sprints={sprints} today={today} releaseOn={RELEASE_DATE} goNoGoOn={release.go_no_go_on} />
+          <SprintTimeline sprints={sprints.filter((s) => !isEarlierSprint(s))} today={today} releaseOn={RELEASE_DATE} goNoGoOn={release.go_no_go_on} />
         </div>
       </section>
-      <ScheduleLog changes={changes} release={release} limit={6} />
     </>
   )
 }

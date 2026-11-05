@@ -235,9 +235,10 @@ export function DataGrid<T extends { id: string }>({
       : String(col.value(row) ?? '')
   }
 
-  function startEdit(r: number, c: number, initial?: string) {
+  function startEdit(r: number, c: number, initial?: string, picker = false) {
     const col = columns[c]
     if (!col?.edit || !onSave || col.editable?.(shown[r]) === false) return
+    openPicker.current = picker
     setEditing({ r, c, value: initial ?? rawValue(shown[r], col) })
   }
 
@@ -267,6 +268,14 @@ export function DataGrid<T extends { id: string }>({
     else if (e.key === ' ' && selectable) { e.preventDefault(); toggle(shown[active.r].id, active.r, e.shiftKey) }
     else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && columns[active.c]?.edit?.kind === 'text') startEdit(active.r, active.c, e.key)
   }
+
+  // A click on a dropdown or date cell opens its list or calendar at once.
+  const openPicker = useRef(false)
+  useEffect(() => {
+    if (!editing || !openPicker.current) return
+    openPicker.current = false
+    try { gridRef.current?.querySelector<HTMLSelectElement | HTMLInputElement>(`[data-cell="${editing.r}-${editing.c}"] select, [data-cell="${editing.r}-${editing.c}"] input`)?.showPicker() } catch {}
+  }, [editing])
 
   useEffect(() => {
     if (!active) return
@@ -480,8 +489,12 @@ export function DataGrid<T extends { id: string }>({
                   return (
                     <td key={col.key} data-cell={`${r}-${c}`}
                       title={isEditing ? undefined : String(cellValue(row, col) ?? '')}
-                      onClick={() => setActive({ r, c })}
-                      onDoubleClick={() => startEdit(r, c)}
+                      onClick={() => {
+                        if (isEditing) return // clicks inside an open editor belong to it
+                        setActive({ r, c })
+                        if (col.edit && col.edit.kind !== 'text') startEdit(r, c, undefined, true)
+                      }}
+                      onDoubleClick={() => { if (!isEditing) startEdit(r, c) }}
                       className={`${col.align === 'right' ? 'text-right tabular-nums' : ''} ${col.mono ? 'mono text-[12px]' : ''} ${col.muted ? 'text-[var(--faint)]' : ''} ${
                         col.edit && onSave && col.editable?.(row) !== false ? 'cursor-cell' : ''} ${isActive ? 'shadow-[inset_0_0_0_2px_var(--navy)]' : ''} ${edited ? 'bg-[var(--warn-soft)]' : ''}`}>
                       {isEditing && col.edit ? (
@@ -530,7 +543,7 @@ export function DataGrid<T extends { id: string }>({
           <button type="button" onClick={() => { setQuery(''); setFilters({}) }} className="font-semibold text-[var(--accent)] hover:underline">Clear search and filters</button>
         </>}
         {footerNote ? ` · ${footerNote}` : ''}
-        {onSave ? ' · Click a cell, arrow keys to move, Enter to edit ✎ columns, Esc to cancel. Shift-click a header to sort by more than one column.' : ''}
+        {onSave ? ' · Click a ✎ dropdown or date to change it; double-click or Enter to edit text; arrow keys to move, Esc to cancel. Shift-click a header to sort by more than one column.' : ''}
       </p>
     </div>
   )

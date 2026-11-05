@@ -1,6 +1,8 @@
+import Link from 'next/link'
 import { LineChart } from '@/components/charts/line-chart'
 import { RELEASE_TABS, Tabs } from '@/components/tabs'
 import { HEALTH_LABEL, summarizeArea } from '@/lib/areas'
+import { casesHref } from '@/lib/case-links'
 import {
   runningSprints, loadRelease, daysUntil, fmtDate,
   loadAreas, loadCases, loadManualRuns, loadSprintAreas, loadSprints, loadTicketEvents, loadTickets, toStageInput,
@@ -40,12 +42,12 @@ export default async function ReleasePage() {
   const untracked = cases.filter((c) => needsTicket(toStageInput(c))).length
   const pagesWithPass = new Set(cases.filter((c) => caseOutcome(c) === 'passed').map((c) => c.area_id)).size
   const bar = [
-    { label: 'No open Critical tickets', ok: openCrit === 0, detail: `${openCrit} open` },
-    { label: 'High tickets closed or worked around', ok: openHigh === 0, detail: `${openHigh} open` },
-    { label: 'Critical/High cases run manually, 90% passing', ok: highRun.length === high.length && highPassRate >= 90, detail: `${highRun.length} of ${high.length} run · ${highPassRate}% passing` },
-    { label: 'Every page has a passing case', ok: pagesWithPass === areas.length, detail: `${pagesWithPass} of ${areas.length} pages` },
-    { label: 'Every failure has a ticket', ok: untracked === 0, detail: `${untracked} untracked` },
-    { label: 'Automation agrees with manual testing', ok: mismatches === 0, detail: `${mismatches} mismatches` },
+    { label: 'No open Critical tickets', ok: openCrit === 0, detail: `${openCrit} open`, href: '/tickets?view=grid&state=open&severity=Critical' },
+    { label: 'High tickets closed or worked around', ok: openHigh === 0, detail: `${openHigh} open`, href: '/tickets?view=grid&state=open&severity=High' },
+    { label: 'Critical/High cases run manually, 90% passing', ok: highRun.length === high.length && highPassRate >= 90, detail: `${highRun.length} of ${high.length} run · ${highPassRate}% passing`, href: casesHref({ priority: 'high' }) },
+    { label: 'Every page has a passing case', ok: pagesWithPass === areas.length, detail: `${pagesWithPass} of ${areas.length} pages`, href: undefined },
+    { label: 'Every failure has a ticket', ok: untracked === 0, detail: `${untracked} untracked`, href: untracked ? casesHref({ untracked: '1' }) : undefined },
+    { label: 'Automation agrees with manual testing', ok: mismatches === 0, detail: `${mismatches} mismatches`, href: '/cases?mismatch=1' },
   ]
   const met = bar.filter((b) => b.ok).length
   const daysLeft = daysUntil(release.release_on)
@@ -107,7 +109,7 @@ export default async function ReleasePage() {
               <li key={b.label} className="flex items-start gap-2.5 px-4 py-1.5 text-[12.5px]">
                 <span aria-hidden className={`mt-px font-semibold ${b.ok ? toneText.good : toneText.crit}`}>{b.ok ? '✓' : '✗'}</span>
                 <span className="flex-1">{b.label}</span>
-                <span className="text-right text-[12px] text-[var(--muted)]">{b.detail}</span>
+                <span className="text-right text-[12px] text-[var(--muted)]">{b.href ? <Link href={b.href} className="font-semibold text-[var(--accent)] hover:underline">{b.detail}</Link> : b.detail}</span>
               </li>
             ))}
           </ul>

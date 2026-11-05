@@ -20,7 +20,7 @@ export const STATUS_TONE: Record<string, Tone> = {
  * grid column `chart` counts (clicking one shows only those rows; again clears it).
  */
 export function FilterCard({ label, value, unit, line, chart, toggle }: {
-  label: string; value: string; unit: string; line: React.ReactNode; chart: ChartData; toggle: (key: string, value: string) => void
+  label: string; value: string; unit: React.ReactNode; line: React.ReactNode; chart: ChartData; toggle: (key: string, value: string) => void
 }) {
   const parts = chart.bars.map((b) => ({ value: b.count, tone: STATUS_TONE[b.label] ?? 'muted', label: b.label }))
   return (

@@ -4,6 +4,7 @@ import { ScheduleLog } from '@/components/schedule-log'
 import { RELEASE_TABS, Tabs } from '@/components/tabs'
 import { Chip } from '@/components/ui'
 import { getMe } from '@/lib/auth'
+import { casesHref } from '@/lib/case-links'
 import { fmtDate, isEarlierSprint, loadAreas, loadCases, loadPeople, loadRelease, loadScheduleChanges, loadSprintAreas, loadSprints, loadTickets } from '@/lib/data'
 import { sprintHref } from '@/lib/links'
 import { pageProgress, pageStatus, passFail } from '@/lib/progress'
@@ -54,7 +55,9 @@ export default async function PlanPage() {
       critical: inIt.filter((t) => t.severity === 'Critical').length, high: inIt.filter((t) => t.severity === 'High').length, open: inIt.length,
     }
   })
-  const num = (n: number) => (n ? n.toLocaleString() : <span className="text-[var(--faint)]">0</span>)
+  const num = (n: number, href: string, tone = 'text-[var(--accent)]') => (n
+    ? <Link href={href} className={`font-semibold ${tone} hover:underline`}>{n.toLocaleString()}</Link>
+    : <span className="text-[var(--faint)]">0</span>)
   const ticketsLink = (id: string, n: number, severity?: string, tone = 'text-[var(--accent)]') => (n
     ? <Link href={`/tickets?view=grid&sprint=${id}${severity ? `&severity=${severity}` : ''}`} className={`font-semibold ${tone} hover:underline`}>{n}</Link>
     : <span className="text-[var(--faint)]">0</span>)
@@ -101,10 +104,10 @@ export default async function PlanPage() {
                   ))}
                   {!covered.length && <span className="text-[var(--faint)]">—</span>}
                 </td>
-                <td className="text-right tabular-nums">{num(n.cases)}</td>
-                <td className="text-right tabular-nums">{num(n.automated)}</td>
-                <td className="text-right tabular-nums">{num(n.passed)}</td>
-                <td className="text-right tabular-nums">{n.failed ? <span className="font-semibold text-[var(--crit)]">{n.failed.toLocaleString()}</span> : num(0)}</td>
+                <td className="text-right tabular-nums">{num(n.cases, casesHref({ sprint: s.id }))}</td>
+                <td className="text-right tabular-nums">{num(n.automated, casesHref({ sprint: s.id, automation: 'automated' }))}</td>
+                <td className="text-right tabular-nums">{num(n.passed, casesHref({ sprint: s.id, outcome: 'passed' }))}</td>
+                <td className="text-right tabular-nums">{num(n.failed, casesHref({ sprint: s.id, outcome: 'failed' }), 'text-[var(--crit)]')}</td>
                 <td className="text-right tabular-nums">{ticketsLink(s.id, n.critical, 'Critical', 'text-[var(--crit)]')}</td>
                 <td className="text-right tabular-nums">{ticketsLink(s.id, n.high, 'High', 'text-[var(--warn)]')}</td>
                 <td className="text-right tabular-nums">{ticketsLink(s.id, n.open)}</td>

@@ -5,6 +5,7 @@ import { DataGrid, type Column } from '@/components/grid/data-grid'
 import type { ChartData } from '@/components/grid/grid-charts'
 import { FilterCard, MiniBar, STATUS_TONE as TONE } from '@/components/grid/filter-cards'
 import { Chip } from '@/components/ui'
+import { casesHref } from '@/lib/case-links'
 import { sprintHref } from '@/lib/links'
 import { pct, type Counts } from '@/lib/progress'
 
@@ -41,15 +42,16 @@ export function StatusGrid({ rows, noPage }: { rows: StatusRow[]; noPage: NoPage
       render: (r) => (r.sprint ? <Link href={sprintHref({ name: r.sprint })} className="text-[var(--accent)] hover:underline">{r.sprint}</Link> : <span className="text-[var(--faint)]">—</span>) },
     { key: 'status', header: 'Status', width: 150, value: (r) => r.status, sortValue: (r) => ORDER.status.indexOf(r.status),
       render: (r) => <Chip tone={TONE[r.status] ?? 'muted'}>{r.status}</Chip> },
-    { key: 'cases', header: 'Cases', width: 70, align: 'right', value: (r) => r.cases },
+    { key: 'cases', header: 'Cases', width: 70, align: 'right', value: (r) => r.cases,
+      render: (r) => (r.cases ? <Link href={casesHref({ area: r.id })} className="text-[var(--accent)] hover:underline">{r.cases}</Link> : none) },
     { key: 'automated', header: 'Automated', width: 150, value: (r) => pct(r.automated, r.cases), sortValue: (r) => (r.cases ? r.automated / r.cases : -1),
-      render: (r) => r.cases ? <MiniBar n={r.automated} of={r.cases} parts={[{ value: r.automated, tone: 'accent', label: 'Automated' }, { value: r.cases - r.automated, tone: 'muted', label: 'Not automated' }]} /> : null },
+      render: (r) => r.cases ? <Link href={casesHref({ area: r.id, automation: 'automated' })} className="block hover:underline"><MiniBar n={r.automated} of={r.cases} parts={[{ value: r.automated, tone: 'accent', label: 'Automated' }, { value: r.cases - r.automated, tone: 'muted', label: 'Not automated' }]} /></Link> : null },
     { key: 'autoRun', header: 'Automation passing', width: 150, value: (r) => pct(r.autoPassed, r.autoRun), sortValue: (r) => (r.autoRun ? r.autoPassed / r.autoRun : -1),
-      render: (r) => r.automated ? <MiniBar n={r.autoPassed} of={r.autoRun} parts={[{ value: r.autoPassed, tone: 'good', label: 'Passing' }, { value: r.autoRun - r.autoPassed, tone: 'crit', label: 'Not passing' }, { value: r.automated - r.autoRun, tone: 'muted', label: 'Not run' }]} /> : null },
+      render: (r) => r.automated ? <Link href={casesHref({ area: r.id, auto: 'passed' })} className="block hover:underline"><MiniBar n={r.autoPassed} of={r.autoRun} parts={[{ value: r.autoPassed, tone: 'good', label: 'Passing' }, { value: r.autoRun - r.autoPassed, tone: 'crit', label: 'Not passing' }, { value: r.automated - r.autoRun, tone: 'muted', label: 'Not run' }]} /></Link> : null },
     { key: 'manual', header: 'Tested by hand', width: 150, value: (r) => pct(r.manualDone, r.needManual), sortValue: (r) => (r.needManual ? r.manualDone / r.needManual : -1),
-      render: (r) => r.needManual ? <MiniBar n={r.manualDone} of={r.needManual} parts={[{ value: r.manualPassed, tone: 'good', label: 'Passed' }, { value: r.manualDone - r.manualPassed, tone: 'crit', label: 'Not passed' }, { value: r.untested, tone: 'muted', label: 'Left' }]} /> : null },
+      render: (r) => r.needManual ? <Link href={casesHref({ area: r.id, hand: 'tested' })} className="block hover:underline"><MiniBar n={r.manualDone} of={r.needManual} parts={[{ value: r.manualPassed, tone: 'good', label: 'Passed' }, { value: r.manualDone - r.manualPassed, tone: 'crit', label: 'Not passed' }, { value: r.untested, tone: 'muted', label: 'Left' }]} /></Link> : null },
     { key: 'manualPassing', header: 'Hand passing', width: 100, align: 'right', value: (r) => (r.manualDone ? pct(r.manualPassed, r.manualDone) : null),
-      render: (r) => r.manualDone ? `${pct(r.manualPassed, r.manualDone)}%` : <span className="text-[var(--faint)]">—</span> },
+      render: (r) => r.manualDone ? <Link href={casesHref({ area: r.id, hand: 'passed' })} className="text-[var(--accent)] hover:underline">{pct(r.manualPassed, r.manualDone)}%</Link> : <span className="text-[var(--faint)]">—</span> },
     { key: 'open', header: 'Open tickets', width: 100, align: 'right', value: (r) => r.open,
       render: (r) => r.open ? <Link href={ticketsHref(r)} className="font-semibold text-[var(--accent)] hover:underline">{r.open}</Link> : none },
     { key: 'critical', header: 'Critical', width: 80, align: 'right', value: (r) => r.critical,
@@ -85,12 +87,12 @@ function Cards({ charts, rowsFor, toggle, rows, noPage }: { charts: ChartData[];
   return (
     <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Status">
       <FilterCard label="Status" value={`${passing} of ${st.length}`} unit="pages passing" chart={chart('status')} toggle={toggle}
-        line={`${sum(st, 'cases').toLocaleString()} cases`} />
-      <FilterCard label="Automation" value={`${pct(automated, cases)}%`} unit={`${automated.toLocaleString()} of ${cases.toLocaleString()} automated`} chart={chart('automation')} toggle={toggle}
-        line={`${autoRun.toLocaleString()} run · ${autoPassed.toLocaleString()} passing (${pct(autoPassed, autoRun)}%)`} />
-      <FilterCard label="Tested by hand" value={`${pct(manualDone, needManual)}%`} unit={`${manualDone.toLocaleString()} of ${needManual.toLocaleString()} tested`} chart={chart('hand')} toggle={toggle}
-        line={<><Link href="/cases?stage=test" className="hover:underline">{(needManual - manualDone).toLocaleString()} left</Link> · {pct(manualPassed, manualDone)}% passing</>} />
-      <FilterCard label="Open tickets" value={open.toLocaleString()} unit="open" chart={chart('tickets')} toggle={toggle}
+        line={<Link href="/cases" className="text-[var(--accent)] hover:underline">{sum(st, 'cases').toLocaleString()} cases</Link>} />
+      <FilterCard label="Automation" value={`${pct(automated, cases)}%`} unit={<><Link href={casesHref({ automation: 'automated' })} className="text-[var(--accent)] hover:underline">{automated.toLocaleString()}</Link> of {cases.toLocaleString()} automated</>} chart={chart('automation')} toggle={toggle}
+        line={<>{autoRun.toLocaleString()} run · <Link href={casesHref({ auto: 'passed' })} className="text-[var(--accent)] hover:underline">{autoPassed.toLocaleString()} passing</Link> ({pct(autoPassed, autoRun)}%)</>} />
+      <FilterCard label="Tested by hand" value={`${pct(manualDone, needManual)}%`} unit={<><Link href={casesHref({ hand: 'tested' })} className="text-[var(--accent)] hover:underline">{manualDone.toLocaleString()}</Link> of {needManual.toLocaleString()} tested</>} chart={chart('hand')} toggle={toggle}
+        line={<><Link href={casesHref({ hand: 'left' })} className="text-[var(--accent)] hover:underline">{(needManual - manualDone).toLocaleString()} left</Link> · <Link href={casesHref({ hand: 'passed' })} className="text-[var(--accent)] hover:underline">{pct(manualPassed, manualDone)}% passing</Link></>} />
+      <FilterCard label="Open tickets" value={open.toLocaleString()} unit={<Link href="/tickets?view=grid&state=open" className="text-[var(--accent)] hover:underline">open</Link>} chart={chart('tickets')} toggle={toggle}
         line={<>
           <Link href="/tickets?view=grid&state=open&severity=Critical" className="font-semibold text-[var(--crit)] hover:underline">{critical} Critical</Link>
           {' · '}

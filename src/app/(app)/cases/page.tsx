@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { PageHeader } from '@/components/ui'
 import { CASES_TABS, Tabs } from '@/components/tabs'
 import { getMe } from '@/lib/auth'
+import { caseLinkLabel, matchesCaseLink } from '@/lib/case-links'
 import { loadAreas, loadCases, loadPeople, loadSprintAreas, loadSprintRuns, loadSprints, toStageInput } from '@/lib/data'
 import { STAGE_LABEL, caseStage, mismatch, type Stage } from '@/lib/workflow/case-stage'
 import { CasesGrid } from './cases-grid'
@@ -22,7 +23,8 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
     .filter((c) =>
       (!sp.area || c.area_id === sp.area) &&
       (!sp.stage || caseStage(toStageInput(c, runs)) === (sp.stage as Stage)) &&
-      wantMismatch(c))
+      wantMismatch(c) &&
+      matchesCaseLink(c, sp))
     .map((c) => ({
       id: c.id,
       tc_id: c.tc_id,
@@ -37,14 +39,14 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
       tester_name: c.tester_name,
     }))
   const area = sp.area ? areas.find((a) => a.id === sp.area) : undefined
-  const scopeText = [sprint && `Sprint ${sprint.name}`, area && `${area.zone} · ${area.page}`, sp.stage && STAGE_LABEL[sp.stage as Stage], sp.mismatch && MISMATCH_LABEL[sp.mismatch as keyof typeof MISMATCH_LABEL]].filter(Boolean).join(' · ')
+  const scopeText = [sprint && `Sprint ${sprint.name}`, area && `${area.zone} · ${area.page}`, sp.stage && STAGE_LABEL[sp.stage as Stage], sp.mismatch && MISMATCH_LABEL[sp.mismatch as keyof typeof MISMATCH_LABEL], caseLinkLabel(sp)].filter(Boolean).join(' · ')
   const counts = { type_i: all.filter((c) => kind(c) === 'type_i').length, type_ii: all.filter((c) => kind(c) === 'type_ii').length }
   const canEdit = me.role !== 'dev'
 
   return (
     <>
       <Tabs items={CASES_TABS} active="all" />
-      <PageHeader sub={scopeText ? <>{scopeText} · <Link href="/cases" className="text-[var(--accent)] hover:underline">show all</Link></> : `${all.length} cases across ${areas.length} areas`}>
+      <PageHeader sub={scopeText ? <>{scopeText} · {rows.length} · <Link href="/cases" className="text-[var(--accent)] hover:underline">show all</Link></> : `${all.length} cases across ${areas.length} areas`}>
         {sp.mismatch
           ? (['type_i', 'type_ii'] as const).map((k) => (
             <Link key={k} href={`/cases?mismatch=${k}`} aria-current={sp.mismatch === k ? 'page' : undefined}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CasesQuery, ListQuery, RaisePayload, ResultsQuery, RunsQuery, failureKind, failureText, readQuery, retestMove } from './tickets-api'
+import { AutomationPatch, automationFromDb, automationToDb, CasesQuery, ListQuery, RaisePayload, ResultsQuery, RunsQuery, failureKind, failureText, readQuery, retestMove } from './tickets-api'
 
 describe('tickets API', () => {
   it('raises without a test case when there is a title', () => {
@@ -7,6 +7,25 @@ describe('tickets API', () => {
     expect(RaisePayload.safeParse({ description: 'no title or case' }).success).toBe(false)
     expect(RaisePayload.safeParse({ title: 'Mismatch', kind: 'test_mismatch' }).success).toBe(false)
     expect(RaisePayload.safeParse({ tc_id: 'tc_fn_070' }).data?.tc_id).toBe('TC_FN_070')
+  })
+
+  it('takes automation fields only, and maps not automatable to what Launchpad stores', () => {
+    expect(AutomationPatch.safeParse({ automation_status: 'blocked', automation_note: 'needs an engine', automation_owner: 'e2e tests runner', automation_ref: 'specs/a.ts' }).success).toBe(true)
+    expect(AutomationPatch.safeParse({ automation_note: null }).success).toBe(true)
+    expect(AutomationPatch.safeParse({}).success).toBe(false)
+    expect(AutomationPatch.safeParse({ automation_status: 'done' }).success).toBe(false)
+    expect(AutomationPatch.safeParse({ automation_status: 'automated', title: 'reworded' }).success).toBe(false)
+    expect(automationToDb('not_automatable')).toBe('manual_only')
+    expect(automationFromDb('manual_only')).toBe('not_automatable')
+    expect(automationFromDb(automationToDb('in_progress'))).toBe('in_progress')
+  })
+
+  it('filters cases by automation, priority and type, refusing unknown values', () => {
+    const read = (q: string) => readQuery(CasesQuery, new URLSearchParams(q))
+    expect(read('automation=blocked,in_progress&priority=High&type=Functional').data).toMatchObject({ automation: ['blocked', 'in_progress'], priority: ['High'], type: ['Functional'] })
+    expect(read('automation=done').success).toBe(false)
+    expect(read('priority=urgent').success).toBe(false)
+    expect(read('text_updated_since=2026-11-01T00:00:00Z').data?.text_updated_since).toBe('2026-11-01T00:00:00Z')
   })
 
   it('calls an automated failure a mismatch when the latest manual test passed', () => {

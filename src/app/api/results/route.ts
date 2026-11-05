@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
   const f = q.data
   const { data: sprints } = await caller.db.from('sprints').select('id, name')
   const sprintName = new Map((sprints ?? []).map((s) => [s.id as string, s.name as string]))
+  if ((f.zone || f.page) && !f.latest) return NextResponse.json({ error: 'zone and page work with latest=true' }, { status: 400 })
   const range = [f.offset, f.offset + f.limit - 1] as const
 
   if (f.latest) {
@@ -36,6 +37,14 @@ export async function GET(request: NextRequest) {
       .order('tc_id').range(...range)
     if (f.tc_id?.length) query = query.in('tc_id', await currentTcIds(caller.db, f.tc_id))
     if (f.updated_since) query = query.or(`auto_at.gte.${f.updated_since},manual_at.gte.${f.updated_since}`)
+    if (f.zone) query = query.ilike('zone', f.zone.replace(/[%_]/g, ''))
+    if (f.page) query = query.ilike('page', f.page.replace(/[%_]/g, ''))
+    if (f.result?.length) {
+      const bad = f.result.find((r) => !RUN_RESULTS.includes(r))
+      if (bad) return NextResponse.json({ error: `result "${bad}" is not one of ${RUN_RESULTS.join(', ')}` }, { status: 400 })
+      const values = f.result.join(',')
+      query = query.or(`auto_result.in.(${values}),manual_result.in.(${values})`)
+    }
     if (f.mismatch === 'type_i') query = query.or(`and(${TYPE_I})`)
     if (f.mismatch === 'type_ii') query = query.or(`and(${TYPE_II})`)
     if (f.mismatch === 'any') query = query.or(`and(${TYPE_I}),and(${TYPE_II})`)
@@ -83,6 +92,7 @@ export async function GET(request: NextRequest) {
 }
 
 const MAX_RAISED = 200
+const RUN_RESULTS = ['passed', 'failed', 'skipped', 'known_defect', 'blocked']
 
 /**
  * POST /api/results — the automated suite reports a run.
@@ -93,7 +103,7 @@ export async function POST(request: NextRequest) {
   if (!token) return NextResponse.json({ error: 'Missing bearer token' }, { status: 401 })
   const supabase = createServiceClient()
   const hash = createHash('sha256').update(token).digest('hex')
-  const { data: tok } = await supabase.from('ci_tokens').select('id, created_by').eq('token_hash', hash).is('revoked_at', null).maybeSingle()
+  const { data: tok } = await supabase.from('ci_tokens').select('id, created_by, person_id, role').eq('token_hash', hash).is('revoked_at', null).maybeSingle()
   if (!tok) return NextResponse.json({ error: 'Unknown or revoked token' }, { status: 401 })
 
   let body: unknown
@@ -137,8 +147,8 @@ export async function POST(request: NextRequest) {
     const { error } = await supabase.from('test_runs').insert(rows.slice(i, i + 500))
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
-  // A case that has automated results is automated.
-  const newlyAutomated = [...caseIds.values()].filter((c) => c.automation === 'not_automated').map((c) => c.id)
+  // A case that has automated results is automated, unless someone has said it is blocked or cannot be.
+  const newlyAutomated = [...caseIds.values()].filter((c) => c.automation === 'not_automated' || c.automation === 'in_progress').map((c) => c.id)
   if (newlyAutomated.length) await supabase.from('test_cases').update({ automation: 'automated' }).in('id', newlyAutomated)
   await supabase.from('ci_tokens').update({ last_used_at: new Date().toISOString() }).eq('id', tok.id)
 
@@ -148,7 +158,7 @@ export async function POST(request: NextRequest) {
   // one call the rest are counted, not raised, so a mass failure cannot time the call out.
   const tickets: { tc_id: string; key?: string; created?: boolean; reopened?: boolean; error?: string }[] = []
   const failures = results.filter((x) => x.status === 'failed' && caseIds.has(x.tc_id))
-  const caller = { db: supabase, tokenId: tok.id, actorId: await ciActor(supabase, tok.created_by as string | null) }
+  const caller = { db: supabase, tokenId: tok.id, actorId: (tok.person_id as string | null) ?? await ciActor(supabase, tok.created_by as string | null), role: tok.role as 'runner' | 'tester' }
   const raising = failures.slice(0, MAX_RAISED)
   const { data: latest } = raising.length
     ? await supabase.from('case_latest').select('id, manual_result').in('id', raising.map((r) => caseIds.get(r.tc_id)!.id))

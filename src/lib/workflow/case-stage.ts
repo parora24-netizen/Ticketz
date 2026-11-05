@@ -1,5 +1,5 @@
 export type Priority = 'Critical' | 'High' | 'Medium' | 'Low'
-export type Automation = 'not_automated' | 'automated' | 'manual_only'
+export type Automation = 'not_automated' | 'in_progress' | 'automated' | 'blocked' | 'manual_only'
 export type RunResult = 'passed' | 'failed' | 'skipped' | 'known_defect' | 'blocked'
 
 /** The four columns of a sprint board, in order: QA tests, devs fix, QA retests, done. */
@@ -65,7 +65,7 @@ export const TEST_STAGE_LABEL: Record<TestStage, string> = {
 export function testStage(c: CaseForStage): Exclude<TestStage, 'write'> {
   if (c.open_fix > 0 || c.awaiting_retest > 0 || needsTicket(c)) return 'failed'
   // Critical/High never wait on automation, as on the other boards.
-  if (c.automation === 'not_automated' && !HIGH.includes(c.priority) && c.auto_result === null && c.manual_result === null) return 'automate'
+  if ((c.automation === 'not_automated' || c.automation === 'in_progress') && !HIGH.includes(c.priority) && c.auto_result === null && c.manual_result === null) return 'automate'
   if (caseStage(c) === 'test') return testBy(c)
   return 'passed'
 }

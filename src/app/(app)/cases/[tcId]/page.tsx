@@ -93,7 +93,15 @@ export default async function CasePage({
               {c.scenario_id && <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Scenario</dt><dd className="mono">{c.scenario_id}</dd></div>}
               {c.requirement_id && <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Requirement</dt><dd className="mono">{c.requirement_id}</dd></div>}
               {c.test_type && <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Type</dt><dd>{c.test_type}</dd></div>}
-              <div className="px-4 py-2.5"><dt className="label mb-1">Automation</dt><dd><CaseAutomationField caseId={c.id} value={c.automation} disabled={!canTest} /></dd></div>
+              <div className="px-4 py-2.5"><dt className="label mb-1">Automation</dt><dd><CaseAutomationField caseId={c.id} value={c.automation} disabled={!canTest} />
+                {(c.automation_note || c.automation_owner || c.automation_ref) && (
+                  <div className="mt-1.5 space-y-0.5 text-[12px] text-[var(--muted)]">
+                    {c.automation_note && <p>{c.automation_note}</p>}
+                    {c.automation_owner && <p>Claimed by {c.automation_owner}</p>}
+                    {c.automation_ref && <p className="mono break-all">{c.automation_ref}</p>}
+                  </div>
+                )}
+              </dd></div>
             </dl>
           </section>
           <section className="card p-4">

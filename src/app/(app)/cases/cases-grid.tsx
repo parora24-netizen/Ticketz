@@ -1,5 +1,6 @@
 'use client'
 
+import type { Automation } from '@/lib/workflow/case-stage'
 import Link from 'next/link'
 import { DataGrid, type Column } from '@/components/grid/data-grid'
 import { PriorityChip, ResultChip } from '@/components/ui'
@@ -13,7 +14,7 @@ export type CaseGridRow = {
   title: string
   area: string
   priority: Priority
-  automation: 'not_automated' | 'automated' | 'manual_only'
+  automation: Automation
   auto_result: RunResult | null
   manual_result: RunResult | null
   stage: string
@@ -24,6 +25,8 @@ export type CaseGridRow = {
 const AUTOMATION = [
   { value: 'automated', label: 'Automated' },
   { value: 'not_automated', label: 'Not yet' },
+  { value: 'in_progress', label: 'In progress' },
+  { value: 'blocked', label: 'Blocked' },
   { value: 'manual_only', label: 'Manual only' },
 ]
 const PRIORITY = ['Critical', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: p }))
@@ -62,7 +65,7 @@ export function CasesGrid({ rows, areas, people, canEdit, isLead, inSprint, reme
         { key: 'manual', title: 'Manual result', order: ['Passed', 'Failed', 'Blocked', 'Not tested'] },
         inSprint
           ? { key: 'stage', title: 'Stage in this sprint', order: ['To test', 'Fix', 'Retest', 'Done'] }
-          : { key: 'automation', title: 'Automation', order: ['Automated', 'Not yet', 'Manual only'] },
+          : { key: 'automation', title: 'Automation', order: ['Automated', 'In progress', 'Blocked', 'Not yet', 'Manual only'] },
       ]}
       emptyText="No test cases match."
       onSave={canEdit ? (ids, patch) => {

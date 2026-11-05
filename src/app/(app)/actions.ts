@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { getMe, safeNext } from '@/lib/auth'
+import { RUNNER_EMAIL } from '@/lib/ci-api'
 import { currentTicketKey } from '@/lib/ids'
 import { createClient } from '@/lib/supabase/server'
 import { currentSprint, loadSprintAreas, loadSprints, trackOf } from '@/lib/data'
@@ -110,7 +111,7 @@ export async function setAutomation(formData: FormData) {
   const me = await getMe()
   if (me.role === 'dev') fail(path, 'Only QA or the lead change automation status')
   const v = z
-    .object({ case_id: z.uuid(), automation: z.enum(['not_automated', 'automated', 'manual_only']) })
+    .object({ case_id: z.uuid(), automation: z.enum(['not_automated', 'in_progress', 'automated', 'blocked', 'manual_only']) })
     .safeParse(Object.fromEntries(formData))
   if (!v.success) fail(path, 'Pick an automation status')
   const supabase = await createClient()
@@ -371,6 +372,7 @@ export async function createCiToken(formData: FormData) {
   if (me.role !== 'lead') fail('/admin?tab=ci', 'Only the lead creates CI tokens')
   const label = String(formData.get('label') ?? '').trim() || 'CI'
   const person = z.uuid().safeParse(formData.get('person_id'))
+  const { data: runner } = await (await createClient()).from('people').select('id').eq('email', RUNNER_EMAIL).maybeSingle()
   const token = `vqt_${randomBytes(24).toString('base64url')}`
   const supabase = await createClient()
   // The API checks the hash; the sealed copy lets the lead reveal it again on Admin.
@@ -380,6 +382,7 @@ export async function createCiToken(formData: FormData) {
     token_enc: seal(token, 'ci-token'),
     created_by: me.id,
     person_id: person.success ? person.data : null,
+    role: !person.success || person.data === runner?.id ? 'runner' : 'tester',
   })
   if (error) fail('/admin?tab=ci', error.message)
   revalidatePath('/admin')
@@ -478,7 +481,7 @@ export async function assignToMe(formData: FormData) {
 const CasePatch = z.object({
   title: z.string().trim().min(3).max(300).optional(),
   priority: z.enum(['Critical', 'High', 'Medium', 'Low']).optional(),
-  automation: z.enum(['not_automated', 'automated', 'manual_only']).optional(),
+  automation: z.enum(['not_automated', 'in_progress', 'automated', 'blocked', 'manual_only']).optional(),
   area_id: z.uuid().optional(),
   tester_id: z.uuid().nullable().optional(),
 })

@@ -34,7 +34,7 @@ const CaseFilters = z.object({
   page: z.string().optional(),
   sprint: z.string().optional().describe('Sprint name, e.g. S2: the cases on its pages'),
   priorities: z.array(z.enum(['Critical', 'High', 'Medium', 'Low'])).optional(),
-  automation: z.enum(['automated', 'not_automated', 'manual_only']).optional(),
+  automation: z.enum(['automated', 'in_progress', 'blocked', 'not_automated', 'manual_only']).optional(),
   tester: z.string().optional().describe('Tester name (part of it is fine), or "none"'),
   manual_result: z.enum(['passed', 'failed', 'blocked', 'known_defect', 'skipped', 'none']).optional(),
   auto_result: z.enum(['passed', 'failed', 'blocked', 'known_defect', 'skipped', 'none']).optional(),

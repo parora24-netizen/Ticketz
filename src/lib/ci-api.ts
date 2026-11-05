@@ -10,10 +10,12 @@ import { OPEN, failureText, type RaisePayload } from '@/lib/tickets-api'
 import { fixSprintForArea } from '@/lib/workflow/fix-sprint'
 
 type Db = ReturnType<typeof createServiceClient>
-export type Caller = { db: Db; tokenId: string; actorId: string | null }
+export type Caller = { db: Db; tokenId: string; actorId: string | null; role: 'runner' | 'tester' }
 
 /** The "CI" person the API acts as, so its tickets, comments and runs read as CI. */
 export const CI_EMAIL = 'ci@launchpad.invalid'
+/** The named account the automated runner posts as. */
+export const RUNNER_EMAIL = 'runner@launchpad.invalid'
 export async function ciActor(db: Db, fallback: string | null): Promise<string | null> {
   const { data } = await db.from('people').select('id').eq('email', CI_EMAIL).maybeSingle()
   return data?.id ?? fallback
@@ -29,10 +31,10 @@ export async function authenticate(request: Request): Promise<Caller | NextRespo
   if (!token) return NextResponse.json({ error: 'Missing bearer token' }, { status: 401 })
   const db = createServiceClient()
   const hash = createHash('sha256').update(token).digest('hex')
-  const { data: tok } = await db.from('ci_tokens').select('id, created_by, person_id').eq('token_hash', hash).is('revoked_at', null).maybeSingle()
+  const { data: tok } = await db.from('ci_tokens').select('id, created_by, person_id, role').eq('token_hash', hash).is('revoked_at', null).maybeSingle()
   if (!tok) return NextResponse.json({ error: 'Unknown or revoked token' }, { status: 401 })
   await db.from('ci_tokens').update({ last_used_at: new Date().toISOString() }).eq('id', tok.id)
-  return { db, tokenId: tok.id, actorId: tok.person_id ?? await ciActor(db, tok.created_by) }
+  return { db, tokenId: tok.id, actorId: tok.person_id ?? await ciActor(db, tok.created_by), role: tok.role }
 }
 
 export const ticketUrl = (key: string) => `${serverEnv().appUrl || 'https://vulqan-launchpad.vercel.app'}/tickets/${encodeURIComponent(key)}`

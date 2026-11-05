@@ -1,5 +1,6 @@
 'use client'
 
+import type { Automation } from '@/lib/workflow/case-stage'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { Dialog } from '@/components/dialog'
@@ -112,7 +113,7 @@ export function CaseAutomationField({ caseId, value, disabled, onDone }: { caseI
   return (
     <select value={v} disabled={disabled || pending} aria-label="Automation" className="select w-full"
       onChange={(e) => {
-        const next = e.target.value as 'not_automated' | 'automated' | 'manual_only'
+        const next = e.target.value as Automation
         const before = v
         setV(next)
         start(async () => {
@@ -122,6 +123,8 @@ export function CaseAutomationField({ caseId, value, disabled, onDone }: { caseI
         })
       }}>
       <option value="not_automated">Not automated yet</option>
+      <option value="in_progress">In progress</option>
+      <option value="blocked">Blocked</option>
       <option value="automated">Automated</option>
       <option value="manual_only">Manual only</option>
     </select>

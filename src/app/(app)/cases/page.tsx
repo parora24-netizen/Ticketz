@@ -29,6 +29,8 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
       id: c.id,
       tc_id: c.tc_id,
       legacy_tc_id: c.legacy_tc_id,
+      scenario_id: c.scenario_id,
+      requirement_id: c.requirement_id,
       title: c.title,
       area: `${c.zone} · ${c.page}`,
       priority: c.priority,

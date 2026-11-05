@@ -11,6 +11,8 @@ export type CaseGridRow = {
   id: string
   tc_id: string
   legacy_tc_id?: string | null
+  scenario_id?: string | null
+  requirement_id?: string | null
   title: string
   area: string
   priority: Priority
@@ -42,6 +44,8 @@ export function CasesGrid({ rows, areas, people, canEdit, isLead, inSprint, reme
     { key: 'legacy_tc_id', header: 'Old ID', width: 120, mono: true, muted: true, filter: 'text', value: (r) => r.legacy_tc_id ?? '' },
     { key: 'title', header: 'Title', width: 380, value: (r) => r.title, edit: canEdit ? { field: 'title', kind: 'text' } : undefined },
     { key: 'area', header: 'Area', width: 220, value: (r) => r.area, edit: canEdit ? { field: 'area_id', kind: 'select', options: areas } : undefined },
+    { key: 'scenario_id', header: 'Scenario', width: 110, mono: true, filter: 'text', value: (r) => r.scenario_id ?? '' },
+    { key: 'requirement_id', header: 'Requirement', width: 120, mono: true, filter: 'text', value: (r) => r.requirement_id ?? '' },
     { key: 'priority', header: 'Priority', width: 110, sortValue: (r) => ['Critical', 'High', 'Medium', 'Low'].indexOf(r.priority), value: (r) => r.priority, render: (r) => <PriorityChip p={r.priority} />,
       edit: canEdit ? { field: 'priority', kind: 'select', options: PRIORITY } : undefined },
     { key: 'tester', header: 'Tester', width: 140, value: (r) => r.tester_name ?? 'No tester',

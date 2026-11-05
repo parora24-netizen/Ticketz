@@ -19,6 +19,8 @@ export type CaseRow = {
   id: string
   tc_id: string
   legacy_tc_id: string | null // the ID before the renumbering, for now
+  scenario_id: string | null
+  requirement_id: string | null
   title: string
   priority: Priority
   automation: Automation

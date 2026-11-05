@@ -133,6 +133,13 @@ export function nextKey(kind: 'defect' | 'test_mismatch', tcId: string, taken: S
   for (let n = 2; ; n++) if (!taken.has(`${base}-${n}`)) return `${base}-${n}`
 }
 
+/**
+ * What an automated failure raises: a defect, unless the latest manual test passed. Then automation
+ * and a person disagree, which is a mismatch, and the automated test usually needs the fixing.
+ */
+export const failureKind = (manualResult: string | null | undefined): 'defect' | 'test_mismatch' =>
+  manualResult === 'passed' ? 'test_mismatch' : 'defect'
+
 /** The ticket description from a failure: what was sent, plus where it came from. */
 export function failureText(p: Pick<RaisePayload, 'description' | 'error' | 'build' | 'run_id' | 'url'>): string {
   return [

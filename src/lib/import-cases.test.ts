@@ -122,6 +122,17 @@ describe('case import', () => {
     expect(r.errors[1].message).toContain('not in Launchpad')
   })
 
+  it('matches scenario ranges whichever ID the row or the range uses', () => {
+    const areas = [{ id: 'a1', zone: 'Engine', page: 'Sign-On' }]
+    const row = (id: string) => ({ 'Test Case ID': id, Zone: 'Engine', Page: 'Sign-On', Title: 'x', Priority: 'High' })
+    const old = parseScenarios([{ 'Scenario ID': 'TS_1', 'Requirement ID': 'REQ_1', 'First TC ID': 'TC_FN_070', 'Last TC ID': 'TC_FN_071' }])
+    const other = new Map([['TC_4', 'TC_FN_070'], ['TC_FN_070', 'TC_4']])
+    expect(applyScenarios(parseCases([row('TC_4')], areas), old, other).cases[0].scenario_id).toBe('TS_1')
+    expect(applyScenarios(parseCases([row('TC_4')], areas), old).cases[0].scenario_id).toBeNull()
+    const current = parseScenarios([{ 'Scenario ID': 'TS_2', 'First TC ID': 'TC_4', 'Last TC ID': 'TC_4' }])
+    expect(applyScenarios(parseCases([row('TC_FN_070')], areas), current, other).cases[0].scenario_id).toBe('TS_2')
+  })
+
   it('reads scenario ranges over the new IDs', () => {
     expect(parseScenarios([{ 'Scenario ID': 'TS_1', 'First TC ID': 'TC_5', 'Last TC ID': 'TC_9' }])).toMatchObject([{ prefix: 'TC_', from: 5, to: 9 }])
   })

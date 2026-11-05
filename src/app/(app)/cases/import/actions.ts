@@ -73,11 +73,12 @@ export async function previewImport(_prev: ImportState, formData: FormData): Pro
   const key = (zone: string, page: string) => `${zone.trim().toLowerCase()}|${page.trim().toLowerCase()}`
   const done = new Set(completedPages.map((f) => key(f.zone, f.page)))
   const completing = (areas ?? []).filter((a) => !a.cases_done_on && done.has(key(a.zone, a.page)))
-  const parsed = applyScenarios(parseCases(records, areas ?? [], 2, rowNumbers), scenarios)
-  const { present } = parsed
   const existing = await fetchAll<Existing>((from, to) =>
     supabase.from('test_cases').select('tc_id, legacy_tc_id, title, area_id, priority, preconditions, steps, test_data, expected, test_type, scenario_id, requirement_id').range(from, to),
   )
+  const otherIds = new Map(existing.flatMap((e) => (e.legacy_tc_id ? [[e.tc_id, e.legacy_tc_id], [e.legacy_tc_id, e.tc_id]] as [string, string][] : [])))
+  const parsed = applyScenarios(parseCases(records, areas ?? [], 2, rowNumbers), scenarios, otherIds)
+  const { present } = parsed
   const held = holdUnlabelledDuplicates(parsed.cases, existing)
   const ours = resolveUploadIds(held.cases, existing)
   const errors = [...parsed.errors, ...held.errors, ...ours.errors].sort((a, b) => a.row - b.row)

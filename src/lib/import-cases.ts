@@ -226,12 +226,14 @@ export function parseScenarios(rows: Record<string, string>[]): Scenario[] {
 /**
  * Fill each case's scenario and requirement from the scenario ranges, where its row has none.
  * With scenarios to go on, both fields count as present: a case no scenario covers is cleared.
+ * `otherIds` gives a case's other ID (current for old, old for current), since a sheet's rows and
+ * ranges may use either; without it a mix would match nothing and clear good scenarios.
  */
-export function applyScenarios(r: ParseResult, scenarios: Scenario[]): ParseResult {
+export function applyScenarios(r: ParseResult, scenarios: Scenario[], otherIds: Map<string, string> = new Map()): ParseResult {
   if (!scenarios.length) return r
   const cases = r.cases.map((c) => {
-    const t = c.tc_id ? tcNumber(c.tc_id) : null
-    const s = t && scenarios.find((x) => x.prefix === t.prefix && t.n >= x.from && t.n <= x.to)
+    const ids = c.tc_id ? [c.tc_id, otherIds.get(c.tc_id)].flatMap((id) => { const t = id ? tcNumber(id) : null; return t ? [t] : [] }) : []
+    const s = scenarios.find((x) => ids.some((t) => x.prefix === t.prefix && t.n >= x.from && t.n <= x.to))
     return { ...c, scenario_id: c.scenario_id ?? s?.scenario_id ?? null, requirement_id: c.requirement_id ?? s?.requirement_id ?? null }
   })
   const present = [...new Set([...r.present, 'scenario_id', 'requirement_id'] as OptionalField[])]

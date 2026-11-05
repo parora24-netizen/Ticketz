@@ -244,7 +244,7 @@ export default async function Home() {
             </ol>
           </Panel>
           <p className="mt-3 text-[11.5px] text-[var(--faint)]">
-            Since {fmtDate(istDate(since.toISOString()))} (the last working day). <Link href="/release" className="text-[var(--accent)] hover:underline">Release overview</Link>
+            Since {fmtDate(istDate(since.toISOString()))} (the last working day). <Link href="/release" className="text-[var(--accent)] hover:underline">Release status</Link>
           </p>
         </aside>
       </div>

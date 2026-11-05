@@ -5,10 +5,11 @@ import { DataGrid, type Column } from '@/components/grid/data-grid'
 import type { ChartData } from '@/components/grid/grid-charts'
 import { FilterCard, MiniBar, STATUS_TONE as TONE } from '@/components/grid/filter-cards'
 import { Chip } from '@/components/ui'
+import { sprintHref } from '@/lib/links'
 import { pct, type Counts } from '@/lib/progress'
 
 export type StatusRow = Counts & {
-  id: string; zone: string; page: string; status: string; automation: string; hand: string
+  id: string; zone: string; page: string; sprint: string; status: string; automation: string; hand: string
   open: number; critical: number; high: number; tickets: string
 }
 type N = 'cases' | 'automated' | 'autoRun' | 'autoPassed' | 'needManual' | 'manualDone' | 'manualPassed' | 'untested' | 'open' | 'critical' | 'high'
@@ -24,15 +25,20 @@ const none = <span className="text-[var(--faint)]">0</span>
 /** Open tickets on a page, in the tickets grid, optionally of one severity. */
 const ticketsHref = (r: StatusRow, severity?: string) => `/tickets?view=grid&area=${r.id}${severity ? `&severity=${severity}` : ''}`
 
+/** Open tickets on no page of this release, which the grid has no row for but the totals count. */
+type NoPage = { open: number; critical: number; high: number }
+
 /**
  * Where the release stands, page by page: cases, automation and its results, manual testing and
  * its results, open tickets, and one status. The cards filter the grid; ticket counts open them.
  */
-export function StatusGrid({ rows }: { rows: StatusRow[] }) {
+export function StatusGrid({ rows, noPage }: { rows: StatusRow[]; noPage: NoPage }) {
   const cols: Column<StatusRow>[] = [
     { key: 'zone', header: 'Zone', width: 130, value: (r) => r.zone },
     { key: 'page', header: 'Page', width: 160, value: (r) => r.page,
       render: (r) => <Link href={`/cases?area=${r.id}`} className="font-semibold text-[var(--accent)] hover:underline">{r.page}</Link> },
+    { key: 'sprint', header: 'Sprint', width: 80, value: (r) => r.sprint,
+      render: (r) => (r.sprint ? <Link href={sprintHref({ name: r.sprint })} className="text-[var(--accent)] hover:underline">{r.sprint}</Link> : <span className="text-[var(--faint)]">—</span>) },
     { key: 'status', header: 'Status', width: 150, value: (r) => r.status, sortValue: (r) => ORDER.status.indexOf(r.status),
       render: (r) => <Chip tone={TONE[r.status] ?? 'muted'}>{r.status}</Chip> },
     { key: 'cases', header: 'Cases', width: 70, align: 'right', value: (r) => r.cases },
@@ -63,17 +69,19 @@ export function StatusGrid({ rows }: { rows: StatusRow[] }) {
         { key: 'hand', title: 'Hand testing', order: ORDER.hand },
         { key: 'tickets', title: 'Open tickets', order: ORDER.tickets },
       ]}
-      summary={(s) => <Cards {...s} />} />
+      summary={(s) => <Cards {...s} rows={rows} noPage={noPage} />} />
   )
 }
 
-function Cards({ charts, rowsFor, toggle }: { charts: ChartData[]; rowsFor: (key: string) => StatusRow[]; toggle: (key: string, value: string) => void }) {
+function Cards({ charts, rowsFor, toggle, rows, noPage }: { charts: ChartData[]; rowsFor: (key: string) => StatusRow[]; toggle: (key: string, value: string) => void; rows: StatusRow[]; noPage: NoPage }) {
   const chart = (key: string) => charts.find((c) => c.spec.key === key)!
   const st = rowsFor('status'), a = rowsFor('automation'), h = rowsFor('hand'), t = rowsFor('tickets')
   const passing = st.filter((r) => r.status === 'Passing').length
   const [cases, automated, autoRun, autoPassed] = [sum(a, 'cases'), sum(a, 'automated'), sum(a, 'autoRun'), sum(a, 'autoPassed')]
   const [needManual, manualDone, manualPassed] = [sum(h, 'needManual'), sum(h, 'manualDone'), sum(h, 'manualPassed')]
-  const [open, critical, high] = [sum(t, 'open'), sum(t, 'critical'), sum(t, 'high')]
+  // Tickets with no page belong in the totals only while every page is showing.
+  const extra = t.length === rows.length ? noPage : { open: 0, critical: 0, high: 0 }
+  const [open, critical, high] = [sum(t, 'open') + extra.open, sum(t, 'critical') + extra.critical, sum(t, 'high') + extra.high]
   return (
     <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Status">
       <FilterCard label="Status" value={`${passing} of ${st.length}`} unit="pages passing" chart={chart('status')} toggle={toggle}
@@ -89,6 +97,7 @@ function Cards({ charts, rowsFor, toggle }: { charts: ChartData[]; rowsFor: (key
           <Link href="/tickets?view=grid&state=open&severity=High" className="font-semibold text-[var(--warn)] hover:underline">{high} High</Link>
           {' · '}
           <Link href="/tickets?view=grid&state=open" className="hover:underline">all open</Link>
+          {extra.open > 0 && ` · ${extra.open} with no page`}
         </>} />
     </section>
   )

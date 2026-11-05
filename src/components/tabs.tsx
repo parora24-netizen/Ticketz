@@ -30,8 +30,7 @@ export const CASES_TABS = [
 ]
 
 export const RELEASE_TABS = [
-  { key: 'overview', href: '/release', label: 'Overview' },
-  { key: 'status', href: '/release/status', label: 'Status' },
+  { key: 'status', href: '/release', label: 'Status' },
   { key: 'plan', href: '/release/plan', label: 'Plan' },
 ]
 

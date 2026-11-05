@@ -1,4 +1,5 @@
 import type { CaseRow, TicketRow } from '@/lib/data'
+import { passFail } from '@/lib/progress'
 
 export type AreaHealth = 'none' | 'blocked' | 'failing' | 'testing' | 'passing'
 
@@ -15,8 +16,7 @@ export type AreaSummary = {
 /** Roll an area's cases and tickets up into one status for the coverage grid. */
 export function summarizeArea(cases: CaseRow[], tickets: TicketRow[]): AreaSummary {
   const tested = cases.filter((c) => c.manual_result || c.auto_result).length
-  const passed = cases.filter((c) => (c.manual_result ?? c.auto_result) === 'passed').length
-  const failed = cases.filter((c) => (c.manual_result ?? c.auto_result) === 'failed').length
+  const { passed, failed } = passFail(cases)
   const openT = tickets.filter((t) => !['closed', 'deferred', 'duplicate'].includes(t.state))
   const openHigh = openT.filter((t) => t.severity === 'Critical' || t.severity === 'High').length
   const health: AreaHealth =

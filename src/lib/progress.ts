@@ -58,16 +58,17 @@ export function pageProgress(areas: ProgressArea[], cases: ProgressCase[], today
 export const pct = (n: number, of: number) => (of ? Math.round((n / of) * 100) : 0)
 
 /**
- * Where cases stand on their latest results: failing if either the automated or the manual result
- * is (a known defect included), passed if one passed and neither fails. The rest are not counted.
+ * Where a case stands on its latest results: failed if either the automated or the manual result
+ * is (a known defect included), passed if one passed and neither fails, else neither.
  */
+export function caseOutcome({ auto_result: a, manual_result: m }: Pick<ProgressCase, 'auto_result' | 'manual_result'>): 'passed' | 'failed' | null {
+  if (a === 'failed' || a === 'known_defect' || m === 'failed' || m === 'known_defect') return 'failed'
+  return a === 'passed' || m === 'passed' ? 'passed' : null
+}
+
 export function passFail(cases: Pick<ProgressCase, 'auto_result' | 'manual_result'>[]) {
-  const n = { passed: 0, failed: 0 }
-  for (const { auto_result: a, manual_result: m } of cases) {
-    if (a === 'failed' || a === 'known_defect' || m === 'failed' || m === 'known_defect') n.failed++
-    else if (a === 'passed' || m === 'passed') n.passed++
-  }
-  return n
+  const outcomes = cases.map(caseOutcome)
+  return { passed: outcomes.filter((o) => o === 'passed').length, failed: outcomes.filter((o) => o === 'failed').length }
 }
 
 /** Where a page stands at each step, as the grid's filter values: late pages are their own value. */

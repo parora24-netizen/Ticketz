@@ -70,6 +70,12 @@ export function areaPage(page: string): string {
   return p
 }
 
+/** A scenario's requirement has the same number: TS_FN_39 goes with REQ_FN_39. */
+export function requirementFor(scenario: string | null | undefined): string | null {
+  const m = /^TS_(.+)$/i.exec((scenario ?? '').trim())
+  return m ? `REQ_${m[1]}` : null
+}
+
 export function toPriority(p: string): Priority | null {
   const v = (['Critical', 'High', 'Medium', 'Low'] as const).find((x) => x.toLowerCase() === p.trim().toLowerCase())
   return v ?? null
@@ -125,10 +131,12 @@ export function parseCases(rows: Record<string, string>[], areas: AreaRef[], fir
       priority: priority!,
       test_type: get(r, 'test_type') || null,
       scenario_id: get(r, 'scenario_id') || null,
-      requirement_id: get(r, 'requirement_id') || null,
+      requirement_id: get(r, 'requirement_id') || requirementFor(get(r, 'scenario_id')),
       row,
     })
   })
+  // A file with only a Scenario ID column still sets the requirement it implies.
+  if (!present.includes('requirement_id') && cases.some((c) => c.requirement_id)) present.push('requirement_id')
   return { cases, errors, present }
 }
 
@@ -235,7 +243,7 @@ export function applyScenarios(r: ParseResult, scenarios: Scenario[], otherIds: 
   const cases = r.cases.map((c) => {
     const ids = c.tc_id ? [c.tc_id, otherIds.get(c.tc_id)].flatMap((id) => { const t = id ? tcNumber(id) : null; return t ? [t] : [] }) : []
     const s = scenarios.find((x) => ids.some((t) => x.prefix === t.prefix && t.n >= x.from && t.n <= x.to))
-    return { ...c, scenario_id: c.scenario_id ?? s?.scenario_id ?? null, requirement_id: c.requirement_id ?? s?.requirement_id ?? null }
+    return { ...c, scenario_id: c.scenario_id ?? s?.scenario_id ?? null, requirement_id: c.requirement_id ?? s?.requirement_id ?? requirementFor(s?.scenario_id) }
   })
   const present = [...new Set([...r.present, 'scenario_id', 'requirement_id'] as OptionalField[])]
   return { ...r, cases, present }

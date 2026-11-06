@@ -121,6 +121,18 @@ describe('case import', () => {
     expect(errors.map((e) => e.row)).toEqual([5])
   })
 
+  it('fills the requirement from the scenario unless the file gives one', () => {
+    const pages = [{ id: 'a', zone: 'Z', page: 'P' }]
+    const row = (extra: Record<string, string>) => ({ 'Test Case ID': 'TC_1', Zone: 'Z', Page: 'P', Title: 't', Priority: 'High', ...extra })
+    const only = parseCases([row({ 'Scenario ID': 'TS_FN_39' }), row({ 'Test Case ID': 'TC_2', 'Scenario ID': 'TS_E2E_11' }), row({ 'Test Case ID': 'TC_3', 'Scenario ID': '' }), row({ 'Test Case ID': 'TC_4', 'Scenario ID': 'Custom' })], pages)
+    expect(only.cases.map((c) => c.requirement_id)).toEqual(['REQ_FN_39', 'REQ_E2E_11', null, null])
+    expect(only.present).toContain('requirement_id')
+    const own = parseCases([row({ 'Scenario ID': 'TS_FN_39', 'Requirement ID': 'REQ_OWN' })], pages)
+    expect(own.cases[0].requirement_id).toBe('REQ_OWN')
+    const range = applyScenarios(parseCases([row({ 'Test Case ID': 'TC_5' })], pages), parseScenarios([{ 'Scenario ID': 'TS_FN_50', 'First TC ID': 'TC_5', 'Last TC ID': 'TC_5' }]))
+    expect(range.cases[0].requirement_id).toBe('REQ_FN_50')
+  })
+
   it('holds back a row reusing the ID of a different case in another zone', () => {
     const pages = [{ id: 'i', zone: 'Data Importer', page: 'Imports' }, { id: 'f', zone: 'My Flow', page: 'Data Flow' }, { id: 'c', zone: 'My Flow', page: 'Create' }, { id: 'l', zone: 'Landing', page: 'Create (MyLO)' }]
     const existing = [{ tc_id: 'TC_1', title: 'Verify source is listed', area_id: 'i' }, { tc_id: 'TC_2', title: 'Old wording', area_id: 'c' }, { tc_id: 'TC_3', title: 'Same test', area_id: 'c' }]
@@ -182,7 +194,7 @@ describe('case import', () => {
       ['TC_E2E_005', 'TS_E2E_02', 'REQ_E2E_02'],
       ['TC_FN_1650', 'TS_FN_10', 'REQ_FN_10'],
       ['TC_FN_070', null, null],
-      ['TC_E2E_006', 'TS_OWN', 'REQ_E2E_02'],
+      ['TC_E2E_006', 'TS_OWN', 'REQ_OWN'],
     ])
     expect(r.present).toContain('requirement_id')
     expect(applyScenarios(parseCases([row('TC_E2E_005')], areas), []).present).not.toContain('requirement_id')

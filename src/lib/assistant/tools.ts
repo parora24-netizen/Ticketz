@@ -1,8 +1,10 @@
 import 'server-only'
 import type Anthropic from '@anthropic-ai/sdk'
 import { z } from 'zod'
+import { getMe } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import { loadAreas, loadCases, loadPeople, loadSprintAreas, loadSprints, loadTickets, type CaseRow, type TicketRow } from '@/lib/data'
+import { fetchAll, loadAreas, loadCases, loadPeople, loadSprintAreas, loadSprints, loadTickets, type CaseRow, type TicketRow } from '@/lib/data'
+import { indiaDay, indiaDayStart, indiaNextDayStart, summarizeChanges, summarizeResults, type ChangeItem, type ChangeRow, type ResultRow } from './history'
 
 /**
  * Read-only tools for the assistant. Every query runs as the signed-in person (their session and
@@ -13,6 +15,7 @@ import { loadAreas, loadCases, loadPeople, loadSprintAreas, loadSprints, loadTic
 const OPEN = ['new', 'triaged', 'in_fix', 'reopened', 'ready_for_retest']
 const has = (hay: string | null | undefined, needle?: string) => !needle || (hay ?? '').toLowerCase().includes(needle.toLowerCase())
 const inList = (v: string | null | undefined, list?: string[]) => !list?.length || list.map((x) => x.toLowerCase()).includes((v ?? '').toLowerCase())
+const Day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 
 export const TicketFilters = z.object({
   text: z.string().optional().describe('Words in the key or title'),
@@ -180,6 +183,62 @@ export const TOOLS: ToolDef[] = [
         ...caseBrief(c), ...detail, tickets,
         results: (runs ?? []).map((r) => ({ kind: r.kind, result: r.result, at: r.recorded_at, note: r.note, build: r.build, by: (r.people as unknown as { name: string } | null)?.name ?? null })),
       }
+    }),
+  def('changes_over_time', 'Checking what changed',
+    'What changed on test cases or tickets over a period, from the change history: how many, on which days and pages, by whom, and which ones. Use for "since", "this week", "when" and "who changed" questions, e.g. cases automated since yesterday is table test_cases, field automation, to automated. Dates are India time. A case marked automated has a linked test; it may not have run yet, which results_over_time shows.',
+    z.object({
+      table: z.enum(['test_cases', 'tickets']),
+      since: Day.describe('First day, YYYY-MM-DD'),
+      until: Day.optional().describe('Last day, YYYY-MM-DD; today if left out'),
+      field: z.string().regex(/^[a-z_]+$/).optional().describe('Only changes to this field. Test cases: automation, priority, area_id, tester_id, title, steps, expected, scenario_id. Tickets: state, severity, owner_id, current_sprint_id, title'),
+      to: z.string().optional().describe('Only changes to this value, with field: automated, closed, or a person\'s name'),
+      from: z.string().optional().describe('Only changes from this value, with field'),
+      zone: z.string().optional(),
+      page: z.string().optional(),
+      list: z.number().int().min(0).max(100).optional().describe('How many IDs to list; 20 if left out'),
+    }),
+    async (ctx, f) => {
+      // The history is for leads, by the database's rules. Say so, or a blank read looks like nothing changed.
+      if ((await getMe()).role !== 'lead') return { no_access: 'The change history is visible to leads only, so this cannot be answered for this person. Tell them that; do not report zero changes. Results and the current state of cases and tickets are still available.' }
+      const supabase = await createClient()
+      const rows = await fetchAll<ChangeRow>((from, to) => {
+        let q = supabase.from('change_log').select('row_id, action, at, actor_id, changes').eq('table_name', f.table).gte('at', indiaDayStart(f.since))
+        if (f.until) q = q.lt('at', indiaNextDayStart(f.until))
+        if (f.field) q = q.eq('action', 'update').not(`changes->${f.field}`, 'is', null)
+        return q.order('id').range(from, to)
+      })
+      const items = new Map<string, ChangeItem>(f.table === 'test_cases'
+        ? ctx.cases.map((c) => [c.id, { id: c.tc_id, area: `${c.zone} · ${c.page}`, current: f.field === 'automation' ? c.automation : null }])
+        : ctx.tickets.map((t) => [t.id, { id: t.key, area: t.zone ? `${t.zone} · ${t.page}` : null, current: f.field === 'state' ? t.state : null }]))
+      const names = (id: string | null) => {
+        if (!id) return null
+        const a = ctx.areas.find((x) => x.id === id)
+        return ctx.people.find((p) => p.id === id)?.name ?? ctx.sprintName.get(id) ?? (a ? `${a.zone} · ${a.page}` : null)
+      }
+      const { ids, ...summary } = summarizeChanges(rows, items, names, f)
+      const listed = ids.flatMap((id) => { const item = items.get(id); return item ? [item.id] : [] })
+      return { ...summary, listed: listed.slice(0, f.list ?? 20), listed_of: listed.length }
+    }),
+  def('results_over_time', 'Checking results over time',
+    'Automated or manual results recorded over a period: how many, of what, on which days and pages, and when the latest one was. Use for "was there a run", "last automated run" and "how many were tested since". Dates are India time.',
+    z.object({
+      kind: z.enum(['auto', 'manual']),
+      since: Day.describe('First day, YYYY-MM-DD'),
+      until: Day.optional().describe('Last day, YYYY-MM-DD; today if left out'),
+    }),
+    async (ctx, f) => {
+      const supabase = await createClient()
+      const [rows, { data: latest }] = await Promise.all([
+        fetchAll<Omit<ResultRow, 'who'> & { people: unknown }>((from, to) => {
+          let q = supabase.from('test_runs').select('case_id, result, run_id, recorded_at, people(name)').eq('kind', f.kind).gte('recorded_at', indiaDayStart(f.since))
+          if (f.until) q = q.lt('recorded_at', indiaNextDayStart(f.until))
+          return q.order('recorded_at').order('id').range(from, to)
+        }),
+        supabase.from('test_runs').select('recorded_at, run_id').eq('kind', f.kind).order('recorded_at', { ascending: false }).limit(1).maybeSingle(),
+      ])
+      const area = new Map(ctx.cases.map((c) => [c.id, `${c.zone} · ${c.page}`]))
+      const withNames = rows.map((r) => ({ ...r, who: (r.people as { name: string } | null)?.name ?? null }))
+      return { ...summarizeResults(withNames, (id) => area.get(id) ?? null), latest_ever: latest ? { at: latest.recorded_at, day_in_india: indiaDay(latest.recorded_at), run_id: latest.run_id } : null }
     }),
   def('sprints', 'Checking sprints',
     'Every sprint: type (triage, test, fix, regression), dates, status, pages and open tickets.',

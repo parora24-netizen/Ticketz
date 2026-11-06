@@ -54,7 +54,7 @@ export function ImportForm() {
         <div className="flex items-center gap-3 lg:col-span-2">
           <SubmitButton primary pendingText="Reading…">Preview import</SubmitButton>
           <span className="text-[12px] text-[var(--muted)]">
-            Needed: Zone, Page, Test Case Title, Priority. The rest are optional; a column left out keeps what is stored. Add a Scenario ID column, or a Test Scenarios sheet, to set scenarios; a blank one keeps what is stored. Requirement ID fills in from it (TS_FN_39 gives REQ_FN_39) unless the file has its own.
+            Needed: Zone, Page, Test Case Title, Priority. The rest are optional; a column left out keeps what is stored. Add a Scenario ID column, or a Test Scenarios sheet, to set scenarios; a blank one keeps what is stored. Requirement ID fills in from it (TS_39 gives REQ_39) unless the file has its own.
           </span>
         </div>
         {preview.error && <p className="text-[12.5px] text-[var(--crit)] lg:col-span-2">{preview.error}</p>}

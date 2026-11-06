@@ -19,7 +19,7 @@ export type CaseInput = {
   expected: string | null
   priority: Priority
   test_type: string | null
-  /** Traceability, e.g. TS_E2E_01 and REQ_E2E_01: from columns on the row, or the Test Scenarios sheet. */
+  /** Traceability, e.g. TS_1 and REQ_1: from columns on the row, or the Test Scenarios sheet. */
   scenario_id: string | null
   requirement_id: string | null
   /** The row in the file, for messages. */
@@ -70,7 +70,18 @@ export function areaPage(page: string): string {
   return p
 }
 
-/** A scenario's requirement has the same number: TS_FN_39 goes with REQ_FN_39. */
+/**
+ * Sheets may still use the IDs from before they became plain numbers: TS_FN_12 is TS_12, and
+ * TS_E2E_11 is TS_51. Without this, uploading one would change the IDs back. Goes with the old IDs.
+ */
+export function currentScenarioId(id: string | null): string | null {
+  const m = id ? /^(TS|REQ)_(FN|E2E)_0*(\d+)$/i.exec(id.trim()) : null
+  if (!m) return id
+  const prefix = m[1].toUpperCase()
+  return m[2].toUpperCase() === 'E2E' && m[3] === '11' ? `${prefix}_51` : `${prefix}_${m[3]}`
+}
+
+/** A scenario's requirement has the same number: TS_39 goes with REQ_39. */
 export function requirementFor(scenario: string | null | undefined): string | null {
   const m = /^TS_(.+)$/i.exec((scenario ?? '').trim())
   return m ? `REQ_${m[1]}` : null

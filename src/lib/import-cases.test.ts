@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyScenarios, areaPage, diffCases, holdReusedIds, holdUnlabelledDuplicates, mapHeaders, parseCases, parseCsv, parseDelimited, parseFramework, parseScenarios, parseTsv, resolveUploadIds } from './import-cases'
+import { applyScenarios, areaPage, currentScenarioId, diffCases, holdReusedIds, holdUnlabelledDuplicates, mapHeaders, parseCases, parseCsv, parseDelimited, parseFramework, parseScenarios, parseTsv, resolveUploadIds } from './import-cases'
 
 const areas = [
   { id: 'a-signon', zone: 'Engine', page: 'Sign-On' },
@@ -119,6 +119,12 @@ describe('case import', () => {
     const { cases, errors } = parseCases([row('Landing', 'Create Engine'), row('Landing', 'Create (MyLO)'), row('My Flow', 'Create-Database'), row('Landing', 'Create-Canvas')], pages)
     expect(cases.map((c) => c.area_id)).toEqual(['e', 'm', 'c'])
     expect(errors.map((e) => e.row)).toEqual([5])
+  })
+
+  it('converts old scenario and requirement IDs to plain numbers', () => {
+    expect(['TS_FN_12', 'TS_E2E_01', 'TS_E2E_10', 'TS_E2E_11', 'TS_FN_11', 'REQ_FN_38', 'REQ_E2E_02', 'REQ_E2E_11'].map(currentScenarioId))
+      .toEqual(['TS_12', 'TS_1', 'TS_10', 'TS_51', 'TS_11', 'REQ_38', 'REQ_2', 'REQ_51'])
+    expect(['TS_12', 'TS_OWN', 'REQ_OWN', null].map(currentScenarioId)).toEqual(['TS_12', 'TS_OWN', 'REQ_OWN', null])
   })
 
   it('fills the requirement from the scenario unless the file gives one', () => {

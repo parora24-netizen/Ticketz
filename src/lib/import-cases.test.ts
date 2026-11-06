@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyScenarios, areaPage, diffCases, holdUnlabelledDuplicates, mapHeaders, parseCases, parseCsv, parseDelimited, parseFramework, parseScenarios, parseTsv, resolveUploadIds } from './import-cases'
+import { applyScenarios, areaPage, diffCases, holdReusedIds, holdUnlabelledDuplicates, mapHeaders, parseCases, parseCsv, parseDelimited, parseFramework, parseScenarios, parseTsv, resolveUploadIds } from './import-cases'
 
 const areas = [
   { id: 'a-signon', zone: 'Engine', page: 'Sign-On' },
@@ -111,6 +111,23 @@ describe('case import', () => {
     const held = holdUnlabelledDuplicates(cases, existing)
     expect(held.cases.map((c) => c.title)).toEqual(['Login works', 'Truly new'])
     expect(held.errors).toEqual([{ row: 4, message: expect.stringContaining('already TC_FN_001') }])
+  })
+
+  it('matches a page by its exact name before folding Create pages together', () => {
+    const pages = [{ id: 'c', zone: 'My Flow', page: 'Create' }, { id: 'e', zone: 'Landing', page: 'Create Engine' }, { id: 'm', zone: 'Landing', page: 'Create (MyLO)' }]
+    const row = (Zone: string, Page: string) => ({ 'Test Case ID': '', Zone, Page, Title: 't', Priority: 'High' })
+    const { cases, errors } = parseCases([row('Landing', 'Create Engine'), row('Landing', 'Create (MyLO)'), row('My Flow', 'Create-Database'), row('Landing', 'Create-Canvas')], pages)
+    expect(cases.map((c) => c.area_id)).toEqual(['e', 'm', 'c'])
+    expect(errors.map((e) => e.row)).toEqual([5])
+  })
+
+  it('holds back a row reusing the ID of a different case in another zone', () => {
+    const pages = [{ id: 'i', zone: 'Data Importer', page: 'Imports' }, { id: 'f', zone: 'My Flow', page: 'Data Flow' }, { id: 'c', zone: 'My Flow', page: 'Create' }, { id: 'l', zone: 'Landing', page: 'Create (MyLO)' }]
+    const existing = [{ tc_id: 'TC_1', title: 'Verify source is listed', area_id: 'i' }, { tc_id: 'TC_2', title: 'Old wording', area_id: 'c' }, { tc_id: 'TC_3', title: 'Same test', area_id: 'c' }]
+    const c = (tc_id: string, title: string, a: { id: string; zone: string; page: string }) => ({ tc_id, row: 2, title, area_id: a.id, zone: a.zone, page: a.page, source_page: a.page, priority: 'High', preconditions: null, steps: null, test_data: null, expected: null, test_type: null, scenario_id: null, requirement_id: null }) as Parameters<typeof holdReusedIds>[0][number]
+    const r = holdReusedIds([c('TC_1', 'End to end: a new test', pages[1]), c('TC_2', 'New wording', pages[1]), c('TC_3', 'Same test', pages[3])], existing, pages)
+    expect(r.cases.map((x) => x.tc_id)).toEqual(['TC_2', 'TC_3'])
+    expect(r.errors).toEqual([{ row: 2, message: expect.stringContaining('TC_1 is already "Verify source is listed" in Data Importer · Imports') }])
   })
 
   it('keeps a stored scenario and requirement when the upload is blank, and takes a new value', () => {

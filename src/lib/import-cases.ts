@@ -98,7 +98,8 @@ export function parseCases(rows: Record<string, string>[], areas: AreaRef[], fir
     const zone = get(r, 'zone')
     const sourcePage = get(r, 'page')
     const priority = toPriority(get(r, 'priority'))
-    const area = areaByKey.get(`${norm(zone)}|${norm(areaPage(sourcePage))}`)
+    // A page that exists by that exact name wins, so "Create Engine" is not folded into "Create".
+    const area = areaByKey.get(`${norm(zone)}|${norm(sourcePage)}`) ?? areaByKey.get(`${norm(zone)}|${norm(areaPage(sourcePage))}`)
     const problems: string[] = []
     if (tcRaw && !/^TC_[A-Z0-9_]+$/.test(tcRaw)) problems.push(`ID "${tcRaw}" should look like TC_70`)
     if (tcRaw && seen.has(tcRaw)) problems.push(`ID ${tcRaw} appears twice`)
@@ -281,6 +282,25 @@ export function resolveUploadIds(cases: CaseInput[], existing: Pick<Existing, 't
     }
     seen.add(tc_id)
     return [{ ...c, tc_id }]
+  })
+  return { cases: kept, errors }
+}
+
+/**
+ * A row whose ID belongs to a case with another title in another zone is a different test reusing
+ * that ID, not an edit. Saving it would overwrite that case and take over its results and tickets.
+ * Run after resolveUploadIds, so IDs are current.
+ */
+export function holdReusedIds(cases: CaseInput[], existing: Pick<Existing, 'tc_id' | 'title' | 'area_id'>[], areas: AreaRef[]): { cases: CaseInput[]; errors: { row: number; message: string }[] } {
+  const byId = new Map(existing.map((e) => [e.tc_id, e]))
+  const area = new Map(areas.map((a) => [a.id, a]))
+  const errors: { row: number; message: string }[] = []
+  const kept = cases.filter((c) => {
+    const e = c.tc_id ? byId.get(c.tc_id) : undefined
+    const was = e && area.get(e.area_id)
+    if (!e || !was || norm(was.zone) === norm(c.zone) || norm(e.title) === norm(c.title)) return true
+    errors.push({ row: c.row ?? 0, message: `${c.tc_id} is already "${e.title}" in ${was.zone} · ${was.page}, a different case. Leave the ID blank to add this as a new case` })
+    return false
   })
   return { cases: kept, errors }
 }

@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { getMe } from '@/lib/auth'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { fetchAll } from '@/lib/data'
-import { OPTIONAL_FIELDS, applyScenarios, diffCases, holdUnlabelledDuplicates, parseCases, resolveUploadIds, parseCsv, parseFramework, parseScenarios, parseTsv, type CaseInput, type Existing, type OptionalField, type Scenario } from '@/lib/import-cases'
+import { OPTIONAL_FIELDS, applyScenarios, diffCases, holdReusedIds, holdUnlabelledDuplicates, parseCases, resolveUploadIds, parseCsv, parseFramework, parseScenarios, parseTsv, type CaseInput, type Existing, type OptionalField, type Scenario } from '@/lib/import-cases'
 import { xlsxRecords, xlsxSheetRows } from '@/lib/xlsx-records'
 
 export type PreviewRow = {
@@ -81,8 +81,9 @@ export async function previewImport(_prev: ImportState, formData: FormData): Pro
   const { present } = parsed
   const held = holdUnlabelledDuplicates(parsed.cases, existing)
   const ours = resolveUploadIds(held.cases, existing)
-  const errors = [...parsed.errors, ...held.errors, ...ours.errors].sort((a, b) => a.row - b.row)
-  const diff = diffCases(ours.cases, existing, present)
+  const reused = holdReusedIds(ours.cases, existing, areas ?? [])
+  const errors = [...parsed.errors, ...held.errors, ...ours.errors, ...reused.errors].sort((a, b) => a.row - b.row)
+  const diff = diffCases(reused.cases, existing, present)
   const areaName = new Map((areas ?? []).map((a) => [a.id, `${a.zone} · ${a.page}`]))
   const counts = { new: 0, updated: 0, unchanged: 0 }
   for (const d of diff) counts[d.status]++

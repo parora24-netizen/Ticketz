@@ -1,7 +1,6 @@
 import 'server-only'
 import type Anthropic from '@anthropic-ai/sdk'
 import { z } from 'zod'
-import { getMe } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { fetchAll, loadAreas, loadCases, loadPeople, loadSprintAreas, loadSprints, loadTickets, type CaseRow, type TicketRow } from '@/lib/data'
 import { indiaDay, indiaDayStart, indiaNextDayStart, summarizeChanges, summarizeResults, type ChangeItem, type ChangeRow, type ResultRow } from './history'
@@ -198,8 +197,6 @@ export const TOOLS: ToolDef[] = [
       list: z.number().int().min(0).max(100).optional().describe('How many IDs to list; 20 if left out'),
     }),
     async (ctx, f) => {
-      // The history is for leads, by the database's rules. Say so, or a blank read looks like nothing changed.
-      if ((await getMe()).role !== 'lead') return { no_access: 'The change history is visible to leads only, so this cannot be answered for this person. Tell them that; do not report zero changes. Results and the current state of cases and tickets are still available.' }
       const supabase = await createClient()
       const rows = await fetchAll<ChangeRow>((from, to) => {
         let q = supabase.from('change_log').select('row_id, action, at, actor_id, changes').eq('table_name', f.table).gte('at', indiaDayStart(f.since))

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyScenarios, areaPage, currentScenarioId, diffCases, holdReusedIds, holdUnlabelledDuplicates, mapHeaders, parseCases, parseCsv, parseDelimited, parseFramework, parseScenarios, parseTsv, resolveUploadIds } from './import-cases'
+import { applyScenarios, areaPage, currentScenarioId, diffCases, holdReusedIds, holdUnlabelledDuplicates, mapHeaders, parseCases, parseCsv, parseDelimited, parseScenarios, parseTsv, resolveUploadIds } from './import-cases'
 
 const areas = [
   { id: 'a-signon', zone: 'Engine', page: 'Sign-On' },
@@ -212,23 +212,5 @@ describe('framework v2', () => {
     const { map } = mapHeaders(['Test Case ID', 'Zone', 'Zone v2', 'Page', 'Test Case Title', 'Priority'])
     expect(map.zone).toBe('Zone v2')
     expect(mapHeaders(['Zone', 'Page', 'Title', 'Priority']).map.zone).toBe('Zone')
-  })
-})
-
-describe('framework tab', () => {
-  it('reads the V2 pages and which are Completed, past the old columns', () => {
-    const rows = [
-      ['', 'ORGANIZATION FRAMEWORK'],
-      ['', '', '', '', '', '', '', 'Test Cases V2'],
-      ['', '', 'Zone', 'Page', '# Test Cases', '', '', 'Zone', 'Page', '# Test Cases', 'Owner', 'Date'],
-      ['', '', 'Engine', 'Sign-On', '46', '', '', 'Engine', 'Sign-On', '46', 'Niten', 'Completed'],
-      ['', '', 'Logic Builder', 'Create', '737', '', '', 'My Flow', 'Create', '730', 'Sara', ''],
-      ['', '', 'Data MAIA', 'Overview', '31', '', '', '', '', '', '', ''],
-    ]
-    expect(parseFramework(rows)).toEqual([
-      { zone: 'Engine', page: 'Sign-On', completed: true },
-      { zone: 'My Flow', page: 'Create', completed: false },
-    ])
-    expect(parseFramework([['Zone', 'Page']])).toEqual([])
   })
 })

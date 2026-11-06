@@ -1,7 +1,6 @@
 # Launchpad · Vulqan releases
 
-Plans and tracks the 26.111 release: sprints of 2–4 working days over the Framework areas of the test
-workbook, and every test case through **automate → automated run → manual test → fix → retest → close**.
+Plans and tracks the 26.111 release: sprints over the release's pages, and every test case through **automate → automated run → manual test → fix → retest → close**.
 
 Next.js on Vercel, Postgres and email sign-in on Supabase.
 
@@ -27,10 +26,9 @@ inside their sprint; Medium/Low may rely on an earlier result.
    `LEAD_EMAIL` (your sign-in email) and `SUPABASE_DB_PASSWORD`.
 3. Apply the schema: `npx supabase login`, then
    `npx supabase link --project-ref ykuirkfdvgbafkbzmabk` and `npx supabase db push`.
-4. Seed from the workbook: `npm run import -- "C:/Users/<you>/Downloads/26.111 Release Test Cases.xlsx"`
-5. Supabase → Authentication → URL configuration: set Site URL to the app URL and add
+4. Supabase → Authentication → URL configuration: set Site URL to the app URL and add
    `http://localhost:3000/**` and `https://<vercel-domain>/**` to Redirect URLs.
-6. `npm run dev`, sign in with `LEAD_EMAIL`, then add the team's emails under **Admin**.
+5. `npm run dev`, sign in with `LEAD_EMAIL`, then add the team's emails under **Admin**.
 
 Only people listed under Admin can sign in, and only with an address on `ALLOWED_EMAIL_DOMAINS`.
 

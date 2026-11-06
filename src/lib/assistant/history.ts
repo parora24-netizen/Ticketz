@@ -59,7 +59,7 @@ export function summarizeChanges(rows: ChangeRow[], items: Map<string, ChangeIte
     ...(f.to ? { still_that_value: ids.filter((id) => (items.get(id)?.current ?? '').toLowerCase() === f.to!.toLowerCase()).length } : {}),
     by_day: Object.fromEntries(Object.entries(tally(kept.map((r) => indiaDay(r.at)))).sort(([a], [b]) => a.localeCompare(b))),
     by_area: tally(kept.map((r) => (items.has(r.row_id) ? area(r) : '(since deleted)'))),
-    by_person: tally(kept.map((r) => (r.actor_id ? names(r.actor_id) : 'automation, an upload or a system change'))),
+    by_person: tally(kept.map((r) => (r.actor_id ? names(r.actor_id) : 'automation or a system change'))),
     ...(f.field
       ? { by_change: tally(kept.map((r) => `${names(text(oldValue(r, f.field!))) ?? text(oldValue(r, f.field!)) ?? '(none)'} -> ${names(text(newValue(r, f.field!))) ?? text(newValue(r, f.field!)) ?? '(none)'}`)) }
       : { by_action: tally(kept.map((r) => r.action)), by_field: tally(kept.flatMap((r) => (r.action === 'update' ? Object.keys(r.changes ?? {}) : []))) }),

@@ -39,7 +39,7 @@ describe('history', () => {
   it('without a field says what kinds of change there were, and who made them', () => {
     const s = summarizeChanges([row('a', { title: ['a', 'b'] }, undefined, 'update', 'p1'), row('b', null, undefined, 'insert')], items, names, {})
     expect(s).toMatchObject({ by_action: { update: 1, insert: 1 }, by_field: { title: 1 } })
-    expect(s.by_person).toEqual({ Sara: 1, 'automation, an upload or a system change': 1 })
+    expect(s.by_person).toEqual({ Sara: 1, 'automation or a system change': 1 })
   })
 
   it('finds nothing rather than a wrong count when no change matches', () => {

@@ -244,7 +244,7 @@ export const TOOLS: ToolDef[] = [
       const areaIds = ctx.sprintAreas.filter((x) => x.sprint_id === s.id).map((x) => x.area_id)
       const names = ctx.areas.filter((a) => areaIds.includes(a.id)).map((a) => `${a.zone} · ${a.page}`)
       return {
-        name: s.name, type: s.kind, status: s.status, starts: s.starts_on, ends: s.ends_on, goal: s.goal,
+        name: s.name, owner: ctx.people.find((p) => p.id === s.owner_id)?.name ?? null, type: s.kind, status: s.status, starts: s.starts_on, ends: s.ends_on, goal: s.goal,
         areas: names.length > 12 ? `${names.length} areas` : names,
         cases: ctx.cases.filter((c) => areaIds.includes(c.area_id)).length,
         open_tickets: ctx.tickets.filter((t) => t.current_sprint_id === s.id && OPEN.includes(t.state)).length,

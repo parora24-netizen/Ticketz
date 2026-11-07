@@ -7,15 +7,16 @@ import { Dialog } from '@/components/dialog'
 import { toast } from '@/components/toast'
 import { setZoneInRelease, updateSprint } from './actions'
 
-type EditableSprint = { id: string; name: string; status: string; starts_on: string; ends_on: string; goal: string | null }
+type EditableSprint = { id: string; name: string; status: string; starts_on: string; ends_on: string; goal: string | null; owner_id: string | null }
 
-/** Lead only: a sprint's dates as a button that opens its dates and goal. */
-export function SprintDatesButton({ sprint, label, goNoGo }: { sprint: EditableSprint; label: string; goNoGo: string }) {
+/** Lead only: a sprint's dates as a button that opens its dates, goal and owner. */
+export function SprintDatesButton({ sprint, label, goNoGo, team }: { sprint: EditableSprint; label: string; goNoGo: string; team: { value: string; label: string }[] }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [starts, setStarts] = useState(sprint.starts_on)
   const [ends, setEnds] = useState(sprint.ends_on)
   const [goal, setGoal] = useState(sprint.goal ?? '')
+  const [owner, setOwner] = useState(sprint.owner_id ?? '')
   const [shiftLater, setShiftLater] = useState(false)
   const [pending, start] = useTransition()
   return (
@@ -26,7 +27,7 @@ export function SprintDatesButton({ sprint, label, goNoGo }: { sprint: EditableS
         <form className="space-y-3" onSubmit={(e) => {
           e.preventDefault()
           start(async () => {
-            const res = await updateSprint({ sprint_id: sprint.id, starts_on: starts, ends_on: ends, goal, shift_later: shiftLater })
+            const res = await updateSprint({ sprint_id: sprint.id, starts_on: starts, ends_on: ends, goal, owner_id: owner || null, shift_later: shiftLater })
             if (res.error) toast(res.error, 'error')
             else { toast(`${sprint.name} saved`); setOpen(false); router.refresh() }
           })
@@ -36,6 +37,12 @@ export function SprintDatesButton({ sprint, label, goNoGo }: { sprint: EditableS
             <label><span className="label">Ends</span><input type="date" required value={ends} onChange={(e) => setEnds(e.target.value)} className="input mt-1 w-full" /></label>
           </div>
           <label className="block"><span className="label">Goal</span><input value={goal} onChange={(e) => setGoal(e.target.value)} className="input mt-1 w-full" /></label>
+          <label className="block"><span className="label">Owner</span>
+            <select value={owner} onChange={(e) => setOwner(e.target.value)} className="select mt-1 w-full">
+              <option value="">No owner</option>
+              {team.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+          </label>
           <label className="flex items-center gap-2 text-[13px]"><input type="checkbox" checked={shiftLater} onChange={(e) => setShiftLater(e.target.checked)} /> Move later sprints by the same number of days</label>
           {ends > goNoGo && <p className="text-[12.5px] font-semibold text-[var(--warn)]">This ends after go/no-go; the release dates may need to move too.</p>}
           <div className="flex justify-end gap-2">

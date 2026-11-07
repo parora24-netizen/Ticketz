@@ -102,7 +102,7 @@ export default async function PlanPage() {
             {lead && <Link href="/sprints/new" data-create className="btn">+ New sprint</Link>}
           </span>
         </header>
-        <table className="table w-full text-[12.5px]">
+        <table className="table w-full text-[12.5px] [&_td]:border-b-[var(--line)]">
           <thead>
             <tr>
               <th rowSpan={2}>Sprint</th><th rowSpan={2} className="whitespace-nowrap">Dates</th><th rowSpan={2}>Status</th><th rowSpan={2}>Owner</th>

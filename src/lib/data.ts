@@ -9,6 +9,7 @@ export type Area = { id: string; zone: string; page: string; sort: number; in_re
 export type Sprint = {
   id: string
   owner_id?: string | null
+  owner_all?: boolean
   name: string
   starts_on: string
   ends_on: string

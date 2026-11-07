@@ -52,7 +52,7 @@ export async function movePagesToSprint(pageIds: string[], sprintId: string | nu
   return {}
 }
 
-const SprintEdit = z.object({ sprint_id: z.uuid(), starts_on: z.iso.date(), ends_on: z.iso.date(), goal: z.string().trim().max(500), owner_id: z.uuid().nullable(), shift_later: z.boolean() })
+const SprintEdit = z.object({ sprint_id: z.uuid(), starts_on: z.iso.date(), ends_on: z.iso.date(), goal: z.string().trim().max(500), owner_id: z.uuid().nullable(), owner_all: z.boolean(), shift_later: z.boolean() })
 
 /** A sprint's dates, goal and owner. `shift_later` moves the open sprints after it by as many days as its end moved. */
 export async function updateSprint(input: z.infer<typeof SprintEdit>): Promise<{ error?: string }> {
@@ -60,14 +60,14 @@ export async function updateSprint(input: z.infer<typeof SprintEdit>): Promise<{
   if (me.role !== 'lead') return { error: 'Only the lead edits the plan' }
   const v = SprintEdit.safeParse(input)
   if (!v.success) return { error: 'A sprint needs start and end dates' }
-  const { sprint_id, starts_on, ends_on, goal, owner_id, shift_later } = v.data
+  const { sprint_id, starts_on, ends_on, goal, owner_id, owner_all, shift_later } = v.data
   if (ends_on < starts_on) return { error: 'The sprint ends before it starts' }
   const sprints = await loadSprints()
   const s = sprints.find((x) => x.id === sprint_id)
   if (!s || s.status === 'closed') return { error: 'Only sprints that have not closed can be edited' }
 
   const supabase = await createClient()
-  const { error } = await supabase.from('sprints').update({ starts_on, ends_on, goal: goal || null, owner_id }).eq('id', s.id)
+  const { error } = await supabase.from('sprints').update({ starts_on, ends_on, goal: goal || null, owner_id: owner_all ? null : owner_id, owner_all }).eq('id', s.id)
   if (error) return { error: error.message }
 
   const days = Math.round((Date.parse(ends_on) - Date.parse(s.ends_on)) / 864e5)

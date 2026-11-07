@@ -102,11 +102,11 @@ export default async function PlanPage() {
             {lead && <Link href="/sprints/new" data-create className="btn">+ New sprint</Link>}
           </span>
         </header>
-        <table className="table w-full text-[12.5px] [&_td]:border-b-[var(--line)]">
+        <table className="table w-full text-[12.5px] [&_td]:border-b-[var(--line)] [&_td]:px-2 [&_th]:px-2">
           <thead>
             <tr>
               <th rowSpan={2}>Sprint</th><th rowSpan={2} className="whitespace-nowrap">Dates</th><th rowSpan={2}>Status</th><th rowSpan={2}>Owner</th>
-              <th rowSpan={2}>Pages<InfoTip text="The pages this sprint fixes. Green means writing their test cases is completed." /></th>
+              <th rowSpan={2} className="w-full min-w-[360px]">Pages<InfoTip text="The pages this sprint fixes. Green means writing their test cases is completed." /></th>
               <th rowSpan={2} className={`text-right whitespace-nowrap ${GROUP_START}`}>Test cases<InfoTip text="All test cases on the sprint’s pages." /></th>
               {COLUMN_GROUPS.map((g) => <th key={g.group} colSpan={g.columns.length} className={`text-center whitespace-nowrap ${GROUP_START}`}>{g.group}<InfoTip text={g.info} /></th>)}
             </tr>
@@ -121,10 +121,10 @@ export default async function PlanPage() {
               <tr key={s.id}>
                 <td><Link href={sprintHref(s)} className="font-semibold text-[var(--accent)] hover:underline">{s.name}</Link></td>
                 <td className="mono text-[12px] whitespace-nowrap">{lead && s.status !== 'closed'
-                  ? <SprintDatesButton sprint={{ id: s.id, name: s.name, status: s.status, starts_on: s.starts_on, ends_on: s.ends_on, goal: s.goal, owner_id: s.owner_id ?? null }} label={dates(s)} goNoGo={release.go_no_go_on} team={team} />
+                  ? <SprintDatesButton sprint={{ id: s.id, name: s.name, status: s.status, starts_on: s.starts_on, ends_on: s.ends_on, goal: s.goal, owner_id: s.owner_id ?? null, owner_all: !!s.owner_all }} label={dates(s)} goNoGo={release.go_no_go_on} team={team} />
                   : dates(s)}</td>
                 <td><Chip tone={STATUS[s.status].tone}>{STATUS[s.status].label}</Chip></td>
-                <td className="whitespace-nowrap">{(s.owner_id && name.get(s.owner_id)) || <span className="text-[var(--faint)]">—</span>}</td>
+                <td className="whitespace-nowrap">{s.owner_all ? 'All' : (s.owner_id && name.get(s.owner_id)) || <span className="text-[var(--faint)]">—</span>}</td>
                 <td className="text-[12px] leading-snug">
                   {covered.length === pages.length && pages.length ? `All ${pages.length} pages` : zones.map((z) => (
                     <span key={z} className="mr-2.5"><b className="font-semibold">{z}:</b> {covered.filter((p) => p.zone === z).map((p, i) => (

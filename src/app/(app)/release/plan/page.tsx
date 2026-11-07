@@ -102,17 +102,17 @@ export default async function PlanPage() {
             {lead && <Link href="/sprints/new" data-create className="btn">+ New sprint</Link>}
           </span>
         </header>
-        <table className="table w-full text-[12.5px] [&_td]:border-b-[var(--line)] [&_td]:px-2 [&_th]:px-2">
+        <table className="table w-full text-[12.5px] [&_td]:border-b-[var(--line)] [&_td]:px-2 [&_th]:px-2 [&_th]:whitespace-normal">
           <thead>
             <tr>
-              <th rowSpan={2}>Sprint</th><th rowSpan={2} className="whitespace-nowrap">Dates</th><th rowSpan={2}>Status</th><th rowSpan={2}>Owner</th>
-              <th rowSpan={2} className="w-full min-w-[360px]">Pages<InfoTip text="The pages this sprint fixes. Green means writing their test cases is completed." /></th>
-              <th rowSpan={2} className={`text-right whitespace-nowrap ${GROUP_START}`}>Test cases<InfoTip text="All test cases on the sprint’s pages." /></th>
-              {COLUMN_GROUPS.map((g) => <th key={g.group} colSpan={g.columns.length} className={`text-center whitespace-nowrap ${GROUP_START}`}>{g.group}<InfoTip text={g.info} /></th>)}
+              <th rowSpan={2}>Sprint</th><th rowSpan={2}>Dates</th><th rowSpan={2}>Status</th><th rowSpan={2}>Owner</th>
+              <th rowSpan={2} className="w-full min-w-[280px]">Pages<InfoTip text="The pages this sprint fixes. Green means writing their test cases is completed." /></th>
+              <th rowSpan={2} className={`text-right ${GROUP_START}`}>Test cases<InfoTip text="All test cases on the sprint’s pages." /></th>
+              {COLUMN_GROUPS.map((g) => <th key={g.group} colSpan={g.columns.length} className={`text-center ${GROUP_START}`}>{g.group}<InfoTip text={g.info} /></th>)}
             </tr>
             <tr>
               {COLUMN_GROUPS.flatMap((g) => g.columns.map((c, i) => (
-                <th key={c.label} className={`text-right whitespace-nowrap ${i === 0 ? GROUP_START : ''}`}>{c.label}<InfoTip text={c.info} /></th>
+                <th key={c.label} className={`text-right ${i === 0 ? GROUP_START : ''}`}>{c.label}<InfoTip text={c.info} /></th>
               )))}
             </tr>
           </thead>

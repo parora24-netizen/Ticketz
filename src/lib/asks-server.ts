@@ -210,8 +210,25 @@ export async function loadInbox(db: Db, person: { id: string; role: string }): P
     items.push({ type: 'ticket', title: `${urgent.length ? `${rest} more` : rest} open ticket${rest === 1 ? '' : 's'} assigned to you`, href: `/tickets?view=grid&state=open&owner=${encodeURIComponent(me?.name ?? '')}`, count: rest,
       detail: Object.entries(mine.filter((t) => !urgent.includes(t)).reduce<Record<string, number>>((m, t) => ({ ...m, [STATE[t.state] ?? t.state]: (m[STATE[t.state] ?? t.state] ?? 0) + 1 }), {})).map(([k, n]) => `${n} ${k}`).join(' · ') })
   }
-  // A developer's ticket that is ready for retest waits on QA, not on them.
-  if (person.role !== 'dev') for (const t of (retests ?? []).filter((x) => x.state === 'ready_for_retest')) items.push({ type: 'retest', title: `Retest ${t.key}: ${t.title}`, href: `/tickets/${encodeURIComponent(t.key)}` })
+  // Retests: tickets ready for retest that they own, or whose test case they test. A developer's
+  // own ticket that is ready for retest waits on QA, not on them.
+  if (person.role !== 'dev') {
+    const owned = (retests ?? []).filter((x) => x.state === 'ready_for_retest')
+    const { data: tested } = await db.from('test_cases').select('id').eq('tester_id', person.id)
+    const caseIds = (tested ?? []).map((c) => c.id as string)
+    const { data: viaCase } = caseIds.length
+      ? await db.from('tickets').select('key, title, severity').eq('state', 'ready_for_retest').in('case_id', caseIds)
+      : { data: [] }
+    const toRetest = [...owned, ...(viaCase ?? []).filter((t) => !owned.some((o) => o.key === t.key))]
+      .sort((a, b) => SEV.indexOf(a.severity) - SEV.indexOf(b.severity))
+    const named = toRetest.length > 10 ? toRetest.filter((t) => t.severity === 'Critical' || t.severity === 'High') : toRetest
+    for (const t of named) items.push({ type: 'retest', title: `Retest ${t.key}: ${t.title}`, href: `/tickets/${encodeURIComponent(t.key)}`, detail: t.severity })
+    const more = toRetest.length - named.length
+    if (more) {
+      const { data: me } = await db.from('people').select('name').eq('id', person.id).maybeSingle()
+      items.push({ type: 'retest', title: `${named.length ? `${more} more` : more} ticket${more === 1 ? '' : 's'} ready for you to retest`, href: `/tickets?view=grid&state=ready_for_retest&tester=${encodeURIComponent(me?.name ?? '')}`, count: more })
+    }
+  }
   for (const pr of prs ?? []) {
     const days = Math.floor((Date.now() - Date.parse(pr.opened_at)) / 864e5)
     const cases = (pr.pr_cases as unknown[] | null)?.length ?? 0
@@ -238,6 +255,10 @@ export async function loadInbox(db: Db, person: { id: string; role: string }): P
     }
   }
   if (lead) {
+    // Retests nobody gets: ready for retest, and the case has no tester (or there is no case).
+    const { data: ready } = await db.from('tickets').select('key, case_id, test_cases(tester_id)').eq('state', 'ready_for_retest')
+    const orphans = (ready ?? []).filter((t) => !((Array.isArray(t.test_cases) ? t.test_cases[0] : t.test_cases) as { tester_id: string | null } | null)?.tester_id)
+    if (orphans.length) items.push({ type: 'retest', title: , href: '/tickets?view=grid&state=ready_for_retest&tester=No%20tester', count: orphans.length, detail: 'Give their cases a tester so the retest reaches someone' })
     const { count } = await db.from('test_cases').select('id', { count: 'exact', head: true }).not('automation_proposed', 'is', null)
     if (count) items.push({ type: 'approve', title: `Approve or turn down ${count} "not automatable" proposal${count === 1 ? '' : 's'}`, href: '/cases/automation#proposals', count })
     items.push(...await runnerAlerts(db))

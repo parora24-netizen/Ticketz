@@ -5,15 +5,36 @@ import { createServiceClient } from '@/lib/supabase/server'
 import { askEmail, digestEmail, type Mail } from '@/lib/email-templates'
 
 /**
- * Email through Resend. Nothing reaches the team until the lead turns email on (Admin > Email), and
- * each person can turn off either kind for themselves. Without RESEND_API_KEY nothing is sent. A
- * failure is logged and never stops the change that caused it.
+ * Email through Microsoft 365: Launchpad's app in Vulqan's tenant sends from one mailbox with Graph
+ * (application permission Mail.Send). Nothing reaches the team until the lead turns email on (Admin >
+ * Email), and each person can turn off either kind for themselves. Without the app's settings nothing
+ * is sent. A failure is logged and never stops the change that caused it.
  */
-const FROM = () => process.env.EMAIL_FROM ?? 'Launchpad <launchpad@notify.vulqan.ai>'
+const m365 = () => ({
+  tenant: process.env.M365_TENANT_ID, client: process.env.M365_CLIENT_ID, secret: process.env.M365_CLIENT_SECRET,
+  sender: process.env.M365_SENDER ?? 'notifications@vulqan.ai',
+})
+export const emailSender = () => m365().sender
 const appUrl = () => serverEnv().appUrl || 'https://vulqan-launchpad.vercel.app'
 const db = () => createServiceClient()
 
-export const emailConfigured = () => !!process.env.RESEND_API_KEY
+export const emailConfigured = () => { const c = m365(); return !!(c.tenant && c.client && c.secret) }
+
+// The app's Graph token, kept until shortly before it expires.
+let token: { value: string; until: number } | null = null
+async function graphToken(): Promise<string> {
+  if (token && token.until > Date.now() + 60_000) return token.value
+  const c = m365()
+  const res = await fetch(`https://login.microsoftonline.com/${c.tenant}/oauth2/v2.0/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: c.client!, client_secret: c.secret!, scope: 'https://graph.microsoft.com/.default', grant_type: 'client_credentials' }),
+  })
+  const body = await res.json().catch(() => ({})) as { access_token?: string; expires_in?: number; error_description?: string }
+  if (!res.ok || !body.access_token) throw new Error(`Microsoft sign-in failed: ${body.error_description?.split('\r')[0] ?? res.status}`)
+  token = { value: body.access_token, until: Date.now() + (body.expires_in ?? 3600) * 1000 }
+  return token.value
+}
 
 export async function emailLive(): Promise<boolean> {
   const { data } = await db().from('app_settings').select('value').eq('key', 'email').maybeSingle()
@@ -28,19 +49,25 @@ async function person(id: string): Promise<Person | null> {
 
 /** Sends one email and records it. */
 async function send(to: Person, kind: 'ask' | 'ask_answered' | 'digest' | 'test', ref: string | null, mail: Mail): Promise<{ error?: string }> {
-  if (!emailConfigured()) return { error: 'RESEND_API_KEY is not set' }
+  if (!emailConfigured()) return { error: 'The Microsoft 365 app is not set up (M365_TENANT_ID, M365_CLIENT_ID, M365_CLIENT_SECRET)' }
   if (!to.email) return { error: `${to.name} has no email address` }
   let providerId: string | null = null
   let error: string | null = null
   try {
-    const res = await fetch('https://api.resend.com/emails', {
+    const res = await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(m365().sender)}/sendMail`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from: FROM(), to: [to.email], subject: mail.subject, html: mail.html, text: mail.text }),
+      headers: { Authorization: `Bearer ${await graphToken()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: { subject: mail.subject, body: { contentType: 'HTML', content: mail.html }, toRecipients: [{ emailAddress: { address: to.email, name: to.name } }] },
+        saveToSentItems: false,
+      }),
     })
-    const body = await res.json().catch(() => ({})) as { id?: string; message?: string }
-    if (res.ok) providerId = body.id ?? null
-    else error = body.message ?? `Resend answered ${res.status}`
+    // Graph answers 202 with no body; it gives a request id to trace a message by.
+    if (res.ok) providerId = res.headers.get('request-id')
+    else {
+      const body = await res.json().catch(() => ({})) as { error?: { code?: string; message?: string } }
+      error = body.error ? `${body.error.code}: ${body.error.message}` : `Microsoft answered ${res.status}`
+    }
   } catch (e) {
     error = (e as Error).message
   }

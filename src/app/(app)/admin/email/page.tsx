@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { ADMIN_TABS, Tabs } from '@/components/tabs'
 import { Chip, PageHeader } from '@/components/ui'
 import { getMe } from '@/lib/auth'
-import { emailConfigured } from '@/lib/email'
+import { emailConfigured, emailSender } from '@/lib/email'
 import { createClient } from '@/lib/supabase/server'
 import { EmailControls } from './email-controls'
 
@@ -30,9 +30,9 @@ export default async function EmailAdminPage() {
       <PageHeader sub="Emails from Launchpad: an ask given to you, an answer to an ask you raised, and a weekday 9:00 digest of what waits on you." />
       <section className="card mb-4">
         <dl className="divide-y divide-[var(--row)] text-[13px]">
-          <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt>Resend key (RESEND_API_KEY)</dt><dd><Chip tone={configured ? 'good' : 'crit'}>{configured ? 'Set' : 'Missing'}</Chip></dd></div>
+          <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt>Microsoft 365 app (M365_TENANT_ID, M365_CLIENT_ID, M365_CLIENT_SECRET)</dt><dd><Chip tone={configured ? 'good' : 'crit'}>{configured ? 'Set' : 'Missing'}</Chip></dd></div>
           <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt>Morning digest schedule (CRON_SECRET)</dt><dd><Chip tone={cron ? 'good' : 'warn'}>{cron ? 'Set' : 'Missing: the digest will not run'}</Chip></dd></div>
-          <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt>Sender</dt><dd className="mono text-[12.5px]">{process.env.EMAIL_FROM ?? 'Launchpad <launchpad@notify.vulqan.ai>'}</dd></div>
+          <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt>Sender</dt><dd className="mono text-[12.5px]">{emailSender()}</dd></div>
           <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt>For the team</dt><dd><Chip tone={live ? 'good' : 'muted'}>{live ? 'On' : 'Off: only tests to you go out'}</Chip></dd></div>
           <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt>Turned some off</dt><dd className="text-[12.5px]">{optedOut.length ? optedOut.map((p) => `${p.name} (${[!p.email_notify && 'asks', !p.email_digest && 'digest'].filter(Boolean).join(', ')})`).join(' · ') : 'No one'}</dd></div>
         </dl>

@@ -258,7 +258,7 @@ export async function loadInbox(db: Db, person: { id: string; role: string }): P
     // Retests nobody gets: ready for retest, and the case has no tester (or there is no case).
     const { data: ready } = await db.from('tickets').select('key, case_id, test_cases(tester_id)').eq('state', 'ready_for_retest')
     const orphans = (ready ?? []).filter((t) => !((Array.isArray(t.test_cases) ? t.test_cases[0] : t.test_cases) as { tester_id: string | null } | null)?.tester_id)
-    if (orphans.length) items.push({ type: 'retest', title: , href: '/tickets?view=grid&state=ready_for_retest&tester=No%20tester', count: orphans.length, detail: 'Give their cases a tester so the retest reaches someone' })
+    if (orphans.length) items.push({ type: 'retest', title: `${orphans.length} ticket${orphans.length === 1 ? ' is' : 's are'} ready for retest with no tester on the case`, href: '/tickets?view=grid&state=ready_for_retest&tester=No%20tester', count: orphans.length, detail: 'Give their cases a tester so the retest reaches someone' })
     const { count } = await db.from('test_cases').select('id', { count: 'exact', head: true }).not('automation_proposed', 'is', null)
     if (count) items.push({ type: 'approve', title: `Approve or turn down ${count} "not automatable" proposal${count === 1 ? '' : 's'}`, href: '/cases/automation#proposals', count })
     items.push(...await runnerAlerts(db))

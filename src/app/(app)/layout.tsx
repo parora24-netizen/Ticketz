@@ -8,6 +8,7 @@ import { Toaster } from '@/components/toast'
 import { Presence } from '@/components/presence'
 import { NotificationBell } from '@/components/notifications'
 import { getMe } from '@/lib/auth'
+import { createClient } from '@/lib/supabase/server'
 import { runningSprints, daysLeft, fmtDate, loadSprints } from '@/lib/data'
 import { BottomBar, Sidebar } from './nav-links'
 
@@ -15,6 +16,9 @@ const ROLE = { lead: 'Lead', dev: 'Developer', qa: 'QA' } as const
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const [me, sprints] = await Promise.all([getMe(), loadSprints()])
+  // Which emails this person gets; nothing to show until the email migration has run.
+  const { data: prefs } = await (await createClient()).from('people').select('email_notify, email_digest').eq('id', me.id).maybeSingle()
+  const emailPrefs = prefs ? { notify: prefs.email_notify as boolean, digest: prefs.email_digest as boolean } : undefined
   const running = runningSprints(sprints)
   const sprintLabel = running.length
     ? running.map((s) => `${s.name} · ${fmtDate(s.starts_on)} to ${fmtDate(s.ends_on)} · ${daysLeft(s.ends_on)}`).join('\n')
@@ -41,7 +45,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </form>
             <AssistantButton />
             <NotificationBell />
-            <ProfileMenu name={me.name} email={me.email} role={ROLE[me.role]} initials={initials} />
+            <ProfileMenu name={me.name} email={me.email} role={ROLE[me.role]} initials={initials} emailPrefs={emailPrefs} />
           </div>
         </header>
         <main className="px-4 pt-5 pb-24 sm:px-6 md:pb-8"><RememberProvider personId={me.id}>{children}</RememberProvider></main>

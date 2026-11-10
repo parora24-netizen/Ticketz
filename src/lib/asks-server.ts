@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { askStatus, holdActive, type AskKind, type AskState, type Outcome } from '@/lib/automation-loop'
 import { casesByAnyId, currentTicketKey } from '@/lib/ids'
 import { fixSprintForArea } from '@/lib/workflow/fix-sprint'
+import { emailAboutAsk } from '@/lib/email'
 
 /**
  * Asks and the rest of the automation loop, shared by the API (server key, the runner) and the app
@@ -66,6 +67,7 @@ export async function createAsk(db: Db, input: CreateInput, actor: Actor, dryRun
     const { error } = await db.from('ask_cases').upsert(ids.map((case_id) => ({ ask_id: ask!.id, case_id })), { ignoreDuplicates: true })
     if (error) return { error: error.message, status: 500 }
   }
+  if (!open && owner && 'id' in owner) await emailAboutAsk(ask.key, 'assigned', actor.personId)
   return { key: ask.key, created: !open, cases_linked: ids.length, unmatched }
 }
 
@@ -93,6 +95,8 @@ export async function patchAsk(db: Db, key: string, p: PatchInput, actor: Actor,
   if (remove.ids.length) await db.from('ask_cases').delete().eq('ask_id', a.id).in('case_id', remove.ids)
   let effect: string | undefined
   if (a.kind === 'decision' && p.state === 'done' && a.state !== 'done') effect = await applyOutcome(db, { ...a, ...fields } as AskRow, actor)
+  if (fields.owner_id && fields.owner_id !== a.owner_id) await emailAboutAsk(a.key, 'assigned', actor.personId)
+  if (p.state && p.state !== 'open' && a.state === 'open') await emailAboutAsk(a.key, 'answered', actor.personId)
   return { key: a.key, effect }
 }
 

@@ -22,6 +22,7 @@ export const ADMIN_TABS = [
   { key: 'timeline', href: '/admin/timeline', label: 'Timeline' },
   { key: 'holidays', href: '/admin?tab=holidays', label: 'Holidays' },
   { key: 'ci', href: '/admin?tab=ci', label: 'CI tokens' },
+  { key: 'email', href: '/admin/email', label: 'Email' },
 ]
 
 export const CASES_TABS = [

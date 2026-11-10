@@ -1,6 +1,7 @@
 'use client'
 
 import { ChangePasswordButton } from '@/components/account-controls'
+import { setMyEmailPrefs } from '@/app/(app)/admin/email/actions'
 import { usePathname } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 
@@ -99,7 +100,7 @@ export function DensityInit() {
 }
 
 /** Avatar menu: who you are, row density for this device, sign out. */
-export function ProfileMenu({ name, email, role, initials }: { name: string; email: string; role: string; initials: string }) {
+export function ProfileMenu({ name, email, role, initials, emailPrefs }: { name: string; email: string; role: string; initials: string; emailPrefs?: { notify: boolean; digest: boolean } }) {
   const [open, setOpen] = useState(false)
   const [density, setDensity] = useState<Density>('balanced')
   const ref = useRef<HTMLDivElement>(null)
@@ -146,12 +147,29 @@ export function ProfileMenu({ name, email, role, initials }: { name: string; ema
             </div>
             <p className="mt-1.5 text-[11.5px] text-[var(--muted)]">{DENSITIES.find((d) => d.key === density)?.hint} Saved on this device.</p>
           </div>
+          {emailPrefs && <EmailPrefs initial={emailPrefs} />}
           <div className="px-3 pt-3"><ChangePasswordButton /></div>
           <form action="/auth/signout" method="post" className="p-3 pt-2">
             <button className="btn btn-primary w-full">Sign out</button>
           </form>
         </div>
       )}
+    </div>
+  )
+}
+
+/** Which emails you get from Launchpad, saved as you tick. */
+function EmailPrefs({ initial }: { initial: { notify: boolean; digest: boolean } }) {
+  const [prefs, setPrefs] = useState(initial)
+  const set = (key: 'notify' | 'digest', on: boolean) => {
+    setPrefs((p) => ({ ...p, [key]: on }))
+    void setMyEmailPrefs(key === 'notify' ? { email_notify: on } : { email_digest: on }).then((r) => { if (r.error) setPrefs((p) => ({ ...p, [key]: !on })) })
+  }
+  return (
+    <div className="border-b border-[var(--line-soft)] px-4 py-3 text-[12.5px]">
+      <div className="label">Email me</div>
+      <label className="mt-1.5 flex items-center gap-2"><input type="checkbox" checked={prefs.notify} onChange={(e) => set('notify', e.target.checked)} /> When I'm given an ask, or mine is answered</label>
+      <label className="mt-1 flex items-center gap-2"><input type="checkbox" checked={prefs.digest} onChange={(e) => set('digest', e.target.checked)} /> A weekday 9:00 digest of what waits on me</label>
     </div>
   )
 }

@@ -12,7 +12,7 @@ import { rememberTicketList } from '@/components/ticket-nav'
 type Row = BoardTicket & { kind: 'defect' | 'test_mismatch' | 'task'; logged_on: string; sprint_id: string | null; tester_name: string | null }
 const SEVERITY = ['Critical', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: p }))
 
-export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, state, severity, remember = true }: { rows: Row[]; people: { value: string; label: string }[]; sprints?: { value: string; label: string }[]; canTriage: boolean; isLead?: boolean; state?: string; severity?: string; remember?: boolean }) {
+export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, state, severity, owner, remember = true }: { rows: Row[]; people: { value: string; label: string }[]; sprints?: { value: string; label: string }[]; canTriage: boolean; isLead?: boolean; state?: string; severity?: string; owner?: string; remember?: boolean }) {
   const router = useRouter()
   const owners = [{ value: '__none', label: 'Unassigned' }, ...people]
   const sprintOptions = [{ value: '__none', label: 'No sprint' }, ...sprints]
@@ -47,7 +47,7 @@ export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, sta
         { key: 'owner', title: 'By owner' },
         { key: 'sprint', title: 'By sprint' },
       ]}
-      defaultFilters={linkFilters(state, severity)}
+      defaultFilters={linkFilters(state, severity, owner)}
       defaultSort={[{ key: 'severity', dir: 1 }]}
       emptyText="No tickets match."
       onSave={(ids, patch) => {
@@ -70,8 +70,9 @@ export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, sta
 }
 
 /** Filters from a link: state is a state or "open"; severity is one of Critical/High/Medium/Low. */
-function linkFilters(state?: string, severity?: string): Record<string, string[]> | undefined {
+function linkFilters(state?: string, severity?: string, owner?: string): Record<string, string[]> | undefined {
   const f: Record<string, string[]> = {}
+  if (owner) f.owner = [owner]
   if (state === 'open') f.state = OPEN_STATES.map((x) => STATE_LABEL[x])
   else if (state && state in STATE_LABEL) f.state = [STATE_LABEL[state as keyof typeof STATE_LABEL]]
   if (severity && SEVERITY.some((x) => x.value === severity)) f.severity = [severity]

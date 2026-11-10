@@ -44,7 +44,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
       {view === 'board'
         ? <TicketBoard tickets={rows} role={me.role} meId={me.id} zones={zones}
           people={people.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name }))} sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ id: s.id, name: s.name }))} />
-        : <TicketsGrid rows={rows} sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ value: s.id, label: s.name }))} state={sp.state} severity={sp.severity} remember={!scope && !area && !sp.state && !sp.severity} canTriage={me.role !== 'dev'} isLead={me.role === 'lead'} people={people.filter((p) => p.active).map((p) => ({ value: p.id, label: p.name }))} />}
+        : <TicketsGrid rows={rows} sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ value: s.id, label: s.name }))} state={sp.state} severity={sp.severity} owner={sp.owner} remember={!scope && !area && !sp.state && !sp.severity && !sp.owner} canTriage={me.role !== 'dev'} isLead={me.role === 'lead'} people={people.filter((p) => p.active).map((p) => ({ value: p.id, label: p.name }))} />}
     </>
   )
 }

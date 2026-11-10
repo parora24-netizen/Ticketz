@@ -173,7 +173,8 @@ const today = () => new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 1
 const STALE_PR_DAYS = 3
 
 /**
- * What waits on one person, most urgent first: asks they own, retests of tickets they own, pull
+ * What waits on one person, most urgent first: asks they own, open tickets they own (each Critical
+ * and High one, the rest counted), retests of tickets they own, pull
  * requests to review, pages whose cases need detail or a rewrite. The lead also sees what is overdue
  * or has no owner, "not automatable" proposals to approve, and a runner that has failed or stalled.
  */
@@ -182,7 +183,7 @@ export async function loadInbox(db: Db, person: { id: string; role: string }): P
   const now = today()
   const [{ data: asks }, { data: retests }, { data: prs }, { data: pages }, { data: people }] = await Promise.all([
     db.from('asks').select('id, key, kind, title, owner_id, due_on, created_at').eq('state', 'open'),
-    db.from('tickets').select('key, title').eq('state', 'ready_for_retest').eq('owner_id', person.id),
+    db.from('tickets').select('key, title, state, severity').in('state', ['new', 'triaged', 'in_fix', 'reopened', 'ready_for_retest']).eq('owner_id', person.id),
     db.from('automation_prs').select('key, url, title, reviewer_id, opened_at, pr_cases(case_id)').eq('state', 'open'),
     db.from('areas').select('id, zone, page, owner_id').eq('owner_id', person.id),
     db.from('people').select('id, name'),
@@ -197,7 +198,19 @@ export async function loadInbox(db: Db, person: { id: string; role: string }): P
         detail: mine ? undefined : !a.owner_id ? 'No owner yet' : `Overdue with ${name.get(a.owner_id) ?? 'someone'}` })
     }
   }
-  for (const t of retests ?? []) items.push({ type: 'retest', title: `Retest ${t.key}: ${t.title}`, href: `/tickets/${encodeURIComponent(t.key)}` })
+  // Tickets they own: each Critical and High one by name, the rest as one line to the list.
+  const STATE: Record<string, string> = { new: 'not started', triaged: 'triaged', in_fix: 'in fix', reopened: 'reopened' }
+  const mine = (retests ?? []).filter((t) => t.state !== 'ready_for_retest')
+  const SEV = ['Critical', 'High', 'Medium', 'Low']
+  const urgent = mine.filter((t) => t.severity === 'Critical' || t.severity === 'High').sort((a, b) => SEV.indexOf(a.severity) - SEV.indexOf(b.severity))
+  for (const t of urgent) items.push({ type: 'ticket', title: `${t.key}: ${t.title}`, href: `/tickets/${encodeURIComponent(t.key)}`, detail: `${t.severity} · ${STATE[t.state] ?? t.state}` })
+  const rest = mine.length - urgent.length
+  if (rest) {
+    const { data: me } = await db.from('people').select('name').eq('id', person.id).maybeSingle()
+    items.push({ type: 'ticket', title: `${urgent.length ? `${rest} more` : rest} open ticket${rest === 1 ? '' : 's'} assigned to you`, href: `/tickets?view=grid&state=open&owner=${encodeURIComponent(me?.name ?? '')}`, count: rest,
+      detail: Object.entries(mine.filter((t) => !urgent.includes(t)).reduce<Record<string, number>>((m, t) => ({ ...m, [STATE[t.state] ?? t.state]: (m[STATE[t.state] ?? t.state] ?? 0) + 1 }), {})).map(([k, n]) => `${n} ${k}`).join(' · ') })
+  }
+  for (const t of (retests ?? []).filter((x) => x.state === 'ready_for_retest')) items.push({ type: 'retest', title: `Retest ${t.key}: ${t.title}`, href: `/tickets/${encodeURIComponent(t.key)}` })
   for (const pr of prs ?? []) {
     const days = Math.floor((Date.now() - Date.parse(pr.opened_at)) / 864e5)
     const cases = (pr.pr_cases as unknown[] | null)?.length ?? 0

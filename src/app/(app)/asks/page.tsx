@@ -7,7 +7,7 @@ import { askJson, loadInbox, type AskRow } from '@/lib/asks-server'
 import { createClient } from '@/lib/supabase/server'
 import { AsksGrid } from './asks-grid'
 
-const TYPE: Record<string, string> = { need: 'Need', question: 'Question', decision: 'Decision', retest: 'Retest', pr: 'Review', detail: 'Complete text', rewrite: 'Rewrite', approve: 'Approve', runner: 'Runner' }
+const TYPE: Record<string, string> = { need: 'Need', question: 'Question', decision: 'Decision', ticket: 'Ticket', retest: 'Retest', pr: 'Review', detail: 'Complete text', rewrite: 'Rewrite', approve: 'Approve', runner: 'Runner' }
 
 /**
  * Asks: what someone has to do for testing and automation to go on. "Waiting on me" is one list of

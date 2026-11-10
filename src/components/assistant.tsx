@@ -131,7 +131,7 @@ export function AssistantButton() {
   useEffect(() => { try { sessionStorage.setItem(KEY, JSON.stringify(msgs)) } catch {} }, [msgs])
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }) }, [msgs, status])
   useEffect(() => { if (open) input.current?.focus() }, [open])
-  // Ctrl+J (⌘J on a Mac) opens or closes Ask from anywhere, even while typing elsewhere.
+  // Ctrl+J (⌘J on a Mac) opens or closes Sidekick from anywhere, even while typing elsewhere.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'j') { e.preventDefault(); setOpen((v) => !v) }
@@ -227,18 +227,17 @@ export function AssistantButton() {
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="btn h-8 gap-1.5" title={`Ask about the release (${shortcut})`} aria-keyshortcuts="Control+J Meta+J">
+      <button type="button" onClick={() => setOpen(true)} className="btn h-8 gap-1.5" title={`Sidekick: ask about the release, or tell it what to change (${shortcut})`} aria-keyshortcuts="Control+J Meta+J">
         <span aria-hidden className="text-[var(--accent)]">✦</span>
-        <span className="sm:hidden">Ask</span>
-        <span className="hidden sm:inline">Ask Launchpad</span>
+        <span>Sidekick</span>
         <kbd className="mono ml-1 hidden border border-[var(--line)] bg-[var(--surface-3)] px-1 text-[10px] font-normal text-[var(--muted)] lg:inline">{shortcut}</kbd>
       </button>
       {open && (
         <div className="fixed inset-0 z-40 flex justify-end">
           <button type="button" aria-label="Close" onClick={() => setOpen(false)} className="absolute inset-0 bg-[rgba(15,27,51,.25)]" />
-          <aside role="dialog" aria-label="Ask about the release" className="relative flex h-full w-[min(520px,100vw)] flex-col border-l border-[var(--line)] bg-white shadow-[-18px_0_44px_rgba(9,17,38,.18)]">
+          <aside role="dialog" aria-label="Sidekick" className="relative flex h-full w-[min(520px,100vw)] flex-col border-l border-[var(--line)] bg-white shadow-[-18px_0_44px_rgba(9,17,38,.18)]">
             <header className="flex items-center gap-2 border-b border-[var(--line)] px-5 py-3">
-              <h2 className="text-[16px] font-semibold text-[var(--navy-ink)]">Ask about the release</h2>
+              <h2 className="text-[16px] font-semibold text-[var(--navy-ink)]"><span aria-hidden className="mr-1.5 text-[var(--accent)]">✦</span>Sidekick</h2>
               {msgs.length > 0 && <button type="button" disabled={busy} onClick={() => setMsgs([])} className="ml-auto text-[12px] text-[var(--accent)] hover:underline">New chat</button>}
               <button type="button" onClick={() => setOpen(false)} aria-label="Close" className={`${msgs.length ? '' : 'ml-auto'} flex h-8 w-8 cursor-pointer items-center justify-center text-[var(--muted)] hover:bg-[var(--surface-3)] hover:text-[var(--ink)]`}>✕</button>
             </header>
@@ -266,7 +265,7 @@ export function AssistantButton() {
                 placeholder="Ask a question or give a direction (Enter to send, Shift+Enter for a new line)" className="input w-full" />
               <div className="mt-2 flex items-center justify-between text-[11px] text-[var(--faint)]">
                 <span>Changes only what you confirm · Claude Opus 5.5 · {shortcut} to open or close</span>
-                <button disabled={busy || !draft.trim()} className="btn btn-primary btn-sm">{busy ? 'Answering…' : 'Ask'}</button>
+                <button disabled={busy || !draft.trim()} className="btn btn-primary btn-sm">{busy ? 'Answering…' : 'Send'}</button>
               </div>
             </form>
           </aside>

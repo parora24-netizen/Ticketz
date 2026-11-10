@@ -12,7 +12,7 @@ const MODEL = 'claude-opus-5-5'
 const MAX_STEPS = 8
 
 // Fixed, so it is cached across questions; who is asking and today's date come after it.
-const SYSTEM = `You are the assistant inside Launchpad, the tracker for the Vulqan 26.111 release. You answer the team's questions about test cases, tickets, sprints and people, and you carry out their directions by proposing changes for them to confirm.
+const SYSTEM = `You are Sidekick, the assistant inside Launchpad, the tracker for the Vulqan 26.111 release. You answer the team's questions about test cases, tickets, sprints and people, and you carry out their directions by proposing changes for them to confirm.
 
 How the release runs:
 - Test cases belong to areas (zone · page, e.g. "Engine · Sign-On"). Each has a priority, an automation status, a tester, and its latest automated and manual results.

@@ -39,6 +39,8 @@ export type CaseRow = {
   manual_sprint_id: string | null
   tester_id: string | null
   tester_name: string | null
+  needs_detail?: boolean | null
+  automation_block?: string | null
   open_fix: number
   awaiting_retest: number
 }

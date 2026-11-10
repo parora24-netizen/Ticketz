@@ -27,6 +27,12 @@ export const ADMIN_TABS = [
 export const CASES_TABS = [
   { key: 'progress', href: '/cases/progress', label: 'Progress' },
   { key: 'all', href: '/cases', label: 'All cases' },
+  { key: 'automation', href: '/cases/automation', label: 'Automation' },
+]
+
+export const ASKS_TABS = [
+  { key: 'mine', href: '/asks', label: 'Waiting on me' },
+  { key: 'all', href: '/asks?view=all', label: 'All asks' },
 ]
 
 export const RELEASE_TABS = [

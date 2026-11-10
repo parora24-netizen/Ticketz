@@ -81,13 +81,6 @@ export type AutomationStatus = (typeof AUTOMATION_STATUSES)[number]
 export const automationToDb = (s: AutomationStatus) => (s === 'not_automatable' ? 'manual_only' : s)
 export const automationFromDb = (s: string): AutomationStatus => (s === 'manual_only' ? 'not_automatable' : s as AutomationStatus)
 
-/** PATCH /api/cases/{tc_id}: automation fields only. Anything else, such as a case's text, is refused. */
-export const AutomationPatch = z.strictObject({
-  automation_status: z.enum(AUTOMATION_STATUSES).optional(),
-  automation_note: z.string().trim().max(2000).nullable().optional(),
-  automation_owner: z.string().trim().max(200).nullable().optional(),
-  automation_ref: z.string().trim().max(500).nullable().optional(),
-}).refine((p) => Object.keys(p).length > 0, { message: 'Send at least one automation field' })
 
 const oneOf = <T extends string>(allowed: readonly T[]) => z.string().optional().transform((s, ctx) => {
   const values = list(s)
@@ -108,6 +101,9 @@ export const CasesQuery = z.object({
   priority: oneOf(['Critical', 'High', 'Medium', 'Low'] as const),
   type: z.string().optional().transform(list),
   text_updated_since: iso.optional(),
+  /** true: only cases whose Expected is a placeholder; false: leave them out (the automation backlog). */
+  needs_detail: z.enum(['true', 'false']).optional().transform((v) => (v === undefined ? undefined : v === 'true')),
+  block: z.string().optional().transform(list),
   tc_id: z.string().optional().transform((s) => list(s)?.map((x) => x.toUpperCase())),
   scenario_id: z.string().optional().transform(list),
   requirement_id: z.string().optional().transform(list),

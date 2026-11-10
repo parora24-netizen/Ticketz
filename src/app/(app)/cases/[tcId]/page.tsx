@@ -13,6 +13,9 @@ import { changeEntries, type ChangeRow } from '@/lib/activity'
 import { mismatch } from '@/lib/workflow/case-stage'
 import { addCaseComment, raiseTicket } from '../../actions'
 import { CaseAutomationField, CaseResultActions, UndoResultButton } from '@/components/case-controls'
+import { ProposalButtons } from '@/app/(app)/cases/automation/automation-controls'
+import { BLOCK_LABEL, KIND_LABEL, askStatus, type AskKind, type AskState } from '@/lib/automation-loop'
+import Link from 'next/link'
 
 export default async function CasePage({
   params, searchParams,
@@ -40,6 +43,13 @@ export default async function CasePage({
     supabase.from('case_comments').select('id, body, created_at, people(name)').eq('case_id', c.id).order('created_at', { ascending: false }),
   ])
   const teamNames = people.filter((p) => p.active).map((p) => p.name)
+  // What this case waits on: asks, a blocking defect, a proposal for the lead. Empty until the asks migration runs.
+  const [{ data: askLinks }, { data: blocker }] = await Promise.all([
+    supabase.from('ask_cases').select('asks(key, kind, title, state)').eq('case_id', c.id),
+    c.automation_block_ticket_id ? supabase.from('tickets').select('key, state').eq('id', c.automation_block_ticket_id).maybeSingle() : Promise.resolve({ data: null }),
+  ])
+  type LinkedAsk = { key: string; kind: AskKind; title: string; state: AskState }
+  const asks = ((askLinks ?? []) as unknown as { asks: LinkedAsk | LinkedAsk[] | null }[]).map((l) => (Array.isArray(l.asks) ? l.asks[0] : l.asks)).filter((a): a is LinkedAsk => !!a)
   const { data: ticketEvents } = tickets?.length
     ? await supabase.from('ticket_events').select('id, ticket_id, from_state, to_state, note, at, people(name)').in('ticket_id', tickets.map((t) => t.id))
     : { data: [] }
@@ -101,7 +111,20 @@ export default async function CasePage({
                     {c.automation_ref && <p className="mono break-all">{c.automation_ref}</p>}
                   </div>
                 )}
+                {c.automation_block && <p className="mt-1.5 text-[12px]"><Chip tone="warn">{BLOCK_LABEL[c.automation_block as keyof typeof BLOCK_LABEL] ?? c.automation_block}</Chip>{blocker && <> until <TicketLink k={blocker.key} /> closes</>}</p>}
+                {c.needs_detail && <p className="mt-1.5 text-[12px] font-semibold text-[var(--warn)]">The Expected result is a placeholder, so this case waits for its text before it is automated.</p>}
+                {c.automation_proposed && (
+                  <div className="mt-2 border border-[var(--line-soft)] bg-[var(--surface-3)] p-2 text-[12px]">
+                    <p><b className="font-semibold">Proposed as not automatable</b>{c.automation_proposed_reason ? `: ${c.automation_proposed_reason}` : ''}</p>
+                    {me.role === 'lead' && <ProposalButtons caseId={c.id} />}
+                  </div>
+                )}
               </dd></div>
+              {asks.length > 0 && (
+                <div className="px-4 py-2.5"><dt className="label mb-1">Waiting on</dt><dd className="space-y-1">
+                  {asks.map((a) => <p key={a.key} className="text-[12.5px]"><Link href={`/asks/${a.key}`} className="mono font-medium text-[var(--accent)] hover:underline">{a.key}</Link> {KIND_LABEL[a.kind]}: {a.title} <span className="text-[var(--muted)]">({askStatus(a.kind, a.state)})</span></p>)}
+                </dd></div>
+              )}
             </dl>
           </section>
           <section className="card p-4">

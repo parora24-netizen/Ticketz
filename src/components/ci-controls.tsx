@@ -126,11 +126,33 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
     },
     {
       title: 'Set automation state',
-      what: 'Runner tokens only; a case\'s text stays with the testers. automation_status: not_automated, in_progress, automated, blocked or not_automatable. automation_note says why it is blocked or not automatable; automation_owner is who claimed it; automation_ref is the spec file or PR. A posted result moves not_automated and in_progress to automated, and leaves blocked and not_automatable alone. To spot stale tests, read /api/cases with text_updated_since and compare revision: both move only when the wording changes, unlike updated_at. /api/cases also filters by automation, priority and type. Each case there carries automation_due_on (YYYY-MM-DD, or null if none is set), which is set per page on the Plan tab; changing it does not move updated_at, so read it fresh rather than through updated_since.',
+      what: 'Runner tokens only; a case\'s text stays with the testers. automation_status: not_automated, in_progress, automated or blocked. Blocked cases say why with automation_block (needs_write, needs_server, needs_account, needs_mailbox, needs_text, control_gone, screen_hold, other) and automation_block_ticket (a ticket key). "Not automatable" is proposed, not set: automation_proposed: "not_automatable" with automation_proposed_reason, and a lead approves it on Test cases > Automation. Send revision (or an If-Match header) to change a case only if no one has changed its text since; otherwise the answer is 409. PATCH /api/cases with { cases: [{ tc_id, ... }] } does up to 500 at once. ?dry_run=true on any write says what would change. /api/cases also returns needs_detail (the Expected result is a placeholder) and filters on needs_detail=false to leave those cases out of the backlog.',
       curl: `curl -X PATCH "${appUrl}/api/cases/TC_71" \\
   ${auth} \\
   -H "Content-Type: application/json" \\
-  -d '{ "automation_status": "blocked", "automation_note": "needs an engine with a MyLO run", "automation_owner": "e2e tests runner", "automation_ref": "specs/engine/alerts.spec.ts" }'`,
+  -d '{ "revision": 3, "automation_status": "blocked", "automation_block": "needs_server", "automation_note": "needs an MSSQL server" }'`,
+    },
+    {
+      title: 'Asks: needs, questions and decisions',
+      what: 'What a person must do before the runner can go on. File a need once per need_key (e.g. server.mssql) with the cases waiting on it; asking again adds cases to the open one. store is where the secret was put, never the secret. Owners are notified and see it under Asks; when it is provided, answered or decided, the change feed says so. A decision\'s outcome (retire, rewrite, restore) takes effect when it is decided. GET /api/asks filters by kind, state, owner, need_key and case; PATCH /api/asks/{key} answers or changes one.',
+      curl: `curl -X POST "${appUrl}/api/asks" \\
+  ${auth} \\
+  -H "Content-Type: application/json" \\
+  -d '{ "kind": "need", "need_key": "server.mssql", "title": "An MSSQL server for the Data Importer cases", "owner": "Parikshit", "due_on": "2026-11-14", "cases": ["TC_71", "TC_72"] }'`,
+    },
+    {
+      title: 'Change feed',
+      what: 'For a runner that takes no incoming calls: poll with the cursor from the last call. Events: case.text_changed, case.automation_changed, case.block_changed, case.created, ticket.created, ticket.state_changed, need.provided, question.answered, decision.decided (and .created, .declined, .reopened), pr.opened, pr.merged, pr.closed, screen.hold_changed.',
+      curl: `curl "${appUrl}/api/events?since=0&limit=500" \\
+  ${auth}`,
+    },
+    {
+      title: 'Pull requests, screen holds, runner, inbox, audit',
+      what: 'POST /api/prs { key, url, title, author, reviewer, state: open | merged | closed, cases } (or PATCH /api/prs/{key}); open ones show on Test cases > Automation by age, and over 3 days alert the lead. PUT /api/screens/{zone}/{page} { defect, reason, until } holds a screen until its defect closes; GET /api/screens lists holds. POST /api/runner/heartbeat { state: idle | batching | paused_limit | cluster_down, batch, backlog } and POST /api/runner/events { kind: batch_started | batch_finished | batch_failed }. GET /api/inbox?owner=<name> lists what waits on someone. GET /api/audit lists what each token changed. A passing result on a ticket\'s fixed build, or a later one, closes it when it is ready for retest.',
+      curl: `curl -X POST "${appUrl}/api/runner/heartbeat" \\
+  ${auth} \\
+  -H "Content-Type: application/json" \\
+  -d '{ "state": "batching", "batch": "engine-alerts", "backlog": 312 }'`,
     },
     {
       title: 'Results',

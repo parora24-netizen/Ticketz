@@ -26,6 +26,9 @@ export const CasesIcon = ({ className }: P) => (
 export const StandupIcon = ({ className }: P) => (
   <svg {...base(className)}><circle cx="8" cy="8" r="3" /><circle cx="17" cy="9" r="2.5" /><path d="M2.5 20a5.5 5.5 0 0 1 11 0" /><path d="M14 20a4 4 0 0 1 7.5-1.9" /></svg>
 )
+export const AskIcon = ({ className }: P) => (
+  <svg {...base(className)}><path d="M4 5h16v11H9l-5 4Z" /><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.4" /><path d="M12 14.5h.01" /></svg>
+)
 export const ReleaseIcon = ({ className }: P) => (
   <svg {...base(className)}><path d="M5 21V4" /><path d="M5 4h11l-2 4 2 4H5" /></svg>
 )

@@ -7,8 +7,8 @@ import { browserClient } from '@/lib/supabase/browser'
 import { STATE_LABEL, type TicketState } from '@/lib/workflow/ticket-machine'
 
 type Note = {
-  id: number; kind: 'assigned' | 'mention' | 'comment' | 'state'; detail: string | null; created_at: string; read_at: string | null
-  tickets: { key: string; title: string } | null; test_cases: { tc_id: string; title: string } | null; actor: { name: string } | null
+  id: number; kind: 'assigned' | 'mention' | 'comment' | 'state' | 'ask' | 'ask_answered'; detail: string | null; created_at: string; read_at: string | null
+  tickets: { key: string; title: string } | null; test_cases: { tc_id: string; title: string } | null; asks: { key: string; title: string } | null; actor: { name: string } | null
 }
 
 const one = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? v[0] ?? null : v)
@@ -24,6 +24,8 @@ function what(n: Note): string {
     case 'assigned': return 'assigned you'
     case 'mention': return 'mentioned you on'
     case 'comment': return 'commented on'
+    case 'ask': return 'asked you:'
+    case 'ask_answered': return 'answered'
     case 'state': {
       const [from, to] = (n.detail ?? '').split(' → ')
       return `moved ${STATE_LABEL[from as TicketState] ?? from} → ${STATE_LABEL[to as TicketState] ?? to}:`
@@ -44,9 +46,9 @@ export function NotificationBell() {
 
   const load = useCallback(async () => {
     const { data } = await browserClient().from('notifications')
-      .select('id, kind, detail, created_at, read_at, tickets(key, title), test_cases(tc_id, title), actor:people!notifications_actor_id_fkey(name)')
+      .select('id, kind, detail, created_at, read_at, tickets(key, title), test_cases(tc_id, title), asks(key, title), actor:people!notifications_actor_id_fkey(name)')
       .order('created_at', { ascending: false }).limit(30)
-    if (data) setNotes(data.map((n) => ({ ...n, tickets: one(n.tickets), test_cases: one(n.test_cases), actor: one(n.actor) })) as Note[])
+    if (data) setNotes(data.map((n) => ({ ...n, tickets: one(n.tickets), test_cases: one(n.test_cases), asks: one(n.asks), actor: one(n.actor) })) as Note[])
   }, [])
   useEffect(() => { void load() }, [load, path])
   useEffect(() => {
@@ -93,17 +95,17 @@ export function NotificationBell() {
           <ul className="max-h-[60vh] divide-y divide-[var(--line-soft)] overflow-y-auto">
             {notes.map((n) => (
               <li key={n.id}>
-                <Link href={n.tickets ? `/tickets/${encodeURIComponent(n.tickets.key)}` : n.test_cases ? `/cases/${encodeURIComponent(n.test_cases.tc_id)}#comments` : '#'} onClick={() => { void markRead([n.id]); setOpen(false) }}
+                <Link href={n.asks ? `/asks/${n.asks.key}` : n.tickets ? `/tickets/${encodeURIComponent(n.tickets.key)}` : n.test_cases ? `/cases/${encodeURIComponent(n.test_cases.tc_id)}#comments` : '#'} onClick={() => { void markRead([n.id]); setOpen(false) }}
                   className={`block px-3 py-2 text-[12.5px] hover:bg-[var(--surface-3)] ${n.read_at ? 'text-[var(--muted)]' : 'bg-[var(--accent-soft)]/40 text-[var(--ink-2)]'}`}>
                   <div className="flex items-baseline gap-2">
                     {!n.read_at && <span aria-label="unread" className="h-2 w-2 shrink-0 rounded-full bg-[var(--accent)]" />}
                     <span className="min-w-0 flex-1">
                       <b className="font-semibold text-[var(--ink)]">{n.actor?.name ?? 'Someone'}</b> {what(n)}{' '}
-                      <span className="mono text-[11.5px] text-[var(--accent)]">{n.tickets?.key ?? n.test_cases?.tc_id}</span>
+                      <span className="mono text-[11.5px] text-[var(--accent)]">{n.asks?.key ?? n.tickets?.key ?? n.test_cases?.tc_id}</span>
                     </span>
                     <span className="shrink-0 text-[11px] text-[var(--faint)]">{ago(n.created_at)}</span>
                   </div>
-                  {(n.kind === 'mention' || n.kind === 'comment' || n.kind === 'assigned') && (n.kind === 'assigned' ? n.tickets?.title : n.detail) && (
+                  {n.kind !== 'state' && (n.kind === 'assigned' ? n.tickets?.title : n.detail) && (
                     <p className="mt-0.5 line-clamp-2 pl-4 text-[12px] text-[var(--muted)]">{n.kind === 'assigned' ? n.tickets?.title : n.detail}</p>
                   )}
                 </Link>

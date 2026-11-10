@@ -4,7 +4,8 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { currentSprint, type Sprint } from '@/lib/data'
 import { ResultsPayload, bearer, lastPerCase } from '@/lib/results'
-import { authenticate, ciActor, raiseTicket } from '@/lib/ci-api'
+import { addComment, authenticate, ciActor, raiseTicket, type Caller } from '@/lib/ci-api'
+import { retestPasses } from '@/lib/automation-loop'
 import { ResultsQuery, failureKind, readQuery } from '@/lib/tickets-api'
 import { mismatch, type RunResult } from '@/lib/workflow/case-stage'
 
@@ -169,11 +170,43 @@ export async function POST(request: NextRequest) {
     tickets.push('error' in res ? { tc_id: r.tc_id, error: res.error } : { tc_id: r.tc_id, key: res.key, created: res.created, ...(res.reopened ? { reopened: true } : {}) })
   }
 
+  // A pass on the fixed build (or a later one) closes a ticket that is ready for retest; a later
+  // failure reopens it through the raising above.
+  const retests_closed = await closeRetests(supabase, caller, rows.filter((r) => r.result === 'passed').map((r) => r.case_id), build ?? null)
+  await supabase.from('api_log').insert({ token_id: tok.id, method: 'POST', path: '/api/results', summary: `Posted ${rows.length} results${build ? ` on ${build}` : ''}${retests_closed.length ? `; closed ${retests_closed.join(', ')}` : ''}`, details: { run_id, tickets: tickets.length } })
+
   return NextResponse.json({
     recorded: rows.length,
+    retests_closed,
     sprint: sprint?.name ?? null,
     unmatched: ids.filter((id) => !caseIds.has(id)),
     tickets,
     tickets_not_raised: Math.max(0, failures.length - MAX_RAISED),
   })
+}
+
+/** Tickets ready for retest on these cases that this passing run settles: closed, with a comment. */
+async function closeRetests(db: ReturnType<typeof createServiceClient>, caller: Caller, caseIds: string[], build: string | null): Promise<string[]> {
+  if (!caseIds.length) return []
+  const { data: ready } = await db.from('tickets').select('id, key, fixed_in_build').eq('state', 'ready_for_retest').in('case_id', caseIds)
+  if (!ready?.length) return []
+  const { data: events } = await db.from('ticket_events').select('ticket_id, at').eq('to_state', 'ready_for_retest').in('ticket_id', ready.map((t) => t.id))
+  const readyAt = new Map<string, string>()
+  for (const e of events ?? []) if (e.at > (readyAt.get(e.ticket_id) ?? '')) readyAt.set(e.ticket_id, e.at)
+  const builds = [...new Set([build, ...ready.map((t) => t.fixed_in_build)].filter((b): b is string => !!b))]
+  const firstSeen = new Map<string, string>()
+  for (const b of builds) {
+    const { data } = await db.from('test_runs').select('recorded_at').eq('build', b).order('recorded_at').limit(1).maybeSingle()
+    if (data) firstSeen.set(b, data.recorded_at)
+  }
+  const now = new Date().toISOString()
+  const closed: string[] = []
+  for (const t of ready) {
+    if (!retestPasses({ fixedBuild: t.fixed_in_build, readyAt: readyAt.get(t.id) ?? null }, { build, at: now }, firstSeen)) continue
+    const { error } = await db.from('tickets').update({ state: 'closed' }).eq('id', t.id).eq('state', 'ready_for_retest')
+    if (error) continue
+    await addComment(caller, t.id, `Passed in automation${build ? ` on ${build}` : ''}, so the retest is done and the ticket closed.`)
+    closed.push(t.key)
+  }
+  return closed
 }

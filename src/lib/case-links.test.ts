@@ -25,6 +25,9 @@ describe('links to the cases behind a number', () => {
     expect(matchesCaseLink(c(), { priority: 'high' })).toBe(false)
     expect(matchesCaseLink(c({ manual_result: 'failed' }), { untracked: '1' })).toBe(true)
     expect(matchesCaseLink(c({ manual_result: 'failed', open_fix: 1 }), { untracked: '1' })).toBe(false)
+    expect(matchesCaseLink(c({ needs_detail: true }), { needs_detail: '1' })).toBe(true)
+    expect(matchesCaseLink(c({ needs_detail: false }), { needs_detail: '1' })).toBe(false)
+    expect(matchesCaseLink(c({ automation_block: 'needs_server' }), { block: 'needs_server' })).toBe(true)
   })
   it('builds the link and names it', () => {
     expect(casesHref({ sprint: 's1', outcome: 'failed' })).toBe('/cases?sprint=s1&outcome=failed')

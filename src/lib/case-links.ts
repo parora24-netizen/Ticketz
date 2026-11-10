@@ -5,8 +5,8 @@ import { needsManual, needsTicket } from '@/lib/workflow/case-stage'
  * The cases behind a number on the Release pages, as filters on /cases: click 122 failed and see
  * those 122. Each uses the same rule as the count it stands behind.
  */
-export type CaseLink = { outcome?: string; automation?: string; auto?: string; hand?: string; priority?: string; untracked?: string }
-type LinkableCase = ProgressCase & { open_fix: number; awaiting_retest: number }
+export type CaseLink = { outcome?: string; automation?: string; auto?: string; hand?: string; priority?: string; untracked?: string; needs_detail?: string; block?: string }
+type LinkableCase = ProgressCase & { open_fix: number; awaiting_retest: number; needs_detail?: boolean | null; automation_block?: string | null }
 
 export function matchesCaseLink(c: LinkableCase, l: CaseLink): boolean {
   const need = needsManual({ ...c, open_fix: 0, awaiting_retest: 0 })
@@ -18,6 +18,8 @@ export function matchesCaseLink(c: LinkableCase, l: CaseLink): boolean {
   if (l.hand === 'left' && !(need && !c.manual_result)) return false
   if (l.priority === 'high' && !(c.priority === 'Critical' || c.priority === 'High')) return false
   if (l.untracked && !needsTicket(c)) return false
+  if (l.needs_detail && !c.needs_detail) return false
+  if (l.block && c.automation_block !== l.block) return false
   return true
 }
 
@@ -34,6 +36,8 @@ export function caseLinkLabel(l: CaseLink): string {
     l.hand === 'passed' && 'Passed by hand',
     l.hand === 'left' && 'Left to test by hand',
     l.untracked && 'Failed by hand, no ticket',
+    l.needs_detail && 'Expected result is a placeholder',
+    l.block && `Blocked: ${l.block.replace(/_/g, ' ')}`,
   ].filter(Boolean).join(' · ')
 }
 

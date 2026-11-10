@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AutomationPatch, automationFromDb, automationToDb, CasesQuery, ListQuery, RaisePayload, ResultsQuery, RunsQuery, failureKind, failureText, readQuery, retestMove } from './tickets-api'
+import { automationFromDb, automationToDb, CasesQuery, ListQuery, RaisePayload, ResultsQuery, RunsQuery, failureKind, failureText, readQuery, retestMove } from './tickets-api'
 
 describe('tickets API', () => {
   it('raises without a test case when there is a title', () => {
@@ -10,11 +10,6 @@ describe('tickets API', () => {
   })
 
   it('takes automation fields only, and maps not automatable to what Launchpad stores', () => {
-    expect(AutomationPatch.safeParse({ automation_status: 'blocked', automation_note: 'needs an engine', automation_owner: 'e2e tests runner', automation_ref: 'specs/a.ts' }).success).toBe(true)
-    expect(AutomationPatch.safeParse({ automation_note: null }).success).toBe(true)
-    expect(AutomationPatch.safeParse({}).success).toBe(false)
-    expect(AutomationPatch.safeParse({ automation_status: 'done' }).success).toBe(false)
-    expect(AutomationPatch.safeParse({ automation_status: 'automated', title: 'reworded' }).success).toBe(false)
     expect(automationToDb('not_automatable')).toBe('manual_only')
     expect(automationFromDb('manual_only')).toBe('not_automatable')
     expect(automationFromDb(automationToDb('in_progress'))).toBe('in_progress')

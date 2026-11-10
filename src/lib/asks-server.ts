@@ -210,7 +210,8 @@ export async function loadInbox(db: Db, person: { id: string; role: string }): P
     items.push({ type: 'ticket', title: `${urgent.length ? `${rest} more` : rest} open ticket${rest === 1 ? '' : 's'} assigned to you`, href: `/tickets?view=grid&state=open&owner=${encodeURIComponent(me?.name ?? '')}`, count: rest,
       detail: Object.entries(mine.filter((t) => !urgent.includes(t)).reduce<Record<string, number>>((m, t) => ({ ...m, [STATE[t.state] ?? t.state]: (m[STATE[t.state] ?? t.state] ?? 0) + 1 }), {})).map(([k, n]) => `${n} ${k}`).join(' · ') })
   }
-  for (const t of (retests ?? []).filter((x) => x.state === 'ready_for_retest')) items.push({ type: 'retest', title: `Retest ${t.key}: ${t.title}`, href: `/tickets/${encodeURIComponent(t.key)}` })
+  // A developer's ticket that is ready for retest waits on QA, not on them.
+  if (person.role !== 'dev') for (const t of (retests ?? []).filter((x) => x.state === 'ready_for_retest')) items.push({ type: 'retest', title: `Retest ${t.key}: ${t.title}`, href: `/tickets/${encodeURIComponent(t.key)}` })
   for (const pr of prs ?? []) {
     const days = Math.floor((Date.now() - Date.parse(pr.opened_at)) / 864e5)
     const cases = (pr.pr_cases as unknown[] | null)?.length ?? 0

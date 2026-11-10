@@ -130,3 +130,14 @@ export async function sendTestEmail(personId: string): Promise<{ error?: string 
     html: `<p>Hi ${to.name},</p><p>This is a test from Launchpad. If you can read this, email is set up.</p><p><a href="${appUrl()}">Open Launchpad</a></p>`,
   })
 }
+
+/** What one person's digest would say, sent to someone else (the lead) to look at; nothing goes to the person. */
+export async function sendDigestPreview(forPersonId: string, toPersonId: string): Promise<{ error?: string; note?: string }> {
+  const [of, to] = await Promise.all([person(forPersonId), person(toPersonId)])
+  if (!of || !to) return { error: 'Unknown person' }
+  const items = await loadInbox(db(), of)
+  if (!items.length) return { note: `Nothing waits on ${of.name}, so they would get no digest` }
+  const mail = digestEmail(of.name, items, appUrl())
+  const res = await send(to, 'test', null, { ...mail, subject: `Preview for ${of.name}: ${mail.subject}` })
+  return res.error ? res : { note: `${of.name}'s digest (${items.length} item${items.length === 1 ? '' : 's'}) sent to you` }
+}

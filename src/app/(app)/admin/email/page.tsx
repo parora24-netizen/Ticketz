@@ -16,7 +16,7 @@ export default async function EmailAdminPage() {
   const [{ data: setting }, { data: log }, { data: people }] = await Promise.all([
     supabase.from('app_settings').select('value, updated_at').eq('key', 'email').maybeSingle(),
     supabase.from('email_log').select('kind, subject, status, error, at, people(name)').order('at', { ascending: false }).limit(30),
-    supabase.from('people').select('name, email_notify, email_digest').eq('active', true).not('email', 'is', null),
+    supabase.from('people').select('id, name, email_notify, email_digest').eq('active', true).not('email', 'is', null).order('name'),
   ])
   const live = !!(setting?.value as { live?: boolean } | null)?.live
   const configured = emailConfigured()
@@ -36,7 +36,7 @@ export default async function EmailAdminPage() {
           <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt>For the team</dt><dd><Chip tone={live ? 'good' : 'muted'}>{live ? 'On' : 'Off: only tests to you go out'}</Chip></dd></div>
           <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt>Turned some off</dt><dd className="text-[12.5px]">{optedOut.length ? optedOut.map((p) => `${p.name} (${[!p.email_notify && 'asks', !p.email_digest && 'digest'].filter(Boolean).join(', ')})`).join(' · ') : 'No one'}</dd></div>
         </dl>
-        <EmailControls live={live} configured={configured} />
+        <EmailControls live={live} configured={configured} people={(people ?? []).map((p) => ({ id: p.id as string, name: p.name as string }))} />
       </section>
       <section className="card">
         <h2 className="border-b border-[var(--line)] px-4 py-2 text-[14px] font-semibold text-[var(--navy-ink)]">Sent lately</h2>

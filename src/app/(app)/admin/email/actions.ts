@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getMe } from '@/lib/auth'
-import { sendDigests, sendTestEmail } from '@/lib/email'
+import { sendDigestPreview, sendDigests, sendTestEmail } from '@/lib/email'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 
 /** Lead only: turn email on or off for the whole team. */
@@ -34,4 +34,11 @@ export async function setMyEmailPrefs(prefs: { email_notify?: boolean; email_dig
   if (!Object.keys(patch).length) return { error: 'Nothing to change' }
   const { error } = await createServiceClient().from('people').update(patch).eq('id', me.id)
   return error ? { error: error.message } : {}
+}
+
+/** Lead only: someone's digest, sent to the lead to look at. */
+export async function previewDigest(personId: string): Promise<{ error?: string; note?: string }> {
+  const me = await getMe()
+  if (me.role !== 'lead') return { error: 'Only the lead previews digests' }
+  return sendDigestPreview(personId, me.id)
 }

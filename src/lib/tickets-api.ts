@@ -38,7 +38,8 @@ export const RaisePayload = z.object({
 export type RaisePayload = z.infer<typeof RaisePayload>
 
 /** POST /api/tickets/{key}/comments */
-export const CommentPayload = z.object({ body: z.string().trim().min(1).max(4000) })
+export const COMMENT_MAX = 5000
+export const CommentPayload = z.object({ body: z.string().trim().min(1).max(COMMENT_MAX) })
 
 /** POST /api/tickets/{key}/retest: the automated retest of a fix. */
 export const RetestPayload = z.object({
@@ -67,7 +68,12 @@ export const ListQuery = z.object({
   defect_id: z.string().optional().transform(list),
   sprint: z.string().trim().optional(),
   severity: z.enum(['Critical', 'High', 'Medium', 'Low']).optional(),
-  kind: z.enum(['defect', 'test_mismatch']).optional(),
+  kind: z.enum(['defect', 'test_mismatch', 'task']).optional(),
+  owner: z.string().trim().optional(),
+  accountable: z.string().trim().optional(),
+  created_by: z.string().trim().optional(),
+  area: z.string().trim().optional(),
+  external_ref: z.string().trim().optional(),
   updated_since: iso.optional(),
   limit,
 })

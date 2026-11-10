@@ -9,7 +9,7 @@ import type { BoardTicket } from '@/components/board/ticket-board'
 import { deleteRows, setTicketTesters, updateTickets } from '../actions'
 import { rememberTicketList } from '@/components/ticket-nav'
 
-type Row = BoardTicket & { kind: 'defect' | 'test_mismatch'; logged_on: string; sprint_id: string | null; tester_name: string | null }
+type Row = BoardTicket & { kind: 'defect' | 'test_mismatch' | 'task'; logged_on: string; sprint_id: string | null; tester_name: string | null }
 const SEVERITY = ['Critical', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: p }))
 
 export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, state, severity, remember = true }: { rows: Row[]; people: { value: string; label: string }[]; sprints?: { value: string; label: string }[]; canTriage: boolean; isLead?: boolean; state?: string; severity?: string; remember?: boolean }) {
@@ -30,7 +30,7 @@ export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, sta
       edit: canTriage ? { field: 'tester_id', kind: 'select', options: owners.map((o) => (o.value === '__none' ? { value: '__none', label: 'No tester' } : o)) } : undefined },
     { key: 'sprint', header: 'Sprint', width: 90, value: (r) => (r.sprint_id ? sprintName.get(r.sprint_id) ?? 'Closed sprint' : 'No sprint'),
       edit: canTriage ? { field: 'current_sprint_id', kind: 'select', options: sprintOptions } : undefined },
-    { key: 'kind', header: 'Kind', width: 100, value: (r) => (r.kind === 'defect' ? 'Defect' : 'Test issue') },
+    { key: 'kind', header: 'Kind', width: 100, value: (r) => (r.kind === 'defect' ? 'Defect' : r.kind === 'task' ? 'Task' : 'Test issue') },
     { key: 'area', header: 'Area', width: 200, value: (r) => (r.zone ? `${r.zone} · ${r.page}` : '') },
     { key: 'logged', header: 'Logged', width: 110, mono: true, value: (r) => r.logged_on },
   ]

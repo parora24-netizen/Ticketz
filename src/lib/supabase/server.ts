@@ -24,9 +24,11 @@ export async function createClient() {
 /**
  * Secret-key client. Bypasses RLS. Only for the CI results API, which authenticates with its
  * own token, and for the lead's temporary passwords. Never use it to render a page.
+ * With actorId, the database records that person as whoever made each change (history, change log).
  */
-export function createServiceClient() {
+export function createServiceClient(actorId?: string | null) {
   return createPlainClient(publicEnv.supabaseUrl, serverEnv().secretKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    ...(actorId ? { global: { headers: { 'x-launchpad-actor': actorId } } } : {}),
   })
 }

@@ -46,7 +46,8 @@ export default async function PlanPage() {
   const name = new Map(people.map((p) => [p.id, p.name]))
   const dates = (s?: { starts_on: string; ends_on: string } | null) => (s ? `${fmtDate(s.starts_on)}–${fmtDate(s.ends_on)}` : '')
   const pages = pageProgress(areas, cases, today)
-  const open = tickets.filter((t) => OPEN_STATES.includes(t.state))
+  // Planned work (tasks) is not a defect: the release's numbers leave it out.
+  const open = tickets.filter((t) => t.kind !== 'task' && OPEN_STATES.includes(t.state))
   const rows: PlanRow[] = pages.map((p) => {
     const st = pageStatus(p)
     const fix = fixSprintForArea(p.id, sprints, sprintAreas)

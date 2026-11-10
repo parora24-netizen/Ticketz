@@ -10,7 +10,19 @@ import { OPEN, failureText, type RaisePayload } from '@/lib/tickets-api'
 import { fixSprintForArea } from '@/lib/workflow/fix-sprint'
 
 type Db = ReturnType<typeof createServiceClient>
-export type Caller = { db: Db; tokenId: string; actorId: string | null; role: 'runner' | 'tester' }
+export const SCOPES = ['read', 'create', 'update', 'assign', 'comment', 'automation'] as const
+export type Scope = (typeof SCOPES)[number]
+export type Caller = { db: Db; tokenId: string; label?: string; actorId: string | null; role: 'runner' | 'tester'; scopes?: Scope[] }
+
+/** What a token may do: its scopes, or, before they existed, what its role allowed. */
+export const scopesOf = (t: { role: string; scopes?: string[] | null }): Scope[] =>
+  (t.scopes?.length ? t.scopes : t.role === 'runner' ? ['read', 'create', 'comment', 'automation'] : ['read', 'create', 'update', 'assign', 'comment']) as Scope[]
+
+/** 403 unless the token has this scope. */
+export function need(c: Caller, scope: Scope): NextResponse | null {
+  return (c.scopes ?? scopesOf(c)).includes(scope) ? null
+    : NextResponse.json({ error: `This token cannot ${scope}; its scopes are ${(c.scopes ?? []).join(', ')}`, scopes: c.scopes }, { status: 403 })
+}
 
 /** The "CI" person the API acts as, so its tickets, comments and runs read as CI. */
 export const CI_EMAIL = 'ci@launchpad.invalid'
@@ -31,10 +43,12 @@ export async function authenticate(request: Request): Promise<Caller | NextRespo
   if (!token) return NextResponse.json({ error: 'Missing bearer token' }, { status: 401 })
   const db = createServiceClient()
   const hash = createHash('sha256').update(token).digest('hex')
-  const { data: tok } = await db.from('ci_tokens').select('id, created_by, person_id, role').eq('token_hash', hash).is('revoked_at', null).maybeSingle()
+  const { data: tok } = await db.from('ci_tokens').select('*').eq('token_hash', hash).is('revoked_at', null).maybeSingle()
   if (!tok) return NextResponse.json({ error: 'Unknown or revoked token' }, { status: 401 })
   await db.from('ci_tokens').update({ last_used_at: new Date().toISOString() }).eq('id', tok.id)
-  return { db, tokenId: tok.id, actorId: tok.person_id ?? await ciActor(db, tok.created_by), role: tok.role }
+  const actorId = tok.person_id ?? await ciActor(db, tok.created_by)
+  // Changes go in as the token's person, so history says who made them.
+  return { db: createServiceClient(actorId), tokenId: tok.id, label: tok.label, actorId, role: tok.role, scopes: scopesOf(tok) }
 }
 
 export const ticketUrl = (key: string) => `${serverEnv().appUrl || 'https://vulqan-launchpad.vercel.app'}/tickets/${encodeURIComponent(key)}`

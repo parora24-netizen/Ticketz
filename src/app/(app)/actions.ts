@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { getMe, safeNext } from '@/lib/auth'
-import { RUNNER_EMAIL } from '@/lib/ci-api'
+import { RUNNER_EMAIL, SCOPES, scopesOf } from '@/lib/ci-api'
 import { currentTicketKey } from '@/lib/ids'
 import { createClient } from '@/lib/supabase/server'
 import { currentSprint, loadSprintAreas, loadSprints, trackOf } from '@/lib/data'
@@ -383,6 +383,11 @@ export async function createCiToken(formData: FormData) {
     created_by: me.id,
     person_id: person.success ? person.data : null,
     role: !person.success || person.data === runner?.id ? 'runner' : 'tester',
+    // Ticked scopes, or what the role allows by default.
+    scopes: (() => {
+      const ticked = formData.getAll('scope').map(String).filter((s) => (SCOPES as readonly string[]).includes(s))
+      return ticked.length ? ticked : scopesOf({ role: !person.success || person.data === runner?.id ? 'runner' : 'tester' })
+    })(),
   })
   if (error) fail('/admin?tab=ci', error.message)
   revalidatePath('/admin')

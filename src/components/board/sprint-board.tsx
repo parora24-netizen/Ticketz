@@ -30,7 +30,7 @@ export type SprintCard = {
   auto_result: string | null
   manual_result: string | null
   needs_ticket: boolean
-  ticket: { id: string; key: string; state: TicketState; owner_id: string | null; owner_name: string | null; kind?: 'defect' | 'test_mismatch'; blocked_reason?: string | null } | null
+  ticket: { id: string; key: string; state: TicketState; owner_id: string | null; owner_name: string | null; kind?: 'defect' | 'test_mismatch' | 'task'; blocked_reason?: string | null } | null
 }
 
 const RESULT: Record<string, [string, string]> = {

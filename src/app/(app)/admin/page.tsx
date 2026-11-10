@@ -8,7 +8,7 @@ import { SubmitButton } from '@/components/submit-button'
 import { ADMIN_TABS, Tabs } from '@/components/tabs'
 import { PageHeader } from '@/components/ui'
 import { getMe } from '@/lib/auth'
-import { CI_EMAIL, RUNNER_EMAIL } from '@/lib/ci-api'
+import { CI_EMAIL, RUNNER_EMAIL, SCOPES, scopesOf } from '@/lib/ci-api'
 import { createClient } from '@/lib/supabase/server'
 import { fmtDate, loadHolidays, loadPeople } from '@/lib/data'
 import { createCiToken, removeHoliday, revokeCiToken, saveHoliday, savePerson } from '../actions'
@@ -22,7 +22,7 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
   const supabase = await createClient()
   const [people, holidays, { data: tokens }] = await Promise.all([
     loadPeople(), loadHolidays(),
-    supabase.from('ci_tokens').select('id, label, person_id, role, created_at, last_used_at, revoked_at, token_enc').order('created_at', { ascending: false }),
+    supabase.from('ci_tokens').select('id, label, person_id, role, scopes, created_at, last_used_at, revoked_at, token_enc').order('created_at', { ascending: false }),
   ])
   const noEmail = people.filter((p) => p.active && !p.email).length
 
@@ -85,18 +85,22 @@ export default async function AdminPage({ searchParams }: { searchParams: Promis
                 {people.filter((p) => (p.active || p.email === RUNNER_EMAIL) && p.email !== CI_EMAIL).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </label>
+            <fieldset className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px]">
+              <legend className="label mb-1">Scopes (none ticked: the role's defaults)</legend>
+              {SCOPES.map((s) => <label key={s} className="flex items-center gap-1"><input type="checkbox" name="scope" value={s} /> {s}</label>)}
+            </fieldset>
             <SubmitButton primary pendingText="Creating…">Create token</SubmitButton>
           </form>
           <div className="border border-[var(--line)] bg-white">
             <table className="table grid-table plain">
-              <colgroup><col className="w-36" /><col className="w-28" /><col className="w-20" /><col /><col className="w-24" /><col className="w-24" /><col className="w-24" /></colgroup>
-              <thead><tr><th>Label</th><th>Acts as</th><th>Role</th><th>Token</th><th>Created</th><th>Last used</th><th>Status</th></tr></thead>
+              <colgroup><col className="w-36" /><col className="w-28" /><col className="w-52" /><col /><col className="w-24" /><col className="w-24" /><col className="w-24" /></colgroup>
+              <thead><tr><th>Label</th><th>Acts as</th><th>Scopes</th><th>Token</th><th>Created</th><th>Last used</th><th>Status</th></tr></thead>
               <tbody>
                 {(tokens ?? []).map((t) => (
                   <tr key={t.id}>
                     <td>{t.label}</td>
                     <td>{t.person_id ? people.find((p) => p.id === t.person_id)?.name ?? 'Someone' : 'CI'}</td>
-                    <td className="capitalize" title={t.role === 'runner' ? 'Can post results and set automation fields' : 'Can post results and raise tickets, not set automation fields'}>{t.role}</td>
+                    <td className="text-[12px]" title={`Role: ${t.role}`}>{scopesOf(t).join(', ')}</td>
                     <td>{t.revoked_at ? <span className="text-[12px] text-[var(--muted)]">Revoked</span> : <TokenCell id={t.id} revealable={!!t.token_enc} />}</td>
                     <td className="mono text-[12px]">{fmtDate(t.created_at)}</td>
                     <td className="mono text-[12px]">{t.last_used_at ? fmtDate(t.last_used_at) : 'Never'}</td>

@@ -28,6 +28,8 @@ export default async function TicketPage({
     if (found) redirect(`/tickets/${encodeURIComponent(found)}`)
     notFound()
   }
+  // Set through the API: who answers for it, and planned work's priority. Empty before the tickets-API migration.
+  const { data: more } = await supabase.from('tickets').select('accountable_id, priority, external_ref').eq('id', t.id).maybeSingle()
   const [{ data: edits }, { data: events }, { data: comments }, { data: tc }, { data: lastFail }, people, sprints, allTickets] = await Promise.all([
     // Field edits (severity, title, description…); the change log is readable by the lead only.
     supabase.from('change_log').select('*').eq('row_id', t.id).eq('action', 'update').order('at', { ascending: false }).limit(200),
@@ -138,7 +140,10 @@ export default async function TicketPage({
             <div className="px-4 py-2.5"><dt className="label mb-1">Severity</dt><dd>
               <TicketField ticketId={t.id} field="severity" value={t.severity} options={severityOptions} disabled={!canEdit} />
             </dd></div>
-            <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Kind</dt><dd>{t.kind === 'test_mismatch' ? <Chip>Test issue</Chip> : 'Product defect'}</dd></div>
+            {more?.accountable_id && <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Accountable</dt><dd>{names.get(more.accountable_id) ?? 'Someone'}</dd></div>}
+            {more?.priority && <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Priority</dt><dd>{more.priority}</dd></div>}
+            {more?.external_ref && <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Their ref</dt><dd className="mono text-[12px]">{more.external_ref}</dd></div>}
+            <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Kind</dt><dd>{t.kind === 'test_mismatch' ? <Chip>Test issue</Chip> : t.kind === 'task' ? <Chip>Task</Chip> : 'Product defect'}</dd></div>
             {t.defect_id && <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Defect</dt><dd className="mono">{t.defect_id}</dd></div>}
             {t.fixed_in_build && <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Fixed in</dt><dd className="mono">{t.fixed_in_build}</dd></div>}
             <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Logged</dt><dd className="mono text-[12px]">{fmtDate(t.logged_on)}</dd></div>

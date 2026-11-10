@@ -48,7 +48,7 @@ export type TicketRow = {
   id: string
   key: string
   legacy_key: string | null // the key before the renumbering, for now
-  kind: 'defect' | 'test_mismatch'
+  kind: 'defect' | 'test_mismatch' | 'task'
   case_id: string | null
   title: string
   description: string | null

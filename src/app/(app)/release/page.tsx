@@ -18,12 +18,14 @@ const TREND_FROM = '2026-10-08' // first tickets were logged on 8 Oct
 
 /** Is 26.111 going to make it, and what is in the way: the verdict, its checks and trends, then every page. */
 export default async function ReleasePage() {
-  const [allAreas, allCases, tickets, sprints, sprintAreas, events, manualRuns, release] = await Promise.all([
+  const [allAreas, allCases, allTickets, sprints, sprintAreas, events, manualRuns, release] = await Promise.all([
     loadAreas(), loadCases(), loadTickets(), loadSprints(), loadSprintAreas(), loadTicketEvents(), loadManualRuns(), loadRelease(),
   ])
   const slipped = daysUntil(release.release_on) - daysUntil(release.original_release_on)
   const today = new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10)
   const running = runningSprints(sprints)
+  // Planned work (tasks) is not a defect: the release's numbers leave it out.
+  const tickets = allTickets.filter((t) => t.kind !== 'task')
 
   // Only what is in this release counts.
   const areas = allAreas.filter((a) => a.in_release !== false)

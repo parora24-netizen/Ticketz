@@ -28,7 +28,10 @@ export async function applyCaseAutomation(c: Caller, items: Item[], dryRun: bool
   const { data: rows } = ids.length ? await c.db.from('test_cases').select('id, tc_id, revision, automation, automation_note, automation_owner, automation_ref, automation_block, automation_block_ticket_id, automation_proposed, automation_proposed_reason').in('id', ids) : { data: [] }
   const byId = new Map((rows ?? []).map((r) => [r.id as string, r as Record<string, unknown>]))
   const out: CaseOutcome[] = []
-  for (const { tc_id, revision, automation_status, automation_block_ticket, ...rest } of items) {
+  for (const { tc_id, revision, automation_status, automation_block_ticket: blockRef, automation_ask, ...rest } of items) {
+    // An ask key given as the blocking ticket is the ask the case waits on.
+    const askKey = (automation_ask ?? (blockRef && /^ASK-\d+$/i.test(blockRef) ? blockRef : undefined))?.toUpperCase()
+    const automation_block_ticket = askKey && blockRef?.toUpperCase() === askKey ? undefined : blockRef
     const ref = found.get(tc_id.toUpperCase())
     const row = ref && byId.get(ref.id)
     if (!row) { out.push({ tc_id, status: 'not_found' }); continue }
@@ -43,13 +46,21 @@ export async function applyCaseAutomation(c: Caller, items: Item[], dryRun: bool
       if (automation_block_ticket && !t) { out.push({ tc_id, status: 'error', error: `No ticket ${automation_block_ticket}` }); continue }
       fields.automation_block_ticket_id = t
     }
+    let askId: string | null = null
+    if (askKey) {
+      const { data: ask } = await c.db.from('asks').select('id').eq('key', askKey).maybeSingle()
+      if (!ask) { out.push({ tc_id, status: 'error', error: `No ask ${askKey}` }); continue }
+      askId = ask.id
+    }
     if (rest.automation_proposed !== undefined) fields.automation_proposed_at = rest.automation_proposed ? new Date().toISOString() : null
     // Unblocking clears why it was blocked.
     if (automation_status && automation_status !== 'blocked' && rest.automation_block === undefined) { fields.automation_block = null; fields.automation_block_ticket_id = null }
     const changes = Object.fromEntries(Object.entries(fields).filter(([k, v]) => k !== 'automation_proposed_at' && row[k] !== v))
+    if (askId && !dryRun) await c.db.from('ask_cases').upsert({ ask_id: askId, case_id: ref.id }, { ignoreDuplicates: true })
+    if (askId) changes.automation_ask = askKey
     if (!Object.keys(changes).length) { out.push({ tc_id: row.tc_id as string, status: 'unchanged', revision: row.revision as number }); continue }
     if (dryRun) { out.push({ tc_id: row.tc_id as string, status: 'would_update', changes, revision: row.revision as number }); continue }
-    const { error } = await c.db.from('test_cases').update(fields).eq('id', ref.id).eq('revision', row.revision as number)
+    const { error } = Object.keys(fields).length ? await c.db.from('test_cases').update(fields).eq('id', ref.id).eq('revision', row.revision as number) : { error: null }
     out.push(error ? { tc_id, status: 'error', error: error.message } : { tc_id: row.tc_id as string, status: 'updated', changes, revision: row.revision as number })
   }
   return out

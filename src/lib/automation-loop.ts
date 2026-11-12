@@ -68,6 +68,8 @@ export const CaseAutomation = z.strictObject({
   automation_ref: z.string().trim().max(500).nullable().optional(),
   automation_block: z.enum(BLOCK_CODES).nullable().optional(),
   automation_block_ticket: z.string().trim().max(60).nullable().optional(),
+  /** The ask this case waits on (e.g. ASK-6); the case is added to that ask's cases. */
+  automation_ask: z.string().trim().regex(/^ASK-\d+$/i, 'An ask key, e.g. ASK-6').optional(),
   automation_proposed: z.literal('not_automatable').nullable().optional(),
   automation_proposed_reason: z.string().trim().max(2000).nullable().optional(),
   /** The case's revision the change was made against; a newer one means a person edited it since. */

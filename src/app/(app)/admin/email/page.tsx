@@ -4,7 +4,8 @@ import { Chip, PageHeader } from '@/components/ui'
 import { getMe } from '@/lib/auth'
 import { emailConfigured, emailSender } from '@/lib/email'
 import { createClient } from '@/lib/supabase/server'
-import { EmailControls } from './email-controls'
+import { EmailControls, OversightPicker } from './email-controls'
+import { oversightIds } from '@/lib/asks-server'
 
 const KIND: Record<string, string> = { ask: 'Ask given', ask_answered: 'Ask answered', digest: 'Digest', test: 'Test' }
 
@@ -37,6 +38,10 @@ export default async function EmailAdminPage() {
           <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt>Turned some off</dt><dd className="text-[12.5px]">{optedOut.length ? optedOut.map((p) => `${p.name} (${[!p.email_notify && 'asks', !p.email_digest && 'digest'].filter(Boolean).join(', ')})`).join(' · ') : 'No one'}</dd></div>
         </dl>
         <EmailControls live={live} configured={configured} people={(people ?? []).map((p) => ({ id: p.id as string, name: p.name as string }))} />
+      </section>
+      <section className="card mb-4">
+        <h2 className="border-b border-[var(--line)] px-4 py-2 text-[14px] font-semibold text-[var(--navy-ink)]">Oversight <span className="font-normal text-[12px] text-[var(--muted)]">· who also gets what is overdue or unowned, pull requests nobody reviews, proposals to approve, retests nobody gets and runner alerts</span></h2>
+        <OversightPicker people={(people ?? []).map((p) => ({ id: p.id as string, name: p.name as string }))} chosen={await oversightIds(supabase)} />
       </section>
       <section className="card">
         <h2 className="border-b border-[var(--line)] px-4 py-2 text-[14px] font-semibold text-[var(--navy-ink)]">Sent lately</h2>

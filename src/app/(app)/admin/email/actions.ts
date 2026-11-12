@@ -42,3 +42,14 @@ export async function previewDigest(personId: string): Promise<{ error?: string;
   if (me.role !== 'lead') return { error: 'Only the lead previews digests' }
   return sendDigestPreview(personId, me.id)
 }
+
+/** Lead only: who gets the oversight items in their digest and Waiting on me. */
+export async function setOversight(personIds: string[]): Promise<{ error?: string }> {
+  const me = await getMe()
+  if (me.role !== 'lead') return { error: 'Only the lead chooses who gets oversight' }
+  if (!personIds.every((x) => /^[0-9a-f-]{36}$/.test(x))) return { error: 'Unknown people' }
+  const { error } = await (await createClient()).from('app_settings').upsert({ key: 'oversight', value: { people: personIds }, updated_by: me.id, updated_at: new Date().toISOString() })
+  if (error) return { error: error.message }
+  revalidatePath('/admin/email')
+  return {}
+}

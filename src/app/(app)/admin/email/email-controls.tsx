@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { toast } from '@/components/toast'
-import { previewDigest, sendToMe, setEmailLive } from './actions'
+import { previewDigest, sendToMe, setEmailLive, setOversight } from './actions'
 
 /** Test to yourself first; then turn email on for the team. */
 export function EmailControls({ live, configured, people }: { live: boolean; configured: boolean; people: { id: string; name: string }[] }) {
@@ -33,6 +33,26 @@ export function EmailControls({ live, configured, people }: { live: boolean; con
         }}>
         {live ? 'Turn off for the team' : 'Turn on for the team'}
       </button>
+    </div>
+  )
+}
+
+/** Who gets the oversight items: what is overdue or unowned, pull requests nobody reviews, proposals, runner alerts. */
+export function OversightPicker({ people, chosen }: { people: { id: string; name: string }[]; chosen: string[] }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
+  const [ids, setIds] = useState(chosen)
+  const toggle = (id: string, on: boolean) => {
+    const next = on ? [...ids, id] : ids.filter((x) => x !== id)
+    setIds(next)
+    start(async () => {
+      const res = await setOversight(next)
+      if (res.error) { toast(res.error, 'error'); setIds(ids) } else router.refresh()
+    })
+  }
+  return (
+    <div className="flex flex-wrap gap-x-4 gap-y-1 px-4 py-3 text-[13px]">
+      {people.map((p) => <label key={p.id} className="flex items-center gap-1.5"><input type="checkbox" disabled={pending} checked={ids.includes(p.id)} onChange={(e) => toggle(p.id, e.target.checked)} /> {p.name}</label>)}
     </div>
   )
 }

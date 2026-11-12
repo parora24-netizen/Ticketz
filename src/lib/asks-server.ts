@@ -175,11 +175,12 @@ const STALE_PR_DAYS = 3
 /**
  * What waits on one person, most urgent first: asks they own, open tickets they own (each Critical
  * and High one, the rest counted), retests of tickets they own, pull
- * requests to review, pages whose cases need detail or a rewrite. The lead also sees what is overdue
- * or has no owner, "not automatable" proposals to approve, and a runner that has failed or stalled.
+ * requests to review, pages whose cases need detail or a rewrite. The people on oversight (Admin >
+ * Email) also see what is overdue or has no owner, pull requests nobody reviews, "not automatable"
+ * proposals to approve, retests nobody gets, and a runner that has failed or stalled.
  */
 export async function loadInbox(db: Db, person: { id: string; role: string }): Promise<InboxItem[]> {
-  const lead = person.role === 'lead'
+  const lead = (await oversightIds(db)).includes(person.id)
   const now = today()
   const [{ data: asks }, { data: retests }, { data: prs }, { data: pages }, { data: people }] = await Promise.all([
     db.from('asks').select('id, key, kind, title, owner_id, due_on, created_at').eq('state', 'open'),
@@ -229,14 +230,17 @@ export async function loadInbox(db: Db, person: { id: string; role: string }): P
       items.push({ type: 'retest', title: `${named.length ? `${more} more` : more} ticket${more === 1 ? '' : 's'} ready for you to retest`, href: `/tickets?view=grid&state=ready_for_retest&tester=${encodeURIComponent(me?.name ?? '')}`, count: more })
     }
   }
-  for (const pr of prs ?? []) {
-    const days = Math.floor((Date.now() - Date.parse(pr.opened_at)) / 864e5)
-    const cases = (pr.pr_cases as unknown[] | null)?.length ?? 0
-    if (pr.reviewer_id === person.id || (lead && (!pr.reviewer_id || days >= STALE_PR_DAYS))) {
-      items.push({ type: 'pr', title: `Review ${pr.title ?? pr.key}`, href: pr.url ?? '/cases/automation', overdue: days >= STALE_PR_DAYS,
-        detail: `${cases} case${cases === 1 ? '' : 's'} · open ${days} day${days === 1 ? '' : 's'}${pr.reviewer_id ? '' : ' · no reviewer'}` })
-    }
+  // Pull requests: each to its reviewer by name; oversight gets one line for those nobody reviews.
+  const age = (pr: { opened_at: string }) => Math.floor((Date.now() - Date.parse(pr.opened_at)) / 864e5)
+  for (const pr of (prs ?? []).filter((p) => p.reviewer_id === person.id)) {
+    const days = age(pr), cases = (pr.pr_cases as unknown[] | null)?.length ?? 0
+    items.push({ type: 'pr', title: `Review ${pr.title ?? pr.key}`, href: pr.url ?? '/cases/automation', overdue: days >= STALE_PR_DAYS,
+      detail: `${cases} case${cases === 1 ? '' : 's'} · open ${days} day${days === 1 ? '' : 's'}` })
   }
+  const unreviewed = (prs ?? []).filter((p) => !p.reviewer_id)
+  const stale = (prs ?? []).filter((p) => p.reviewer_id && age(p) >= STALE_PR_DAYS)
+  if (lead && unreviewed.length) items.push({ type: 'pr', title: `${unreviewed.length} pull request${unreviewed.length === 1 ? ' has' : 's have'} no reviewer`, href: '/cases/automation', count: unreviewed.length, overdue: unreviewed.some((p) => age(p) >= STALE_PR_DAYS) })
+  if (lead && stale.length) items.push({ type: 'pr', title: `${stale.length} pull request${stale.length === 1 ? ' has' : 's have'} waited ${STALE_PR_DAYS}+ days for review`, href: '/cases/automation', count: stale.length, overdue: true })
   // Pages this person writes: cases whose Expected is a placeholder, and cases a decision sent back to rewrite.
   const pageIds = (pages ?? []).map((p) => p.id)
   if (pageIds.length) {
@@ -302,3 +306,12 @@ export async function loadHolds(db: Db) {
 }
 
 export { ticketId, caseIds }
+
+/** Who gets the oversight items (Admin > Email); until it is set, the leads. */
+export async function oversightIds(db: Db): Promise<string[]> {
+  const { data } = await db.from('app_settings').select('value').eq('key', 'oversight').maybeSingle()
+  const ids = (data?.value as { people?: string[] } | null)?.people
+  if (ids) return ids
+  const { data: leads } = await db.from('people').select('id').eq('role', 'lead').eq('active', true)
+  return (leads ?? []).map((p) => p.id as string)
+}

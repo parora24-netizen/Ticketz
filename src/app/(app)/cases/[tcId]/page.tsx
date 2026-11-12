@@ -16,6 +16,8 @@ import { CaseAutomationField, CaseResultActions, CaseTesterField, UndoResultButt
 import { ProposalButtons } from '@/app/(app)/cases/automation/automation-controls'
 import { BLOCK_LABEL, KIND_LABEL, askStatus, type AskKind, type AskState } from '@/lib/automation-loop'
 import Link from 'next/link'
+import { RunHistory } from '@/components/run-history'
+import { caseHistory } from '@/lib/runs-server'
 
 export default async function CasePage({
   params, searchParams,
@@ -43,6 +45,7 @@ export default async function CasePage({
     supabase.from('case_comments').select('id, body, created_at, people(name)').eq('case_id', c.id).order('created_at', { ascending: false }),
   ])
   const teamNames = people.filter((p) => p.active).map((p) => p.name)
+  const history = await caseHistory(supabase, c.id)
   // What this case waits on: asks, a blocking defect, a proposal for the lead. Empty until the asks migration runs.
   const [{ data: askLinks }, { data: blocker }] = await Promise.all([
     supabase.from('ask_cases').select('asks(key, kind, title, state)').eq('case_id', c.id),
@@ -158,6 +161,11 @@ export default async function CasePage({
           </section>
         </aside>
       </div>
+
+      <section className="card mt-4">
+        <h2 className="border-b border-[var(--line)] px-4 py-2 text-[14px] font-semibold text-[var(--navy-ink)]">Automated runs</h2>
+        <RunHistory points={history} />
+      </section>
 
       <section id="comments" className="card mt-4 p-5">
         <h2 className="font-semibold">History</h2>

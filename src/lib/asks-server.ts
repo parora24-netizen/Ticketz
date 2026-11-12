@@ -245,7 +245,27 @@ export async function loadInbox(db: Db, person: { id: string; role: string }): P
       if (waiting.length) items.push({ type: 'rewrite', title: `Rewrite the cases ${r.key} sent back: ${r.title}`, href: `/asks/${r.key}`, count: waiting.length })
     }
   }
+  // A page this person writes that failed in the latest full run after passing in the one before.
+  if (pageIds.length) {
+    const { data: full } = await db.from('suite_runs').select('run_id, started_at').eq('kind', 'full').not('finished_at', 'is', null).order('started_at', { ascending: false }).limit(2)
+    if (full?.length === 2) {
+      const [now, before] = full
+      const read = async (runId: string) => (await db.from('test_runs').select('case_id, result, test_cases!inner(area_id)').eq('run_id', runId).eq('kind', 'auto').in('test_cases.area_id', pageIds).limit(5000)).data ?? []
+      const [a, b] = await Promise.all([read(now.run_id), read(before.run_id)])
+      const passedBefore = new Set(b.filter((r) => r.result === 'passed').map((r) => r.case_id))
+      const regressed = a.filter((r) => r.result === 'failed' && passedBefore.has(r.case_id))
+      if (regressed.length) items.push({ type: 'run', title: `${regressed.length} case${regressed.length === 1 ? '' : 's'} on your pages failed in the latest full run after passing before`, href: `/cases/runs/${encodeURIComponent(now.run_id)}`, count: regressed.length, overdue: true })
+    }
+  }
   if (lead) {
+    // Runs that went wrong in the last two days, and one still going past its expected end.
+    const { data: runs } = await db.from('suite_runs').select('run_id, exit, confounded, finished_at, eta, started_at').gte('started_at', new Date(Date.now() - 2 * 864e5).toISOString())
+    for (const r of runs ?? []) {
+      const href = `/cases/runs/${encodeURIComponent(r.run_id)}`
+      if (r.exit === 'killed' || r.exit === 'refused' || r.exit === 'gave_up') items.push({ type: 'run', title: `Run ${r.run_id} ${r.exit === 'refused' ? 'was refused at the gates' : r.exit === 'killed' ? 'was killed' : 'gave up'}`, href, overdue: true })
+      else if (r.confounded) items.push({ type: 'run', title: `Run ${r.run_id} is confounded: the bundle changed mid-run`, href })
+      if (!r.finished_at && r.eta && r.eta < new Date().toISOString()) items.push({ type: 'run', title: `Run ${r.run_id} is still going past its expected end`, href })
+    }
     // Retests nobody gets: ready for retest, and the case has no tester (or there is no case).
     const { data: ready } = await db.from('tickets').select('key, case_id, test_cases(tester_id)').eq('state', 'ready_for_retest')
     const orphans = (ready ?? []).filter((t) => !((Array.isArray(t.test_cases) ? t.test_cases[0] : t.test_cases) as { tester_id: string | null } | null)?.tester_id)

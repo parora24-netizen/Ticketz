@@ -1,32 +1,38 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { authenticate } from '@/lib/ci-api'
-import { RunsQuery, readQuery } from '@/lib/tickets-api'
+import { authenticate, need } from '@/lib/ci-api'
+import { audit, isDryRun } from '@/lib/automation-server'
+import { RunStart } from '@/lib/runs'
+import { listRuns, runJson } from '@/lib/runs-server'
 
 /**
- * GET /api/runs: each automated run posted to /api/results, newest first: run id, build, when it
- * was posted, the token and the person behind it, its sprint and the count of each result.
- * Filters: run_id, build (comma lists), updated_since (posted at or after), limit, offset.
- * Runs posted before 31 Oct have no token recorded.
+ * GET /api/runs: suite runs, newest first: those posted with a lifecycle (POST /api/runs) and older
+ * ones known only from their results. Filters: kind (full, batch, probe), since (ISO time), limit (max 500).
  */
 export async function GET(request: NextRequest) {
   const caller = await authenticate(request)
   if (caller instanceof NextResponse) return caller
-  const q = readQuery(RunsQuery, request.nextUrl.searchParams)
-  if (!q.success) return NextResponse.json({ error: 'Invalid query', issues: q.error.issues.slice(0, 10) }, { status: 400 })
-  const f = q.data
-  let query = caller.db.from('ci_runs').select('*', { count: 'exact' })
-    .order('posted_at', { ascending: false }).order('run_id').range(f.offset, f.offset + f.limit - 1)
-  if (f.run_id?.length) query = query.in('run_id', f.run_id)
-  if (f.build?.length) query = query.in('build', f.build)
-  if (f.updated_since) query = query.gte('posted_at', f.updated_since)
-  const { data, error, count } = await query
+  const q = request.nextUrl.searchParams
+  const runs = await listRuns(caller.db, { kind: q.get('kind') ?? undefined, since: q.get('since') ?? q.get('updated_since') ?? undefined, limit: Math.min(Number(q.get('limit')) || 100, 500) })
+  const ids = q.get('run_id')?.split(',').map((s) => s.trim()).filter(Boolean)
+  const list = ids?.length ? runs.filter((r) => ids.includes(r.run_id)) : runs
+  return NextResponse.json({ total: list.length, runs: list.map(runJson) })
+}
+
+/**
+ * POST /api/runs: a run starting, keyed by run_id; posting the same run_id again updates it.
+ * Body: { run_id, kind?, target?, branch?, commit?, bundle?, workers?, tests_planned?, launcher?, started_at?, eta? }
+ */
+export async function POST(request: NextRequest) {
+  const caller = await authenticate(request)
+  if (caller instanceof NextResponse) return caller
+  const denied = need(caller, 'automation')
+  if (denied) return denied
+  const p = RunStart.safeParse(await request.json().catch(() => null))
+  if (!p.success) return NextResponse.json({ error: 'Invalid payload', issues: p.error.issues.slice(0, 10).map((i) => ({ path: i.path.join('.'), message: i.message })) }, { status: 400 })
+  const { data: existing } = await caller.db.from('suite_runs').select('run_id').eq('run_id', p.data.run_id).maybeSingle()
+  if (isDryRun(request)) return NextResponse.json({ run_id: p.data.run_id, created: !existing, dry_run: true })
+  const { error } = await caller.db.from('suite_runs').upsert({ ...p.data, token_id: caller.tokenId, updated_at: new Date().toISOString() }, { onConflict: 'run_id' })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({
-    total: count ?? data.length,
-    offset: f.offset,
-    runs: data.map((r) => ({
-      run_id: r.run_id, build: r.build, posted_at: r.posted_at, posted_by: r.posted_by, token: r.token, sprint: r.sprint,
-      results: r.results, passed: r.passed, failed: r.failed, skipped: r.skipped, known_defect: r.known_defect,
-    })),
-  })
+  await audit(caller, request, `${existing ? 'Updated' : 'Started'} run ${p.data.run_id}`)
+  return NextResponse.json({ run_id: p.data.run_id, created: !existing }, { status: existing ? 200 : 201 })
 }

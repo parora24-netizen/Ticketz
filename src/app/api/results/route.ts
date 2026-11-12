@@ -8,6 +8,7 @@ import { addComment, authenticate, ciActor, raiseTicket, type Caller } from '@/l
 import { retestPasses } from '@/lib/automation-loop'
 import { ResultsQuery, failureKind, readQuery } from '@/lib/tickets-api'
 import { mismatch, type RunResult } from '@/lib/workflow/case-stage'
+import { RESULT_FIELDS, resultOf } from '@/lib/runs'
 
 // The mismatch kinds as PostgREST filters, matching mismatch() in case-stage.
 const TYPE_I = 'auto_result.in.(failed,known_defect),manual_result.eq.passed'
@@ -118,7 +119,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid payload', issues: parsed.error.issues.slice(0, 20) }, { status: 400 })
   }
   const { build, run_id } = parsed.data
-  const results = lastPerCase(parsed.data.results)
+  // Each result counted as passed, failed, known defect or skipped; its finer outcome is kept beside it.
+  const results = lastPerCase(parsed.data.results).map((r) => ({ ...r, status: resultOf(r.outcome, r.status) as typeof r.status }))
+  // Fields a result carried that Launchpad does not keep, so a caller can see what was dropped.
+  const ignored = [...new Set(((body as { results?: unknown[] }).results ?? []).flatMap((x) => (x && typeof x === 'object' ? Object.keys(x) : [])).filter((k) => !RESULT_FIELDS.includes(k)))]
 
   const ids = results.map((r) => r.tc_id)
   // By current ID or, for now, the old one the suite's tags still carry.
@@ -142,6 +146,9 @@ export async function POST(request: NextRequest) {
       note: r.error ?? null,
       url: r.url ?? null,
       defect_id: r.defect_id ?? null,
+      spec_file: r.spec_file ?? null, test_title: r.title ?? null, tags: r.tags ?? null, started_at: r.started_at ?? null, worker: r.worker ?? null,
+      retries: r.retries ?? null, outcome: r.outcome ?? null, not_tested_reason: r.not_tested_reason ?? null, error_head: r.error_head ?? null,
+      fixture_engine: r.fixture_engine ?? null, artifacts: r.artifacts ?? null,
     }]
   })
   for (let i = 0; i < rows.length; i += 500) {
@@ -177,6 +184,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     recorded: rows.length,
+    ...(ignored.length ? { ignored_fields: ignored, accepted_fields: RESULT_FIELDS } : {}),
     retests_closed,
     sprint: sprint?.name ?? null,
     unmatched: ids.filter((id) => !caseIds.has(id)),

@@ -29,6 +29,7 @@ export const CASES_TABS = [
   { key: 'progress', href: '/cases/progress', label: 'Progress' },
   { key: 'all', href: '/cases', label: 'All cases' },
   { key: 'automation', href: '/cases/automation', label: 'Automation' },
+  { key: 'runs', href: '/cases/runs', label: 'Runs' },
 ]
 
 export const ASKS_TABS = [

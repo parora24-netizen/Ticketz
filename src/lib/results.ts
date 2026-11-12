@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ResultTelemetry } from '@/lib/runs'
 
 /** What the automated suite posts after a run. One result per tagged test case. */
 export const ResultsPayload = z.object({
@@ -14,7 +15,7 @@ export const ResultsPayload = z.object({
         url: z.url({ protocol: /^https?$/ }).max(1000).optional(),
         /** The recorded defect this result belongs to; with raise_tickets, one ticket per defect. */
         defect_id: z.string().trim().min(1).max(100).optional(),
-      }),
+      }).extend(ResultTelemetry.shape),
     )
     .min(1)
     .max(5000),

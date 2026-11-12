@@ -25,7 +25,7 @@ export default async function RunsPage() {
       )}
       <section className="card overflow-x-auto">
         <table className="table w-full text-[12.5px]">
-          <thead><tr><th>Started</th><th>Run</th><th>Kind</th><th>How it ended</th><th className="text-right">Workers</th><th className="text-right">Wall time</th><th className="text-right">Tests</th><th className="text-right">Passed</th><th className="text-right">Failed</th><th className="text-right">Not tested</th><th className="text-right">Pass rate</th></tr></thead>
+          <thead><tr><th>Started</th><th>Run</th><th>Kind</th><th>How it ended</th><th className="text-right">Workers</th><th className="text-right">Wall time</th><th className="text-right">Tests</th><th className="text-right">Passed</th><th className="text-right">Failed</th><th className="text-right">Known defect</th><th className="text-right">Not tested</th><th className="text-right">Pass rate</th></tr></thead>
           <tbody>
             {runs.map((r) => {
               const running = r.recorded && !r.finished_at
@@ -40,12 +40,13 @@ export default async function RunsPage() {
                   <td className="text-right tabular-nums">{r.tests_done ?? '—'}{r.tests_planned ? <span className="text-[var(--faint)]"> / {r.tests_planned}</span> : null}</td>
                   <td className="text-right tabular-nums">{r.passed ?? '—'}</td>
                   <td className={`text-right tabular-nums ${r.failed ? 'font-semibold text-[var(--crit)]' : ''}`}>{r.failed ?? '—'}</td>
+                  <td className="text-right tabular-nums">{r.known_defect ?? '—'}</td>
                   <td className="text-right tabular-nums">{r.not_tested ?? '—'}</td>
                   <td className="text-right tabular-nums">{rate(r) == null ? '—' : `${rate(r)}%`}</td>
                 </tr>
               )
             })}
-            {!runs.length && <tr><td colSpan={11} className="text-[var(--muted)]">No runs yet.</td></tr>}
+            {!runs.length && <tr><td colSpan={12} className="text-[var(--muted)]">No runs yet.</td></tr>}
           </tbody>
         </table>
       </section>

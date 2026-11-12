@@ -24,10 +24,14 @@ export async function listRuns(db: Db, f: { kind?: string; since?: string; limit
   if (f.since) q = q.gte('started_at', f.since)
   const [{ data: runs }, { data: legacy }] = await Promise.all([q, f.kind && f.kind !== 'full' ? Promise.resolve({ data: [] }) : db.from('ci_runs').select('*').order('posted_at', { ascending: false }).limit(f.limit ?? 100)])
   const known = new Set((runs ?? []).map((r) => r.run_id))
-  const old = (legacy ?? []).filter((r) => r.run_id && !known.has(r.run_id) && (!f.since || r.posted_at >= f.since)).map((r): SuiteRun => ({
+  // A run known only from its results: its start is in its name when the runner put it there
+  // (overnight-20261106T041918Z), and it ended when its results were posted. The workbook import is no run.
+  const startOf = (id: string, posted: string) => { const m = /(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z/.exec(id); return m ? `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z` : posted }
+  const old = (legacy ?? []).filter((r) => r.run_id && r.run_id !== 'workbook-baseline' && !known.has(r.run_id) && (!f.since || r.posted_at >= f.since)).map((r): SuiteRun => ({
     run_id: r.run_id, kind: 'full', target: null, branch: null, commit: null, bundle: r.build, bundle_end: null, workers: null, tests_planned: null,
     tests_done: r.results, passed: r.passed, failed: r.failed, known_defect: r.known_defect, not_tested: r.skipped, launcher: r.token ?? null,
-    started_at: r.posted_at, eta: null, finished_at: r.posted_at, exit: 'finished', confounded: false, wall_min: null, worker_min: null,
+    started_at: startOf(r.run_id, r.posted_at), eta: null, finished_at: r.posted_at, exit: 'finished', confounded: false,
+    wall_min: startOf(r.run_id, r.posted_at) < r.posted_at ? Math.round((Date.parse(r.posted_at) - Date.parse(startOf(r.run_id, r.posted_at))) / 60000) : null, worker_min: null,
     creates_failed: null, rate_limit_waits: null, http_503: null, lock_wait_min: null, build: r.build, recorded: false,
   }))
   return [...(runs ?? []).map((r) => ({ ...r, recorded: true }) as SuiteRun), ...old].sort((a, b) => b.started_at.localeCompare(a.started_at)).slice(0, f.limit ?? 100)

@@ -12,7 +12,7 @@ import { editItems, ticketEventItems } from '@/components/ticket-timeline'
 import { changeEntries, type ChangeRow } from '@/lib/activity'
 import { mismatch } from '@/lib/workflow/case-stage'
 import { addCaseComment, raiseTicket } from '../../actions'
-import { CaseAutomationField, CaseResultActions, UndoResultButton } from '@/components/case-controls'
+import { CaseAutomationField, CaseResultActions, CaseTesterField, UndoResultButton } from '@/components/case-controls'
 import { ProposalButtons } from '@/app/(app)/cases/automation/automation-controls'
 import { BLOCK_LABEL, KIND_LABEL, askStatus, type AskKind, type AskState } from '@/lib/automation-loop'
 import Link from 'next/link'
@@ -103,6 +103,7 @@ export default async function CasePage({
               {c.scenario_id && <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Scenario</dt><dd className="mono">{c.scenario_id}</dd></div>}
               {c.requirement_id && <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Requirement</dt><dd className="mono">{c.requirement_id}</dd></div>}
               {c.test_type && <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Type</dt><dd>{c.test_type}</dd></div>}
+              <div className="px-4 py-2.5"><dt className="label mb-1">Tester</dt><dd><CaseTesterField caseId={c.id} value={c.tester_id} people={people.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name }))} disabled={!canTest} /></dd></div>
               <div className="px-4 py-2.5"><dt className="label mb-1">Automation</dt><dd><CaseAutomationField caseId={c.id} value={c.automation} disabled={!canTest} />
                 {(c.automation_note || c.automation_owner || c.automation_ref) && (
                   <div className="mt-1.5 space-y-0.5 text-[12px] text-[var(--muted)]">

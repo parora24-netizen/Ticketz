@@ -148,7 +148,7 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
     },
     {
       title: 'Pull requests, screen holds, runner, inbox, audit',
-      what: 'POST /api/prs { key, url, title, author, reviewer, state: open | merged | closed, cases } (or PATCH /api/prs/{key}); open ones show on Test cases > Automation by age, and over 3 days alert the lead. PUT /api/screens/{zone}/{page} { defect, reason, until } holds a screen until its defect closes; GET /api/screens lists holds. POST /api/runner/heartbeat { state: idle | batching | paused_limit | cluster_down, batch, backlog } and POST /api/runner/events { kind: batch_started | batch_finished | batch_failed }. GET /api/inbox?owner=<name> lists what waits on someone. GET /api/audit lists what each token changed. A passing result on a ticket\'s fixed build, or a later one, closes it when it is ready for retest.',
+      what: 'POST /api/prs { key, url, title, author, state: open | merged | closed, cases } (or PATCH /api/prs/{key}); open ones are listed on Test cases > Automation. Who reviews them is up to the runner; Launchpad does not track it. PUT /api/screens/{zone}/{page} { defect, reason, until } holds a screen until its defect closes; GET /api/screens lists holds. POST /api/runner/heartbeat { state: idle | batching | paused_limit | cluster_down, batch, backlog } and POST /api/runner/events { kind: batch_started | batch_finished | batch_failed }. GET /api/inbox?owner=<name> lists what waits on someone. GET /api/audit lists what each token changed. A passing result on a ticket\'s fixed build, or a later one, closes it when it is ready for retest.',
       curl: `curl -X POST "${appUrl}/api/runner/heartbeat" \\
   ${auth} \\
   -H "Content-Type: application/json" \\

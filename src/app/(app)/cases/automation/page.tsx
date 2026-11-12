@@ -22,7 +22,7 @@ export default async function AutomationPage() {
   const [{ data: runners }, { data: events }, { data: prs }, { data: proposals }, holds, alerts, areas, { data: blocked }, { count: thin }] = await Promise.all([
     supabase.from('runner_status').select('state, batch, backlog, since, heartbeat_at, ci_tokens(label)'),
     supabase.from('runner_events').select('kind, batch, detail, at').order('at', { ascending: false }).limit(5),
-    supabase.from('automation_prs').select('key, url, title, author, opened_at, reviewer:people(name), pr_cases(case_id)').eq('state', 'open').order('opened_at'),
+    supabase.from('automation_prs').select('key, url, title, author, opened_at, pr_cases(case_id)').eq('state', 'open').order('opened_at'),
     supabase.from('test_cases').select('id, tc_id, title, automation_proposed_reason, automation_proposed_at').not('automation_proposed', 'is', null).order('automation_proposed_at'),
     loadHolds(supabase),
     runnerAlerts(supabase),
@@ -62,9 +62,9 @@ export default async function AutomationPage() {
 
       <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
         <section className="card">
-          <h2 className="border-b border-[var(--line)] px-4 py-2 text-[14px] font-semibold text-[var(--navy-ink)]">Pull requests waiting · {(prs ?? []).length}</h2>
+          <h2 className="border-b border-[var(--line)] px-4 py-2 text-[14px] font-semibold text-[var(--navy-ink)]">Open pull requests · {(prs ?? []).length}</h2>
           <table className="table w-full text-[12.5px]">
-            <thead><tr><th>PR</th><th className="text-right">Cases</th><th>Reviewer</th><th className="text-right">Waiting</th></tr></thead>
+            <thead><tr><th>PR</th><th className="text-right">Cases</th><th className="text-right">Open</th></tr></thead>
             <tbody>
               {(prs ?? []).map((p) => {
                 const days = Math.floor((Date.now() - Date.parse(p.opened_at)) / 864e5)
@@ -72,12 +72,11 @@ export default async function AutomationPage() {
                   <tr key={p.key}>
                     <td>{p.url ? <a href={p.url} target="_blank" rel="noreferrer" className="font-medium text-[var(--accent)] hover:underline">{p.title ?? p.key}</a> : p.title ?? p.key}<span className="ml-2 text-[11px] text-[var(--faint)]">{p.author}</span></td>
                     <td className="text-right tabular-nums">{(p.pr_cases as unknown[] | null)?.length ?? 0}</td>
-                    <td>{one<{ name: string }>(p.reviewer)?.name ?? <span className="text-[var(--faint)]">None</span>}</td>
-                    <td className={`text-right tabular-nums ${days >= 3 ? 'font-semibold text-[var(--crit)]' : ''}`}>{days} day{days === 1 ? '' : 's'}</td>
+                    <td className="text-right tabular-nums">{days} day{days === 1 ? '' : 's'}</td>
                   </tr>
                 )
               })}
-              {!(prs ?? []).length && <tr><td colSpan={4} className="text-[var(--muted)]">None open. The runner reports them with POST /api/prs.</td></tr>}
+              {!(prs ?? []).length && <tr><td colSpan={3} className="text-[var(--muted)]">None open. The runner reports them with POST /api/prs.</td></tr>}
             </tbody>
           </table>
         </section>

@@ -30,6 +30,8 @@ export type SprintCard = {
   auto_result: string | null
   manual_result: string | null
   needs_ticket: boolean
+  /** A fix sprint's ticket with no test case: the card is the ticket, and opens its page. */
+  caseless?: boolean
   ticket: { id: string; key: string; state: TicketState; owner_id: string | null; owner_name: string | null; kind?: 'defect' | 'test_mismatch' | 'task'; blocked_reason?: string | null } | null
 }
 
@@ -232,8 +234,8 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
       <article key={c.id} draggable
         onDragStart={(e) => { setDragging(c); e.dataTransfer.effectAllowed = 'move' }}
         onDragEnd={() => setDragging(null)}
-        onClick={() => setOpen(c.id)}
-        onKeyDown={(e) => { if (e.key === 'Enter') setOpen(c.id) }}
+        onClick={() => (c.caseless ? router.push('/tickets/' + encodeURIComponent(c.tc_id)) : setOpen(c.id))}
+        onKeyDown={(e) => { if (e.key === 'Enter') { if (c.caseless) router.push('/tickets/' + encodeURIComponent(c.tc_id)); else setOpen(c.id) } }}
         tabIndex={0}
         className={`cursor-pointer border bg-white p-2 outline-none hover:border-[var(--navy)] focus-visible:border-[var(--navy)] ${open === c.id ? 'border-[var(--navy)]' : 'border-[var(--line)]'} ${
           c.priority === 'Critical' ? 'shadow-[inset_3px_0_0_var(--crit)]' : c.priority === 'High' ? 'shadow-[inset_3px_0_0_var(--warn)]' : ''}`}>
@@ -246,11 +248,13 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
         </div>
         {!byArea && <div className="mt-1 truncate text-[11px] text-[var(--muted)]">{c.zone} · <b className="font-semibold text-[var(--ink-2)]">{c.page}</b></div>}
         <p className="mt-0.5 line-clamp-2 text-[12.5px] leading-snug">{c.title}</p>
-        <div className="mt-1 flex items-center gap-3 text-[11px] text-[var(--faint)]">
+        {c.caseless
+          ? <div className="mt-1 truncate text-[11px] text-[var(--muted)]">{c.ticket ? STATE_LABEL[c.ticket.state] : ''} · <span className="text-[var(--faint)]">no test case</span></div>
+          : <div className="mt-1 flex items-center gap-3 text-[11px] text-[var(--faint)]">
           <span>Auto <Res r={c.auto_result} /></span>
           <span>Manual <Res r={c.manual_result} /></span>
-        </div>
-        {c.ticket && (
+        </div>}
+        {c.ticket && !c.caseless && (
           <div className="mt-1 truncate text-[11px]">
             <span className="mono text-[var(--accent)]">{c.ticket.key}</span>
             <span className="text-[var(--muted)]"> · {STATE_LABEL[c.ticket.state]}</span>

@@ -63,10 +63,13 @@ export default async function SprintPage({
     return mine.find((t) => !['closed', 'deferred', 'duplicate'].includes(t.state)) ?? mine[0]
   }
   const fixMode = kind === 'fix'
+  // Fix sprints also hold tickets with no test case (tasks, design rework, tickets raised by API): one card each.
+  const caseless = fixMode ? tickets.filter((t) => !t.case_id) : []
   const stageOf = new Map<string, string>(cases.map((c) => [c.id,
     fixMode ? fixStage(sprintTicketOf(c.id)!.state, !!sprintTicketOf(c.id)!.blocked_reason) : testMode ? testStage(toStageInput(c, runs)) : caseStage(toStageInput(c, runs))]))
   const counts: Record<string, number> = Object.fromEntries((fixMode ? FIX_STAGES : testMode ? TEST_STAGES : STAGES).map((s) => [s, 0]))
   for (const s of stageOf.values()) counts[s]++
+  for (const t of caseless) counts[fixStage(t.state, !!t.blocked_reason)]++
   if (testMode) counts.write = emptyAreaIds.length
 
   const ticketsByCase = new Map<string, TicketRow[]>()
@@ -106,7 +109,7 @@ export default async function SprintPage({
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
 
-      {cases.length > 0 && (
+      {cases.length + caseless.length > 0 && (
       <section className="card mb-4 grid grid-cols-1 gap-x-6 gap-y-4 p-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
         <>
         <div>
@@ -138,7 +141,7 @@ export default async function SprintPage({
         today={today}
         sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ id: s.id, name: s.name }))}
         areas={areaIds.map((a) => areaName.get(a) ?? '').sort()}
-        cards={cases.map((c) => {
+        cards={[...cases.map((c) => {
           const t = fixMode ? sprintTicketOf(c.id) : openTicket(c)
           return {
             id: c.id, tc_id: c.tc_id, title: c.title, priority: c.priority, zone: c.zone, page: c.page,
@@ -147,7 +150,12 @@ export default async function SprintPage({
             needs_ticket: needsTicket(toStageInput(c, runs)),
             ticket: t ? { id: t.id, key: t.key, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name, kind: t.kind, blocked_reason: t.blocked_reason } : null,
           }
-        })}
+        }), ...caseless.map((t) => ({
+          id: 't:' + t.id, tc_id: t.key, title: t.title, priority: t.severity, zone: t.zone ?? 'No area', page: t.page ?? '—',
+          stage: fixStage(t.state, !!t.blocked_reason) as 'test', test_by: 'manual' as const, tester_id: null, tester_name: null,
+          auto_result: null, manual_result: null, needs_ticket: false, caseless: true,
+          ticket: { id: t.id, key: t.key, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name, kind: t.kind, blocked_reason: t.blocked_reason },
+        }))]}
       />
 
       {kind !== 'fix' && carriedIn.length > 0 && (

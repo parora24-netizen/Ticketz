@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { Dialog } from '@/components/dialog'
 import { toast } from '@/components/toast'
-import { recordCaseResult, undoResult, updateCases } from '@/app/(app)/actions'
+import { recordCaseResult, retireCases, undoResult, updateCases } from '@/app/(app)/actions'
 import { EvidenceField, useEvidence } from '@/components/evidence'
 
 type Result = 'passed' | 'failed' | 'blocked'
@@ -141,5 +141,34 @@ export function UndoResultButton({ runId, back, result }: { runId: string; back:
       <input type="hidden" name="back" value={back} />
       <button className="text-[12px] text-[var(--accent)] hover:underline">Undo</button>
     </form>
+  )
+}
+
+/** Retire a case (asks why) or restore a retired one. */
+export function RetireCaseButton({ caseId, retired }: { caseId: string; retired: boolean }) {
+  const router = useRouter()
+  const [pending, start] = useTransition()
+  const [asking, setAsking] = useState(false)
+  const [why, setWhy] = useState('')
+  const run = (reason: string | null) => start(async () => {
+    const res = await retireCases([caseId], reason)
+    if (res.error) toast(res.error, 'error')
+    else { toast(reason === null ? 'Case restored' : 'Case retired'); setAsking(false); router.refresh() }
+  })
+  if (retired) return <button type="button" className="btn" disabled={pending} onClick={() => run(null)}>{pending ? 'Restoring…' : 'Restore case'}</button>
+  return (
+    <>
+      <button type="button" className="btn" disabled={pending} onClick={() => { setWhy(''); setAsking(true) }}>Retire</button>
+      <Dialog open={asking} onClose={() => setAsking(false)} title="Retire this case">
+        <p className="text-[12.5px] text-[var(--muted)]">It keeps its text and history but leaves every list, board and count, and the runner stops running it. You can restore it from this page.</p>
+        <label className="mt-3 block"><span className="label">Why</span>
+          <textarea className="input mt-1 w-full" rows={3} value={why} onChange={(e) => setWhy(e.target.value)} placeholder="Security questions are removed from the product" autoFocus />
+        </label>
+        <div className="mt-3 flex justify-end gap-2">
+          <button type="button" className="btn" onClick={() => setAsking(false)}>Cancel</button>
+          <button type="button" className="btn btn-primary" disabled={pending || why.trim().length < 3} onClick={() => run(why)}>{pending ? 'Retiring…' : 'Retire case'}</button>
+        </div>
+      </Dialog>
+    </>
   )
 }

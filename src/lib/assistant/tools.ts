@@ -30,7 +30,7 @@ export const TicketFilters = z.object({
 })
 type TicketFilter = z.infer<typeof TicketFilters>
 
-const CaseFilters = z.object({
+export const CaseFilters = z.object({
   text: z.string().optional().describe('Words in the ID or title'),
   zone: z.string().optional(),
   page: z.string().optional(),
@@ -68,7 +68,7 @@ export function filterTickets(ctx: Ctx, f: TicketFilter): TicketRow[] {
     (f.blocked === undefined || !!t.blocked_reason === f.blocked))
 }
 
-function filterCases(ctx: Ctx, f: CaseFilter): CaseRow[] {
+export function filterCases(ctx: Ctx, f: CaseFilter): CaseRow[] {
   const sprint = f.sprint ? ctx.sprintByName.get(f.sprint.toLowerCase()) : undefined
   const sprintAreaIds = sprint ? new Set(ctx.sprintAreas.filter((x) => x.sprint_id === sprint.id).map((x) => x.area_id)) : null
   const testers = f.tester && f.tester.toLowerCase() !== 'none' ? ctx.personByName(f.tester) : null

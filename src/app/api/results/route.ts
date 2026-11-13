@@ -126,8 +126,11 @@ export async function POST(request: NextRequest) {
 
   const ids = results.map((r) => r.tc_id)
   // By current ID or, for now, the old one the suite's tags still carry.
-  const caseIds = await casesByAnyId(supabase, ids).catch((e: Error) => e)
-  if (caseIds instanceof Error) return NextResponse.json({ error: caseIds.message }, { status: 500 })
+  const found = await casesByAnyId(supabase, ids).catch((e: Error) => e)
+  if (found instanceof Error) return NextResponse.json({ error: found.message }, { status: 500 })
+  // A retired case is out of the release: its results are not recorded and its failures raise nothing.
+  const retired = [...found].filter(([, c]) => c.retired_at).map(([id]) => id)
+  const caseIds = new Map([...found].filter(([, c]) => !c.retired_at))
 
   const { data: sprints } = await supabase.from('sprints').select('*')
   const sprint = currentSprint((sprints ?? []) as Sprint[])
@@ -187,7 +190,8 @@ export async function POST(request: NextRequest) {
     ...(ignored.length ? { ignored_fields: ignored, accepted_fields: RESULT_FIELDS } : {}),
     retests_closed,
     sprint: sprint?.name ?? null,
-    unmatched: ids.filter((id) => !caseIds.has(id)),
+    unmatched: ids.filter((id) => !found.has(id)),
+    ...(retired.length ? { retired, retired_note: 'These cases are retired: their results were not recorded. Stop running them.' } : {}),
     tickets,
     tickets_not_raised: Math.max(0, failures.length - MAX_RAISED),
   })

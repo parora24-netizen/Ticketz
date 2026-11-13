@@ -6,7 +6,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
  * now, so the automated suite and old links keep landing in the right place. Remove this with the
  * legacy_tc_id and legacy_key columns.
  */
-export type CaseRef = { id: string; tc_id: string; automation: string }
+export type CaseRef = { id: string; tc_id: string; automation: string; retired_at?: string | null }
 
 /** Test cases by current or old ID, keyed by the ID as asked for (upper case). */
 export async function casesByAnyId(db: SupabaseClient, ids: string[]): Promise<Map<string, CaseRef>> {
@@ -15,11 +15,11 @@ export async function casesByAnyId(db: SupabaseClient, ids: string[]): Promise<M
   for (let i = 0; i < wanted.length; i += 500) {
     const batch = wanted.slice(i, i + 500)
     const [old, current] = await Promise.all([
-      db.from('test_cases').select('id, tc_id, automation, legacy_tc_id').in('legacy_tc_id', batch),
-      db.from('test_cases').select('id, tc_id, automation').in('tc_id', batch),
+      db.from('test_cases').select('id, tc_id, automation, retired_at, legacy_tc_id').in('legacy_tc_id', batch),
+      db.from('test_cases').select('id, tc_id, automation, retired_at').in('tc_id', batch),
     ])
     if (old.error || current.error) throw new Error((old.error ?? current.error)!.message)
-    for (const c of old.data ?? []) found.set(c.legacy_tc_id as string, { id: c.id, tc_id: c.tc_id, automation: c.automation })
+    for (const c of old.data ?? []) found.set(c.legacy_tc_id as string, { id: c.id, tc_id: c.tc_id, automation: c.automation, retired_at: c.retired_at })
     for (const c of current.data ?? []) found.set(c.tc_id, c as CaseRef) // a current ID wins
   }
   return found

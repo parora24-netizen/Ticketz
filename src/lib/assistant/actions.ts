@@ -3,10 +3,10 @@ import type Anthropic from '@anthropic-ai/sdk'
 import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
-import { updateTickets } from '@/app/(app)/actions'
+import { recordCaseResult, retireCases, updateTickets } from '@/app/(app)/actions'
 import { movePagesToSprint } from '@/app/(app)/release/plan/actions'
 import { resolvePages, resolvePerson, resolveSprint } from '@/lib/assistant/resolve'
-import { TicketFilters, filterTickets, loadToolContext, toolSchema, type ToolContext } from '@/lib/assistant/tools'
+import { CaseFilters, TicketFilters, filterCases, filterTickets, loadToolContext, toolSchema, type ToolContext } from '@/lib/assistant/tools'
 import type { getMe } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { ticketsFollowing } from '@/lib/workflow/fix-sprint'
@@ -48,6 +48,25 @@ function chooseTickets(ctx: ToolContext, f: z.infer<typeof TicketSelection>) {
   return { tickets: filterTickets(ctx, { ...filters, open_only: filters.open_only ?? !filters.states?.length }) }
 }
 const TicketSelection = TicketFilters.extend({ keys: z.array(z.string()).max(MAX_TICKETS).optional().describe('Exact ticket keys, when the direction names them') })
+
+const MAX_CASES = 100
+const AUTOMATION: Record<string, string> = { manual_only: 'not automatable (retired)', not_automated: 'not automated', in_progress: 'automation in progress', automated: 'automated', blocked: 'automation blocked' }
+const CaseSelection = CaseFilters.extend({ tc_ids: z.array(z.string()).max(MAX_CASES).optional().describe('Exact case IDs, e.g. TC_503, when the direction names them') })
+
+/** The cases a direction means: named ones, or those matching its filters. */
+function chooseCases(ctx: ToolContext, f: z.infer<typeof CaseSelection>): { error: string; cases?: undefined } | { error?: undefined; cases: ToolContext['cases'] } {
+  const { tc_ids, ...filters } = f
+  if (tc_ids?.length) {
+    const norm = (s: string) => s.trim().toLowerCase().replace(/^tc[-_ ]?/, 'tc_')
+    const wanted = tc_ids.map(norm)
+    const found = ctx.cases.filter((c) => wanted.includes(c.tc_id.toLowerCase()) || wanted.includes((c.legacy_tc_id ?? '').toLowerCase()))
+    const missing = tc_ids.filter((k) => !found.some((c) => c.tc_id.toLowerCase() === norm(k) || (c.legacy_tc_id ?? '').toLowerCase() === norm(k)))
+    return missing.length ? { error: `No test case ${some(missing)}.` } : { cases: found }
+  }
+  if (!Object.values(filters).some((v) => v !== undefined)) return { error: 'Which test cases?' }
+  const cases = filterCases(ctx, filters)
+  return cases.length ? { cases } : { error: 'No test cases match that.' }
+}
 
 export const ACTIONS: ActionDef[] = [
   action('propose_move_pages', 'Preparing the move',
@@ -134,6 +153,145 @@ export const ACTIONS: ActionDef[] = [
           if (error) return { error: error.message }
           revalidatePath('/', 'layout')
           return { done: `Commented on ${some(chosen.tickets.map((t) => t.key), 3)}.` }
+        },
+      }
+    }),
+
+  action('propose_record_results', 'Preparing the results',
+    'Record a manual test result on test cases: "pass TC_503, TC_504 and TC_505, security questions are removed", "fail TC_12 on build 41", "mark the Data Exporter cases blocked, no server". A failure raises (or reopens) the case\'s ticket, as the board does. Lead and QA only.',
+    CaseSelection.extend({
+      result: z.enum(['passed', 'failed', 'blocked']),
+      note: z.string().trim().max(2000).optional().describe('Why, in their words; recorded with each result'),
+      build: z.string().trim().max(100).optional(),
+    }),
+    (ctx, me, { result, note, build, ...selection }) => {
+      if (me.role === 'dev') return { error: 'Only QA or the lead record results.' }
+      const chosen = chooseCases(ctx, selection)
+      if (chosen.error !== undefined) return { error: chosen.error }
+      const cases = chosen.cases
+      if (cases.length > MAX_CASES) return { error: `That is ${cases.length} cases; ${MAX_CASES} at most at a time. Narrow it down.` }
+      const ids = cases.map((c) => c.id)
+      const word = result === 'passed' ? 'Pass' : result === 'failed' ? 'Fail' : 'Block'
+      return {
+        title: `${word} ${plural(cases.length, 'case')}`,
+        lines: [some(cases.map((c) => `${c.tc_id} ${c.title}`), 6), ...(note ? [`Note: ${note}`] : []), ...(build ? [`Build ${build}`] : [])],
+        note: `Recorded as ${me.name}'s manual result${result === 'failed' ? '; each failure raises or reopens its ticket' : ''}.`,
+        fingerprint: JSON.stringify([ids.toSorted(), result, note ?? null, build ?? null]),
+        run: async () => {
+          const failed: string[] = []
+          const tickets: string[] = []
+          for (const c of cases) {
+            const res = await recordCaseResult({ case_id: c.id, result, note, build, raise_ticket: result === 'failed' })
+            if (res.error) failed.push(`${c.tc_id} (${res.error})`)
+            if (res.ticketKey) tickets.push(res.ticketKey)
+          }
+          const ok = cases.length - failed.length
+          const done = `${word === 'Block' ? 'Blocked' : word === 'Pass' ? 'Passed' : 'Failed'} ${plural(ok, 'case')}${tickets.length ? `; tickets ${some(tickets)}` : ''}.`
+          return failed.length ? { error: `${done} Not recorded: ${some(failed, 4)}` } : { done }
+        },
+      }
+    }),
+
+  action('propose_set_automation', 'Preparing the change',
+    'Set test cases\' automation status: "these can\'t be automated" means manual_only (still tested by hand); also automated, in_progress, blocked, not_automated. To take cases out of the release altogether ("retire"), use propose_retire_cases instead. Lead and QA only.',
+    CaseSelection.extend({
+      automation: z.enum(['manual_only', 'not_automated', 'in_progress', 'automated', 'blocked']).describe('manual_only = tested by hand only'),
+      reason: z.string().trim().max(2000).optional().describe('Why, in their words'),
+    }),
+    (ctx, me, { automation, reason, ...selection }) => {
+      if (me.role === 'dev') return { error: 'Only QA or the lead change test cases.' }
+      const chosen = chooseCases(ctx, selection)
+      if (chosen.error !== undefined) return { error: chosen.error }
+      const cases = chosen.cases.filter((c) => c.automation !== automation)
+      if (!cases.length) return { error: `Those cases are already ${AUTOMATION[automation]}.` }
+      if (cases.length > MAX_CASES) return { error: `That is ${cases.length} cases; ${MAX_CASES} at most at a time. Narrow it down.` }
+      const ids = cases.map((c) => c.id)
+      return {
+        title: `Set ${plural(cases.length, 'case')} to ${AUTOMATION[automation]}`,
+        lines: [some(cases.map((c) => `${c.tc_id} ${c.title}`), 6), `Now: ${some([...new Set(cases.map((c) => AUTOMATION[c.automation] ?? c.automation))], 4)}`, ...(reason ? [`Reason: ${reason}`] : [])],
+        fingerprint: JSON.stringify([ids.toSorted(), automation, reason ?? null]),
+        run: async () => {
+          const supabase = await createClient()
+          const now = new Date().toISOString()
+          const { error } = await supabase.from('test_cases').update({
+            automation, updated_at: now,
+            ...(automation === 'manual_only' ? { automation_proposed: null, automation_decided_by: me.id, automation_decided_at: now, automation_note: (reason ? `Manual only, set by ${me.name}: ${reason}` : `Manual only, set by ${me.name}`).slice(0, 2000) } : {}),
+          }).in('id', ids)
+          if (error) return { error: error.message }
+          revalidatePath('/', 'layout')
+          return { done: `Set ${plural(ids.length, 'case')} to ${AUTOMATION[automation]}.` }
+        },
+      }
+    }),
+
+  action('propose_retire_cases', 'Preparing the change',
+    'Retire test cases, or restore retired ones: "retire TC_474, TC_504 and TC_506, security questions are gone", "restore TC_504". A retired case keeps its text and history but leaves every list, board and count, and the runner stops running it. Retiring needs a reason. Lead and QA only.',
+    CaseSelection.extend({
+      restore: z.boolean().optional().describe('true to bring retired cases back'),
+      reason: z.string().trim().max(2000).optional().describe('Why they are retired, in their words'),
+    }),
+    async (ctx, me, { restore, reason, ...selection }) => {
+      if (me.role === 'dev') return { error: 'Only QA or the lead retire test cases.' }
+      let cases: { id: string; tc_id: string; title: string }[]
+      if (restore) {
+        // Retired cases are not in the lists Sidekick reads, so look them up by ID.
+        if (!selection.tc_ids?.length) return { error: 'Which retired cases? Name them by ID.' }
+        const supabase = await createClient()
+        const wanted = selection.tc_ids.map((k) => k.trim().toUpperCase().replace(/^TC[-_ ]?/, 'TC_'))
+        const { data } = await supabase.from('test_cases').select('id, tc_id, title').in('tc_id', wanted).not('retired_at', 'is', null)
+        cases = data ?? []
+        const missing = wanted.filter((k) => !cases.some((c) => c.tc_id === k))
+        if (missing.length) return { error: `${some(missing)} ${missing.length === 1 ? 'is' : 'are'} not retired, or not a case.` }
+      } else {
+        if (!reason || reason.length < 3) return { error: 'Why are they being retired?' }
+        const chosen = chooseCases(ctx, selection)
+        if (chosen.error !== undefined) return { error: chosen.error }
+        cases = chosen.cases
+      }
+      if (cases.length > MAX_CASES) return { error: `That is ${cases.length} cases; ${MAX_CASES} at most at a time. Narrow it down.` }
+      const ids = cases.map((c) => c.id)
+      return {
+        title: `${restore ? 'Restore' : 'Retire'} ${plural(cases.length, 'case')}`,
+        lines: [some(cases.map((c) => `${c.tc_id} ${c.title}`), 6), ...(restore ? ['They come back into every list, board and count.'] : [`Reason: ${reason}`])],
+        note: restore ? undefined : 'Kept with their history; restore them any time from their page or here.',
+        fingerprint: JSON.stringify([ids.toSorted(), !!restore, reason ?? null]),
+        run: async () => {
+          const res = await retireCases(ids, restore ? null : reason!)
+          return res.error ? { error: res.error } : { done: `${restore ? 'Restored' : 'Retired'} ${some(cases.map((c) => c.tc_id))}.` }
+        },
+      }
+    }),
+
+  action('propose_edit_case', 'Preparing the edit',
+    'Change one test case\'s text: title, preconditions, steps, test data or expected result. "TC_479 should no longer expect a Security questions panel". Write the full new text of each field that changes. Lead and QA only.',
+    z.object({
+      tc_id: z.string().describe('The case, e.g. TC_479'),
+      title: z.string().trim().min(3).max(300).optional(),
+      preconditions: z.string().trim().max(5000).optional(),
+      steps: z.string().trim().max(10000).optional(),
+      test_data: z.string().trim().max(5000).optional(),
+      expected: z.string().trim().max(5000).optional(),
+    }),
+    async (ctx, me, { tc_id, ...fields }) => {
+      if (me.role === 'dev') return { error: 'Only QA or the lead change test cases.' }
+      const c = ctx.cases.find((x) => x.tc_id.toLowerCase() === tc_id.trim().toLowerCase() || x.legacy_tc_id?.toLowerCase() === tc_id.trim().toLowerCase())
+      if (!c) return { error: `No test case ${tc_id}.` }
+      const supabase = await createClient()
+      const { data: now } = await supabase.from('test_cases').select('title, preconditions, steps, test_data, expected').eq('id', c.id).single()
+      if (!now) return { error: `No test case ${tc_id}.` }
+      const changes = (Object.entries(fields) as [keyof typeof now, string | undefined][]).filter(([k, v]) => v !== undefined && v !== (now[k] ?? ''))
+      if (!changes.length) return { error: `That is what ${c.tc_id} already says.` }
+      const LABEL: Record<string, string> = { title: 'Title', preconditions: 'Preconditions', steps: 'Steps', test_data: 'Test data', expected: 'Expected' }
+      return {
+        title: `Edit ${c.tc_id}`,
+        lines: changes.flatMap(([k, v]) => [`${LABEL[k]} was: ${now[k] || '(empty)'}`, `${LABEL[k]} becomes: ${v}`]),
+        note: 'The automation runner sees the text changed.',
+        fingerprint: JSON.stringify([c.id, changes, changes.map(([k]) => now[k])]),
+        run: async () => {
+          const { error } = await supabase.from('test_cases').update({ ...Object.fromEntries(changes), updated_at: new Date().toISOString() }).eq('id', c.id)
+          if (error) return { error: error.message }
+          revalidatePath('/', 'layout')
+          return { done: `Updated ${c.tc_id}.` }
         },
       }
     }),

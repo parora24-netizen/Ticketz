@@ -108,6 +108,8 @@ export const CasesQuery = z.object({
   type: z.string().optional().transform(list),
   text_updated_since: iso.optional(),
   /** true: only cases whose Expected is a placeholder; false: leave them out (the automation backlog). */
+  /** Retired cases: left out unless asked for (true: only them; all: both), or the call reads changes since a time, so a sync sees a case retire. */
+  retired: z.enum(['true', 'false', 'all']).optional(),
   needs_detail: z.enum(['true', 'false']).optional().transform((v) => (v === undefined ? undefined : v === 'true')),
   block: z.string().optional().transform(list),
   tc_id: z.string().optional().transform((s) => list(s)?.map((x) => x.toUpperCase())),

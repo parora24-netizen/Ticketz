@@ -12,7 +12,7 @@ import { editItems, ticketEventItems } from '@/components/ticket-timeline'
 import { changeEntries, type ChangeRow } from '@/lib/activity'
 import { mismatch } from '@/lib/workflow/case-stage'
 import { addCaseComment, raiseTicket } from '../../actions'
-import { CaseAutomationField, CaseResultActions, CaseTesterField, UndoResultButton } from '@/components/case-controls'
+import { CaseAutomationField, CaseResultActions, RetireCaseButton, CaseTesterField, UndoResultButton } from '@/components/case-controls'
 import { ProposalButtons } from '@/app/(app)/cases/automation/automation-controls'
 import { BLOCK_LABEL, KIND_LABEL, askStatus, type AskKind, type AskState } from '@/lib/automation-loop'
 import Link from 'next/link'
@@ -75,14 +75,22 @@ export default async function CasePage({
   const mm = mismatch(lastAuto, lastManual)
   const back = `/cases/${encodeURIComponent(c.tc_id)}`
   const canTest = me.role !== 'dev'
+  const retiredBy = c.retired_by ? (await supabase.from('people').select('name').eq('id', c.retired_by).maybeSingle()).data?.name ?? null : null
 
   return (
     <>
       <PageHeader title={c.title} sub={<><span className="mono">{c.tc_id}</span>{c.legacy_tc_id && <span className="text-[var(--faint)]"> (was <span className="mono">{c.legacy_tc_id}</span>)</span>} · {c.areas?.zone} · {c.areas?.page}{c.source_page && c.source_page !== c.areas?.page ? ` (${c.source_page})` : ''}</>}>
         {mm && <Chip tone="warn">{mm === 'type_ii' ? 'Automation passed, manual failed' : 'Automation failed, manual passed'}</Chip>}
-        {canTest && <CaseResultActions caseId={c.id} />}
+        {c.retired_at && <Chip tone="muted">Retired</Chip>}
+        {canTest && !c.retired_at && <CaseResultActions caseId={c.id} />}
+        {canTest && <RetireCaseButton caseId={c.id} retired={!!c.retired_at} />}
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
+      {c.retired_at && (
+        <p className="card mb-4 border-[var(--warn-line)] bg-[var(--warn-soft)] px-4 py-2.5 text-[12.5px]">
+          <b>Retired</b> {new Date(c.retired_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}{retiredBy ? ' by ' + retiredBy : ''}: {c.retired_reason}. It is out of every list, board and count, and the runner does not run it.
+        </p>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section className="card space-y-4 p-5">

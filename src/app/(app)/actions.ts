@@ -884,3 +884,36 @@ export async function retireCases(ids: string[], reason: string | null): Promise
   revalidatePath('/', 'layout')
   return {}
 }
+
+// ---- Editing a test case ---------------------------------------------------------------------
+
+/** The case page's edit form: its text, priority, type and page. Lead and QA. */
+export async function updateCaseText(formData: FormData) {
+  const raw = Object.fromEntries(formData)
+  const tc = String(raw.tc_id ?? '')
+  const path = `/cases/${encodeURIComponent(tc)}`
+  const me = await getMe()
+  if (me.role === 'dev') fail(path, 'Only QA or the lead edit test cases')
+  const v = z.object({
+    case_id: z.uuid(),
+    title: z.string().trim().min(3, 'The title needs at least 3 characters').max(300),
+    priority: z.enum(['Critical', 'High', 'Medium', 'Low']),
+    area_id: z.uuid(),
+    test_type: z.string().trim().max(50),
+    preconditions: z.string().trim().max(5000),
+    steps: z.string().trim().max(10000),
+    test_data: z.string().trim().max(5000),
+    expected: z.string().trim().max(5000),
+  }).safeParse(raw)
+  if (!v.success) redirect(withMessage(`${path}?edit=1`, 'error', v.error.issues[0]?.message ?? 'Check the form'))
+  const d = v.data
+  const supabase = await createClient()
+  const { error } = await supabase.from('test_cases').update({
+    title: d.title, priority: d.priority, area_id: d.area_id, test_type: d.test_type || null,
+    preconditions: d.preconditions || null, steps: d.steps || null, test_data: d.test_data || null, expected: d.expected || null,
+    updated_at: new Date().toISOString(),
+  }).eq('id', d.case_id)
+  if (error) redirect(withMessage(`${path}?edit=1`, 'error', error.message))
+  revalidatePath('/', 'layout')
+  redirect(withMessage(path, 'ok', 'Case saved'))
+}

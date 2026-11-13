@@ -11,7 +11,7 @@ import { MARKERS, Timeline, type TimelineItem } from '@/components/timeline'
 import { editItems, ticketEventItems } from '@/components/ticket-timeline'
 import { changeEntries, type ChangeRow } from '@/lib/activity'
 import { mismatch } from '@/lib/workflow/case-stage'
-import { addCaseComment, raiseTicket } from '../../actions'
+import { addCaseComment, raiseTicket, updateCaseText } from '../../actions'
 import { CaseAutomationField, CaseResultActions, RetireCaseButton, CaseTesterField, UndoResultButton } from '@/components/case-controls'
 import { ProposalButtons } from '@/app/(app)/cases/automation/automation-controls'
 import { BLOCK_LABEL, KIND_LABEL, askStatus, type AskKind, type AskState } from '@/lib/automation-loop'
@@ -75,6 +75,7 @@ export default async function CasePage({
   const mm = mismatch(lastAuto, lastManual)
   const back = `/cases/${encodeURIComponent(c.tc_id)}`
   const canTest = me.role !== 'dev'
+  const editing = canTest && sp.edit === '1'
   const retiredBy = c.retired_by ? (await supabase.from('people').select('name').eq('id', c.retired_by).maybeSingle()).data?.name ?? null : null
 
   return (
@@ -83,6 +84,7 @@ export default async function CasePage({
         {mm && <Chip tone="warn">{mm === 'type_ii' ? 'Automation passed, manual failed' : 'Automation failed, manual passed'}</Chip>}
         {c.retired_at && <Chip tone="muted">Retired</Chip>}
         {canTest && !c.retired_at && <CaseResultActions caseId={c.id} />}
+        {canTest && !editing && <Link href={`${back}?edit=1`} className="btn">Edit case</Link>}
         {canTest && <RetireCaseButton caseId={c.id} retired={!!c.retired_at} />}
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
@@ -93,6 +95,31 @@ export default async function CasePage({
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        {editing ? (
+          <form action={updateCaseText} className="card space-y-3 p-5">
+            <input type="hidden" name="case_id" value={c.id} />
+            <input type="hidden" name="tc_id" value={c.tc_id} />
+            <label className="block"><span className="label">Title</span><input name="title" defaultValue={c.title} required minLength={3} maxLength={300} className="input mt-1 w-full" /></label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <label className="block"><span className="label">Priority</span>
+                <select name="priority" defaultValue={c.priority} className="select mt-1 w-full">{['Critical', 'High', 'Medium', 'Low'].map((p) => <option key={p}>{p}</option>)}</select></label>
+              <label className="block"><span className="label">Page</span>
+                <select name="area_id" defaultValue={c.area_id} className="select mt-1 w-full">
+                  {areas.map((a) => <option key={a.id} value={a.id}>{a.zone} · {a.page}</option>)}
+                </select></label>
+              <label className="block"><span className="label">Type</span><input name="test_type" defaultValue={c.test_type ?? ''} maxLength={50} className="input mt-1 w-full" /></label>
+            </div>
+            {([['preconditions', 'Pre-conditions', 3, 5000], ['steps', 'Steps', 6, 10000], ['test_data', 'Test data', 2, 5000], ['expected', 'Expected result', 4, 5000]] as const).map(([name, label, rows, max]) => (
+              <label key={name} className="block"><span className="label">{label}</span>
+                <textarea name={name} defaultValue={c[name] ?? ''} rows={rows} maxLength={max} className="input mt-1 w-full font-[inherit]" /></label>
+            ))}
+            <p className="text-[12px] text-[var(--muted)]">Saving records the change in the case's history, and the automation runner sees the text changed.</p>
+            <div className="flex justify-end gap-2">
+              <Link href={back} className="btn">Cancel</Link>
+              <SubmitButton primary pendingText="Saving…">Save case</SubmitButton>
+            </div>
+          </form>
+        ) : (
         <section className="card space-y-4 p-5">
           {[
             ['Pre-conditions', c.preconditions],
@@ -102,7 +129,9 @@ export default async function CasePage({
           ].map(([label, text]) => text ? (
             <div key={label}><h2 className="label">{label}</h2><p className="mt-1 whitespace-pre-wrap text-sm">{text}</p></div>
           ) : null)}
+          {!c.preconditions && !c.steps && !c.test_data && !c.expected && <p className="text-sm text-[var(--muted)]">No text yet.{canTest && <> <Link href={`${back}?edit=1`} className="text-[var(--accent)] hover:underline">Add it</Link>.</>}</p>}
         </section>
+        )}
 
         <aside className="space-y-4">
           <section className="card">

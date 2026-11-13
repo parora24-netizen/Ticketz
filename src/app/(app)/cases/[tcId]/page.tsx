@@ -83,9 +83,18 @@ export default async function CasePage({
       <PageHeader title={c.title} sub={<><span className="mono">{c.tc_id}</span>{c.legacy_tc_id && <span className="text-[var(--faint)]"> (was <span className="mono">{c.legacy_tc_id}</span>)</span>} · {c.areas?.zone} · {c.areas?.page}{c.source_page && c.source_page !== c.areas?.page ? ` (${c.source_page})` : ''}</>}>
         {mm && <Chip tone="warn">{mm === 'type_ii' ? 'Automation passed, manual failed' : 'Automation failed, manual passed'}</Chip>}
         {c.retired_at && <Chip tone="muted">Retired</Chip>}
-        {canTest && !c.retired_at && <CaseResultActions caseId={c.id} />}
-        {canTest && !editing && <Link href={`${back}?edit=1`} className="btn">Edit case</Link>}
-        {canTest && <RetireCaseButton caseId={c.id} retired={!!c.retired_at} />}
+        {editing ? (
+          <>
+            <Link href={back} className="btn">Cancel</Link>
+            <button type="submit" form="case-edit" className="btn btn-primary">Save case</button>
+          </>
+        ) : (
+          <>
+            {canTest && !c.retired_at && <CaseResultActions caseId={c.id} />}
+            {canTest && <Link href={`${back}?edit=1`} className="btn">Edit case</Link>}
+            {canTest && <RetireCaseButton caseId={c.id} retired={!!c.retired_at} />}
+          </>
+        )}
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
       {c.retired_at && (
@@ -96,7 +105,7 @@ export default async function CasePage({
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         {editing ? (
-          <form action={updateCaseText} className="card space-y-3 p-5">
+          <form id="case-edit" action={updateCaseText} className="card space-y-3 p-5">
             <input type="hidden" name="case_id" value={c.id} />
             <input type="hidden" name="tc_id" value={c.tc_id} />
             <label className="block"><span className="label">Title</span><input name="title" defaultValue={c.title} required minLength={3} maxLength={300} className="input mt-1 w-full" /></label>

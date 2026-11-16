@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { toast } from '@/components/toast'
 import { browserClient } from '@/lib/supabase/browser'
+import { tooBig, tooMany, uploadErrorMessage } from '@/lib/upload-errors'
 
 type Upload = { path: string; name: string; size: number; type: string | null; preview: string | null }
 
@@ -15,26 +16,29 @@ const safeName = (n: string) => n.replace(/[^\w.-]+/g, '_').slice(-80) || 'file'
  * `runs/<case id>`. Pick files, drop them on the box, or paste a screenshot with `onPaste`.
  * `opts` picks another bucket and size limit, as test case files do.
  */
-export function useEvidence(folder: string, opts: { bucket?: string; maxBytes?: number } = {}) {
+export function useEvidence(folder: string, opts: { bucket?: string; maxBytes?: number; types?: string } = {}) {
   const bucket = opts.bucket ?? 'evidence'
   const maxBytes = opts.maxBytes ?? MAX_BYTES
+  const types = opts.types ?? 'images or PDF'
   const [files, setFiles] = useState<Upload[]>([])
   const [uploading, setUploading] = useState(0)
 
   /** Uploads the files and returns those that made it. */
   async function add(list: FileList | File[]): Promise<Upload[]> {
-    const picked = [...list].slice(0, MAX_FILES - files.length)
+    const all = [...list]
+    const picked = all.slice(0, Math.max(0, MAX_FILES - files.length))
+    if (picked.length < all.length) toast(tooMany(all.length, picked.length, MAX_FILES), 'error')
     const done: Upload[] = []
     if (!picked.length) return done
     const supabase = browserClient()
     setUploading((n) => n + picked.length)
     for (const f of picked) {
-      if (f.size > maxBytes) { toast(`${f.name} is over ${Math.round(maxBytes / 1024 / 1024)} MB`, 'error'); setUploading((n) => n - 1); continue }
+      if (f.size > maxBytes) { toast(tooBig(f.name, maxBytes), 'error'); setUploading((n) => n - 1); continue }
       const name = safeName(f.name || 'screenshot.png')
       const path = `${folder}/${crypto.randomUUID()}-${name}`
       const { error } = await supabase.storage.from(bucket).upload(path, f, { contentType: f.type || 'application/octet-stream' })
       setUploading((n) => n - 1)
-      if (error) { toast(`${name}: ${error.message}`, 'error'); continue }
+      if (error) { toast(uploadErrorMessage(f.name || name, error.message, maxBytes, types), 'error'); continue }
       const up = { path, name, size: f.size, type: f.type || null, preview: f.type.startsWith('image/') ? URL.createObjectURL(f) : null }
       done.push(up)
       setFiles((fs) => [...fs, up])

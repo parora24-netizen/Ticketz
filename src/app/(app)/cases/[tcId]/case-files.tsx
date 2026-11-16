@@ -12,7 +12,7 @@ export type CaseFile = { id: string; name: string; size: number; url: string | n
 /** A test case's files: datasets and inputs a test needs, or screenshots. Anyone on the team can add them. */
 export function CaseFiles({ caseId, files, canAdd }: { caseId: string; files: CaseFile[]; canAdd: boolean }) {
   const router = useRouter()
-  const ev = useEvidence(caseFileFolder(caseId), { bucket: CASE_FILES_BUCKET, maxBytes: MAX_CASE_FILE_BYTES })
+  const ev = useEvidence(caseFileFolder(caseId), { bucket: CASE_FILES_BUCKET, maxBytes: MAX_CASE_FILE_BYTES, types: 'zip, CSV, Excel, JSON, text, PDF or images' })
   const [pending, start] = useTransition()
   const [removing, setRemoving] = useState<string | null>(null)
 

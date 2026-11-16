@@ -82,7 +82,7 @@ export default async function CasePage({
     <>
       <PageHeader title={c.title} sub={<><span className="mono">{c.tc_id}</span>{c.legacy_tc_id && <span className="text-[var(--faint)]"> (was <span className="mono">{c.legacy_tc_id}</span>)</span>} · {c.areas?.zone} · {c.areas?.page}{c.source_page && c.source_page !== c.areas?.page ? ` (${c.source_page})` : ''}</>}>
         {mm && <Chip tone="warn">{mm === 'type_ii' ? 'Automation passed, manual failed' : 'Automation failed, manual passed'}</Chip>}
-        {c.retired_at && <Chip tone="muted">Retired</Chip>}
+        {c.retired_at && <Chip tone="muted">{c.retired_as === 'deferred' ? 'Deferred' : 'Retired'}</Chip>}
         {editing ? (
           <>
             <Link href={back} className="btn">Cancel</Link>
@@ -99,7 +99,7 @@ export default async function CasePage({
       <Flash error={sp.error} ok={sp.ok} />
       {c.retired_at && (
         <p className="card mb-4 border-[var(--warn-line)] bg-[var(--warn-soft)] px-4 py-2.5 text-[12.5px]">
-          <b>Retired</b> {new Date(c.retired_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}{retiredBy ? ' by ' + retiredBy : ''}: {c.retired_reason}. It is out of every list, board and count, and the runner does not run it.
+          <b>{c.retired_as === 'deferred' ? 'Deferred to a later release' : 'Retired'}</b> {new Date(c.retired_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })}{retiredBy ? ' by ' + retiredBy : ''}: {c.retired_reason}. It is out of this release: every list, board and count, and the runner does not run it.
         </p>
       )}
 

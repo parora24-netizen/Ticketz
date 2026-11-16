@@ -144,29 +144,33 @@ export function UndoResultButton({ runId, back, result }: { runId: string; back:
   )
 }
 
-/** Retire a case (asks why) or restore a retired one. */
+/** Take a case out of the release, retired for good or deferred to a later release (asks why), or bring it back. */
 export function RetireCaseButton({ caseId, retired }: { caseId: string; retired: boolean }) {
   const router = useRouter()
   const [pending, start] = useTransition()
-  const [asking, setAsking] = useState(false)
+  const [asking, setAsking] = useState<'retired' | 'deferred' | null>(null)
   const [why, setWhy] = useState('')
-  const run = (reason: string | null) => start(async () => {
-    const res = await retireCases([caseId], reason)
+  const run = (reason: string | null, as: 'retired' | 'deferred' = 'retired') => start(async () => {
+    const res = await retireCases([caseId], reason, as)
     if (res.error) toast(res.error, 'error')
-    else { toast(reason === null ? 'Case restored' : 'Case retired'); setAsking(false); router.refresh() }
+    else { toast(reason === null ? 'Case restored' : as === 'deferred' ? 'Case deferred' : 'Case retired'); setAsking(null); router.refresh() }
   })
   if (retired) return <button type="button" className="btn" disabled={pending} onClick={() => run(null)}>{pending ? 'Restoring…' : 'Restore case'}</button>
+  const deferring = asking === 'deferred'
   return (
     <>
-      <button type="button" className="btn" disabled={pending} onClick={() => { setWhy(''); setAsking(true) }}>Retire</button>
-      <Dialog open={asking} onClose={() => setAsking(false)} title="Retire this case">
-        <p className="text-[12.5px] text-[var(--muted)]">It keeps its text and history but leaves every list, board and count, and the runner stops running it. You can restore it from this page.</p>
+      <button type="button" className="btn" disabled={pending} onClick={() => { setWhy(''); setAsking('deferred') }}>Defer</button>
+      <button type="button" className="btn" disabled={pending} onClick={() => { setWhy(''); setAsking('retired') }}>Retire</button>
+      <Dialog open={!!asking} onClose={() => setAsking(null)} title={deferring ? 'Defer this case to a later release' : 'Retire this case'}>
+        <p className="text-[12.5px] text-[var(--muted)]">{deferring
+          ? 'It leaves this release: every list, board and count, and the runner stops running it. It keeps its text and history, and is listed under Retired & deferred until someone restores it.'
+          : 'For a case that no longer applies. It keeps its text and history but leaves every list, board and count, and the runner stops running it. You can restore it from this page.'}</p>
         <label className="mt-3 block"><span className="label">Why</span>
-          <textarea className="input mt-1 w-full" rows={3} value={why} onChange={(e) => setWhy(e.target.value)} placeholder="Security questions are removed from the product" autoFocus />
+          <textarea className="input mt-1 w-full" rows={3} value={why} onChange={(e) => setWhy(e.target.value)} placeholder={deferring ? 'Single sign-on ships after 26.111' : 'Security questions are removed from the product'} autoFocus />
         </label>
         <div className="mt-3 flex justify-end gap-2">
-          <button type="button" className="btn" onClick={() => setAsking(false)}>Cancel</button>
-          <button type="button" className="btn btn-primary" disabled={pending || why.trim().length < 3} onClick={() => run(why)}>{pending ? 'Retiring…' : 'Retire case'}</button>
+          <button type="button" className="btn" onClick={() => setAsking(null)}>Cancel</button>
+          <button type="button" className="btn btn-primary" disabled={pending || why.trim().length < 3} onClick={() => run(why, asking ?? 'retired')}>{pending ? 'Saving…' : deferring ? 'Defer case' : 'Retire case'}</button>
         </div>
       </Dialog>
     </>

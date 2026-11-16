@@ -225,12 +225,14 @@ export const ACTIONS: ActionDef[] = [
     }),
 
   action('propose_retire_cases', 'Preparing the change',
-    'Retire test cases, or restore retired ones: "retire TC_474, TC_504 and TC_506, security questions are gone", "restore TC_504". A retired case keeps its text and history but leaves every list, board and count, and the runner stops running it. Retiring needs a reason. Lead and QA only.',
+    'Take test cases out of the release, or bring them back. Retire a case that no longer applies ("retire TC_474 and TC_506, security questions are gone"); defer one that comes back in a later release ("defer the single sign-on cases to the next release"); restore either ("restore TC_504"). Both keep the case\'s text and history but take it out of every list, board and count, and the runner stops running it. Needs a reason. Lead and QA only.',
     CaseSelection.extend({
-      restore: z.boolean().optional().describe('true to bring retired cases back'),
+      restore: z.boolean().optional().describe('true to bring retired or deferred cases back'),
+      defer: z.boolean().optional().describe('true to defer to a later release rather than retire'),
       reason: z.string().trim().max(2000).optional().describe('Why they are retired, in their words'),
     }),
-    async (ctx, me, { restore, reason, ...selection }) => {
+    async (ctx, me, { restore, defer, reason, ...selection }) => {
+      const verb = defer ? 'Defer' : 'Retire'
       if (me.role === 'dev') return { error: 'Only QA or the lead retire test cases.' }
       let cases: { id: string; tc_id: string; title: string }[]
       if (restore) {
@@ -241,9 +243,9 @@ export const ACTIONS: ActionDef[] = [
         const { data } = await supabase.from('test_cases').select('id, tc_id, title').in('tc_id', wanted).not('retired_at', 'is', null)
         cases = data ?? []
         const missing = wanted.filter((k) => !cases.some((c) => c.tc_id === k))
-        if (missing.length) return { error: `${some(missing)} ${missing.length === 1 ? 'is' : 'are'} not retired, or not a case.` }
+        if (missing.length) return { error: `${some(missing)} ${missing.length === 1 ? 'is' : 'are'} not retired or deferred, or not a case.` }
       } else {
-        if (!reason || reason.length < 3) return { error: 'Why are they being retired?' }
+        if (!reason || reason.length < 3) return { error: `Why are they being ${defer ? 'deferred' : 'retired'}?` }
         const chosen = chooseCases(ctx, selection)
         if (chosen.error !== undefined) return { error: chosen.error }
         cases = chosen.cases
@@ -251,13 +253,13 @@ export const ACTIONS: ActionDef[] = [
       if (cases.length > MAX_CASES) return { error: `That is ${cases.length} cases; ${MAX_CASES} at most at a time. Narrow it down.` }
       const ids = cases.map((c) => c.id)
       return {
-        title: `${restore ? 'Restore' : 'Retire'} ${plural(cases.length, 'case')}`,
+        title: `${restore ? 'Restore' : verb} ${plural(cases.length, 'case')}${defer && !restore ? ' to a later release' : ''}`,
         lines: [some(cases.map((c) => `${c.tc_id} ${c.title}`), 6), ...(restore ? ['They come back into every list, board and count.'] : [`Reason: ${reason}`])],
         note: restore ? undefined : 'Kept with their history; restore them any time from their page or here.',
-        fingerprint: JSON.stringify([ids.toSorted(), !!restore, reason ?? null]),
+        fingerprint: JSON.stringify([ids.toSorted(), !!restore, !!defer, reason ?? null]),
         run: async () => {
-          const res = await retireCases(ids, restore ? null : reason!)
-          return res.error ? { error: res.error } : { done: `${restore ? 'Restored' : 'Retired'} ${some(cases.map((c) => c.tc_id))}.` }
+          const res = await retireCases(ids, restore ? null : reason!, defer ? 'deferred' : 'retired')
+          return res.error ? { error: res.error } : { done: `${restore ? 'Restored' : defer ? 'Deferred' : 'Retired'} ${some(cases.map((c) => c.tc_id))}.` }
         },
       }
     }),

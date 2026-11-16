@@ -868,17 +868,17 @@ export async function addTicketComment(ticketId: string, body: string): Promise<
  * Retire test cases (reason given) or restore them (reason null). A retired case keeps its text and
  * history but leaves every list, board and count, and the runner is told to stop running it.
  */
-export async function retireCases(ids: string[], reason: string | null): Promise<{ error?: string }> {
+export async function retireCases(ids: string[], reason: string | null, as: 'retired' | 'deferred' = 'retired'): Promise<{ error?: string }> {
   const me = await getMe()
   if (me.role === 'dev') return { error: 'Only QA or the lead retire test cases' }
   const idList = z.array(z.uuid()).min(1).max(500).safeParse(ids)
-  const why = reason === null ? null : z.string().trim().min(3, 'Say why the case is retired').max(2000).safeParse(reason)
+  const why = reason === null ? null : z.string().trim().min(3, `Say why the case is ${as}`).max(2000).safeParse(reason)
   if (!idList.success) return { error: 'No cases given' }
   if (why && !why.success) return { error: why.error.issues[0]?.message ?? 'Say why' }
   const supabase = await createClient()
   const now = new Date().toISOString()
   const { error } = await supabase.from('test_cases')
-    .update(why ? { retired_at: now, retired_by: me.id, retired_reason: why.data, updated_at: now } : { retired_at: null, retired_by: null, retired_reason: null, updated_at: now })
+    .update(why ? { retired_at: now, retired_by: me.id, retired_reason: why.data, retired_as: as === 'deferred' ? 'deferred' : 'retired', updated_at: now } : { retired_at: null, retired_by: null, retired_reason: null, retired_as: null, updated_at: now })
     .in('id', idList.data)
   if (error) return { error: error.message }
   revalidatePath('/', 'layout')

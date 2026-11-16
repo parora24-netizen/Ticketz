@@ -191,7 +191,7 @@ export async function POST(request: NextRequest) {
     retests_closed,
     sprint: sprint?.name ?? null,
     unmatched: ids.filter((id) => !found.has(id)),
-    ...(retired.length ? { retired, retired_note: 'These cases are retired: their results were not recorded. Stop running them.' } : {}),
+    ...(retired.length ? { retired, retired_note: 'These cases are retired or deferred (out of this release): their results were not recorded. Stop running them.' } : {}),
     tickets,
     tickets_not_raised: Math.max(0, failures.length - MAX_RAISED),
   })

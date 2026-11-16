@@ -175,6 +175,12 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
   -d '{ "body": "@Niten is step 3 still right after the new import screen?" }'`,
     },
     {
+      title: 'Files on a case',
+      what: 'Datasets, inputs and screenshots the testers keep on a test case, e.g. a MyLO dataset. /api/cases lists the files on each case by name; this gives each file with a download link that works for an hour. Fetch the link as it is, without the token.',
+      curl: `curl "${appUrl}/api/cases/TC_71/files" \\
+  ${auth}`,
+    },
+    {
       title: 'Team',
       what: 'The active team with the exact @Name to mention each person.',
       curl: `curl "${appUrl}/api/team" \\

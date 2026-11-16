@@ -12,6 +12,7 @@ import { applyCaseAutomation, audit, isDryRun } from '@/lib/automation-server'
  * (only a change to the case's wording), limit (max 1000), offset.
  * Oldest change first, so paging with offset is stable. Auth: the CI token.
  * automation_due_on is set per page, so changing it does not move a case's updated_at.
+ * files names the files kept on each case (datasets, inputs); GET /api/cases/{tc_id}/files gives download links.
  */
 export async function GET(request: NextRequest) {
   const caller = await authenticate(request)
@@ -51,6 +52,10 @@ export async function GET(request: NextRequest) {
   const blockKey = new Map((blockers ?? []).map((t) => [t.id as string, t.key as string]))
   const ids = data.map((c) => c.id as string)
   const { data: askLinks } = ids.length ? await caller.db.from('ask_cases').select('case_id, asks!inner(key, state)').in('case_id', ids).eq('asks.state', 'open') : { data: [] }
+  // Files kept on each case; GET /api/cases/{tc_id}/files gives their download links.
+  const { data: fileRows } = ids.length ? await caller.db.from('case_files').select('case_id, name, size_bytes').in('case_id', ids).order('created_at') : { data: [] }
+  const filesOf = new Map<string, { name: string; size_bytes: number }[]>()
+  for (const f of fileRows ?? []) filesOf.set(f.case_id as string, [...(filesOf.get(f.case_id as string) ?? []), { name: f.name as string, size_bytes: Number(f.size_bytes) }])
   const waiting = new Map<string, string[]>()
   for (const l of (askLinks ?? []) as unknown as { case_id: string; asks: { key: string } | { key: string }[] }[]) { const a = Array.isArray(l.asks) ? l.asks[0] : l.asks; if (a) waiting.set(l.case_id, [...(waiting.get(l.case_id) ?? []), a.key]) }
   return NextResponse.json({
@@ -62,6 +67,7 @@ export async function GET(request: NextRequest) {
         tc_id: c.tc_id, legacy_tc_id: c.legacy_tc_id, scenario_id: c.scenario_id, requirement_id: c.requirement_id, title: c.title, zone: area?.zone ?? null, page: area?.page ?? null, source_page: c.source_page,
         priority: c.priority, type: c.test_type, automation: c.automation, automation_status: automationFromDb(c.automation), automation_note: c.automation_note, automation_owner: c.automation_owner, automation_ref: c.automation_ref, automation_block: c.automation_block, automation_block_ticket: c.automation_block_ticket_id ? blockKey.get(c.automation_block_ticket_id) ?? null : null, waiting_on_asks: waiting.get(c.id as string) ?? [], automation_proposed: c.automation_proposed, automation_proposed_reason: c.automation_proposed_reason, needs_detail: c.needs_detail, automation_due_on: area?.automate_due_on ?? null, revision: c.revision, text_updated_at: c.text_updated_at, tester: one<{ name: string }>(c.tester)?.name ?? null,
         preconditions: c.preconditions, steps: c.steps, test_data: c.test_data, expected: c.expected,
+        files: filesOf.get(c.id as string) ?? [],
         retired: !!c.retired_at, retired_as: c.retired_at ? c.retired_as ?? 'retired' : null, retired_at: c.retired_at, retired_reason: c.retired_reason,
         created_at: c.created_at, updated_at: c.updated_at,
       }

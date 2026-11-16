@@ -18,6 +18,8 @@ import { BLOCK_LABEL, KIND_LABEL, askStatus, type AskKind, type AskState } from 
 import Link from 'next/link'
 import { RunHistory } from '@/components/run-history'
 import { caseHistory } from '@/lib/runs-server'
+import { CASE_FILES_BUCKET } from '@/lib/case-files'
+import { CaseFiles, type CaseFile } from './case-files'
 
 export default async function CasePage({
   params, searchParams,
@@ -76,6 +78,12 @@ export default async function CasePage({
   const back = `/cases/${encodeURIComponent(c.tc_id)}`
   const canTest = me.role !== 'dev'
   const editing = canTest && sp.edit === '1'
+  // Files kept on the case, through short-lived links; the bucket is private.
+  const { data: fileRows } = await supabase.from('case_files').select('id, path, name, size_bytes, created_at, uploaded_by, people(name)').eq('case_id', c.id).order('created_at')
+  const caseFiles: CaseFile[] = await Promise.all((fileRows ?? []).map(async (f) => {
+    const { data: link } = await supabase.storage.from(CASE_FILES_BUCKET).createSignedUrl(f.path, 3600, { download: f.name })
+    return { id: f.id, name: f.name, size: Number(f.size_bytes), url: link?.signedUrl ?? null, by: (f.people as unknown as { name: string } | null)?.name ?? null, at: f.created_at, canRemove: f.uploaded_by === me.id || me.role === 'lead' }
+  }))
   const retiredBy = c.retired_by ? (await supabase.from('people').select('name').eq('id', c.retired_by).maybeSingle()).data?.name ?? null : null
 
   return (
@@ -143,6 +151,7 @@ export default async function CasePage({
         )}
 
         <aside className="space-y-4">
+          <CaseFiles caseId={c.id} files={caseFiles} canAdd />
           <section className="card">
             <h3 className="border-b border-[var(--line)] px-4 py-2.5 text-[14px] font-semibold">Details</h3>
             <dl className="divide-y divide-[var(--row)] text-[13px]">

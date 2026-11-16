@@ -13,6 +13,7 @@ import { TicketNav } from '@/components/ticket-nav'
 import { allowedMoves, type TicketState } from '@/lib/workflow/ticket-machine'
 import { addComment, assignToMe } from '../../actions'
 import { TicketActions, TicketField } from '@/components/ticket-controls'
+import { TicketAttach } from './attach'
 
 export default async function TicketPage({
   params, searchParams,
@@ -99,6 +100,7 @@ export default async function TicketPage({
               </ul>
             </div>
           )}
+          <TicketAttach ticketId={t.id} hasFiles={shots.length > 0} />
 
           {tc && (tc.steps || tc.expected) && (
             <div className="mt-5 border border-[var(--line-soft)] bg-[var(--surface-3)] p-3.5">

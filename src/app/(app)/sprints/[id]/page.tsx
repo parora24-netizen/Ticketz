@@ -63,13 +63,13 @@ export default async function SprintPage({
     return mine.find((t) => !['closed', 'deferred', 'duplicate'].includes(t.state)) ?? mine[0]
   }
   const fixMode = kind === 'fix'
-  // Fix sprints also hold tickets with no test case (tasks, design rework, tickets raised by API): one card each.
-  const caseless = fixMode ? tickets.filter((t) => !t.case_id) : []
   const stageOf = new Map<string, string>(cases.map((c) => [c.id,
     fixMode ? fixStage(sprintTicketOf(c.id)!.state, !!sprintTicketOf(c.id)!.blocked_reason) : testMode ? testStage(toStageInput(c, runs)) : caseStage(toStageInput(c, runs))]))
   const counts: Record<string, number> = Object.fromEntries((fixMode ? FIX_STAGES : testMode ? TEST_STAGES : STAGES).map((s) => [s, 0]))
-  for (const s of stageOf.values()) counts[s]++
-  for (const t of caseless) counts[fixStage(t.state, !!t.blocked_reason)]++
+  // A fix sprint is its tickets: one card and one count each, whether or not it has a test case.
+  if (fixMode) for (const t of tickets) counts[fixStage(t.state, !!t.blocked_reason)]++
+  else for (const s of stageOf.values()) counts[s]++
+  const caseById = new Map(loaded.map((c) => [c.id, c]))
   if (testMode) counts.write = emptyAreaIds.length
 
   const ticketsByCase = new Map<string, TicketRow[]>()
@@ -83,9 +83,11 @@ export default async function SprintPage({
   const unfinishedAreas = [...new Set([...emptyAreaIds, ...cases.filter((c) => !['done', 'passed'].includes(stageOf.get(c.id)!)).map((c) => c.area_id)])].map((a) => areaName.get(a) ?? '')
   const laterSprints = sprints.filter((s) => s.id !== id && s.status !== 'closed' && s.starts_on > sprint.starts_on).map((s) => ({ id: s.id, name: s.name }))
 
+  // Results on this sprint's own cases only: the overnight suite runs every case, which is not this sprint's testing.
+  const sprintRunTimes = runTimes.filter((r) => caseIds.has(r.case_id))
   const today = istDate(new Date().toISOString())
   const chartEnd = [sprint.ends_on, today].sort()[0]
-  const daily = sprint.status !== 'planned' && chartEnd >= sprint.starts_on ? casesTestedByDay(runTimes, sprint.starts_on, chartEnd) : []
+  const daily = sprint.status !== 'planned' && chartEnd >= sprint.starts_on ? casesTestedByDay(sprintRunTimes, sprint.starts_on, chartEnd) : []
 
   return (
     <>
@@ -109,7 +111,7 @@ export default async function SprintPage({
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
 
-      {cases.length + caseless.length > 0 && (
+      {(fixMode ? tickets.length : cases.length) > 0 && (
       <section className="card mb-4 grid grid-cols-1 gap-x-6 gap-y-4 p-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
         <>
         <div>
@@ -119,11 +121,11 @@ export default async function SprintPage({
           {/* Cases given a result (pass, fail or blocked; by hand or by the suite) since the sprint began,
               against all of the sprint's cases. Older results, e.g. from the workbook, don't count here. */}
           <h3 className="text-[13px] font-semibold text-[var(--navy-ink)]" title="Cases given a result since the sprint began. Results from before it, like the workbook's, are not counted here.">
-            Tested this sprint · {new Set(runTimes.map((r) => r.case_id)).size} of {cases.length}
+            Tested this sprint · {new Set(sprintRunTimes.map((r) => r.case_id)).size} of {cases.length}
           </h3>
           {daily.length > 1
             ? <LineChart points={daily} label="Cases tested this sprint" unit="cases tested" lineLabel="tested" target={{ value: cases.length, label: `all ${cases.length} cases` }} height={140} />
-            : <p className="mt-2 text-[12.5px] text-[var(--muted)]">{new Set(runTimes.map((r) => r.case_id)).size} of {cases.length}</p>}
+            : <p className="mt-2 text-[12.5px] text-[var(--muted)]">{new Set(sprintRunTimes.map((r) => r.case_id)).size} of {cases.length}</p>}
         </div>
         </>
       </section>
@@ -141,21 +143,25 @@ export default async function SprintPage({
         today={today}
         sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ id: s.id, name: s.name }))}
         areas={areaIds.map((a) => areaName.get(a) ?? '').sort()}
-        cards={[...cases.map((c) => {
-          const t = fixMode ? sprintTicketOf(c.id) : openTicket(c)
+        cards={fixMode ? tickets.map((t) => {
+          // The ticket is the card; its test case, if it has one, is the detail.
+          const c = t.case_id ? caseById.get(t.case_id) : undefined
           return {
-            id: c.id, tc_id: c.tc_id, title: c.title, priority: c.priority, zone: c.zone, page: c.page,
+            id: t.id, case_id: c?.id ?? null, tc_id: c?.tc_id ?? '', title: t.title, priority: t.severity, zone: t.zone ?? 'No area', page: t.page ?? '—',
+            stage: fixStage(t.state, !!t.blocked_reason) as 'test', test_by: c ? testBy(toStageInput(c)) : 'manual' as const, tester_id: c?.tester_id ?? null, tester_name: c?.tester_name ?? null,
+            auto_result: c?.auto_result ?? null, manual_result: c?.manual_result ?? null, needs_ticket: false, caseless: !c,
+            ticket: { id: t.id, key: t.key, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name, kind: t.kind, blocked_reason: t.blocked_reason },
+          }
+        }) : cases.map((c) => {
+          const t = openTicket(c)
+          return {
+            id: c.id, case_id: c.id, tc_id: c.tc_id, title: c.title, priority: c.priority, zone: c.zone, page: c.page,
             stage: stageOf.get(c.id)! as 'test', test_by: testBy(toStageInput(c)), tester_id: c.tester_id, tester_name: c.tester_name,
             auto_result: c.auto_result, manual_result: c.manual_result,
             needs_ticket: needsTicket(toStageInput(c, runs)),
             ticket: t ? { id: t.id, key: t.key, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name, kind: t.kind, blocked_reason: t.blocked_reason } : null,
           }
-        }), ...caseless.map((t) => ({
-          id: 't:' + t.id, tc_id: t.key, title: t.title, priority: t.severity, zone: t.zone ?? 'No area', page: t.page ?? '—',
-          stage: fixStage(t.state, !!t.blocked_reason) as 'test', test_by: 'manual' as const, tester_id: null, tester_name: null,
-          auto_result: null, manual_result: null, needs_ticket: false, caseless: true,
-          ticket: { id: t.id, key: t.key, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name, kind: t.kind, blocked_reason: t.blocked_reason },
-        }))]}
+        })}
       />
 
       {kind !== 'fix' && carriedIn.length > 0 && (

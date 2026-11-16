@@ -18,7 +18,10 @@ import { SearchInput } from '@/components/search-input'
 
 export type SprintCard = {
   id: string
+  /** The test case's ID; empty for a ticket with no case. */
   tc_id: string
+  /** The test case behind the card; null for a ticket with no case. */
+  case_id: string | null
   title: string
   priority: 'Critical' | 'High' | 'Medium' | 'Low'
   zone: string
@@ -30,7 +33,7 @@ export type SprintCard = {
   auto_result: string | null
   manual_result: string | null
   needs_ticket: boolean
-  /** A fix sprint's ticket with no test case: the card is the ticket, and opens its page. */
+  /** A fix sprint's ticket with no test case: the card opens the ticket's page. */
   caseless?: boolean
   ticket: { id: string; key: string; state: TicketState; owner_id: string | null; owner_name: string | null; kind?: 'defect' | 'test_mismatch' | 'task'; blocked_reason?: string | null } | null
 }
@@ -97,6 +100,8 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
 
   useEffect(() => setLocal({}), [cards])
   const stageOf = (c: SprintCard) => local[c.id] ?? c.stage
+  // Fix boards are tickets, named by their key; other boards are cases.
+  const nameOf = (c: SprintCard) => (mode === 'fix' && c.ticket ? c.ticket.key : c.tc_id)
   const cols: readonly Col[] = mode === 'test' ? TEST_STAGES : mode === 'fix' ? FIX_STAGES : STAGES
   const LABEL: Record<string, string> = mode === 'test' ? TEST_STAGE_LABEL : mode === 'fix' ? FIX_STAGE_LABEL : STAGE_LABEL
   const moveOf = (c: SprintCard, to: Col) => mode === 'test'
@@ -127,7 +132,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
     const failed: string[] = []
     for (const c of list) {
       const res = await moveTicketFromBoard({ ticket_id: c.ticket!.id, to: 'closed' } as Parameters<typeof moveTicketFromBoard>[0])
-      if (res.error) { failed.push(c.tc_id); setLocal((l) => { const n = { ...l }; delete n[c.id]; return n }) }
+      if (res.error) { failed.push(nameOf(c)); setLocal((l) => { const n = { ...l }; delete n[c.id]; return n }) }
     }
     setClosing(false)
     if (failed.length) toast(`${list.length - failed.length} closed; ${failed.length} could not be: ${failed.join(', ')}`, 'error')
@@ -207,9 +212,9 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
       : await moveTicketFromBoard({ ticket_id: card.ticket!.id, to: move.to, fixed_in_build: extra.build, note: extra.note } as Parameters<typeof moveTicketFromBoard>[0])
     if (res.error) {
       setLocal((l) => ({ ...l, [card.id]: from }))
-      toast(`${card.tc_id}: ${res.error}`, 'error')
+      toast(`${nameOf(card)}: ${res.error}`, 'error')
     } else {
-      toast(`${card.tc_id}: ${move.label}${res.ticketKey ? ` · ticket ${res.ticketKey}` : ''}`)
+      toast(`${nameOf(card)}: ${move.label}${res.ticketKey ? ` · ticket ${res.ticketKey}` : ''}`)
       router.refresh()
     }
   }
@@ -234,13 +239,13 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
       <article key={c.id} draggable
         onDragStart={(e) => { setDragging(c); e.dataTransfer.effectAllowed = 'move' }}
         onDragEnd={() => setDragging(null)}
-        onClick={() => (c.caseless ? router.push('/tickets/' + encodeURIComponent(c.tc_id)) : setOpen(c.id))}
-        onKeyDown={(e) => { if (e.key === 'Enter') { if (c.caseless) router.push('/tickets/' + encodeURIComponent(c.tc_id)); else setOpen(c.id) } }}
+        onClick={() => (c.case_id ? setOpen(c.id) : router.push('/tickets/' + encodeURIComponent(nameOf(c))))}
+        onKeyDown={(e) => { if (e.key === 'Enter') { if (c.case_id) setOpen(c.id); else router.push('/tickets/' + encodeURIComponent(nameOf(c))) } }}
         tabIndex={0}
         className={`cursor-pointer border bg-white p-2 outline-none hover:border-[var(--navy)] focus-visible:border-[var(--navy)] ${open === c.id ? 'border-[var(--navy)]' : 'border-[var(--line)]'} ${
           c.priority === 'Critical' ? 'shadow-[inset_3px_0_0_var(--crit)]' : c.priority === 'High' ? 'shadow-[inset_3px_0_0_var(--warn)]' : ''}`}>
         <div className="flex items-center justify-between gap-2">
-          <span className="mono truncate text-[11.5px] font-medium text-[var(--accent)]">{c.tc_id}</span>
+          <span className="mono truncate text-[11.5px] font-medium text-[var(--accent)]">{nameOf(c)}</span>
           <span className="flex shrink-0 items-center gap-1">
             {s === 'test' && <span className="chip px-1.5 text-[10.5px]">{c.test_by === 'auto' ? 'Auto' : 'Manual'}</span>}
             <PriorityChip p={c.priority} />
@@ -248,13 +253,15 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
         </div>
         {!byArea && <div className="mt-1 truncate text-[11px] text-[var(--muted)]">{c.zone} · <b className="font-semibold text-[var(--ink-2)]">{c.page}</b></div>}
         <p className="mt-0.5 line-clamp-2 text-[12.5px] leading-snug">{c.title}</p>
-        {c.caseless
-          ? <div className="mt-1 truncate text-[11px] text-[var(--muted)]">{c.ticket ? STATE_LABEL[c.ticket.state] : ''} · <span className="text-[var(--faint)]">no test case</span></div>
+        {mode === 'fix'
+          ? <div className="mt-1 flex flex-wrap items-center gap-x-3 text-[11px] text-[var(--faint)]">
+              {c.case_id ? <><span className="mono text-[var(--ink-2)]">{c.tc_id}</span><span>Auto <Res r={c.auto_result} /></span><span>Manual <Res r={c.manual_result} /></span></> : <span>No test case</span>}
+            </div>
           : <div className="mt-1 flex items-center gap-3 text-[11px] text-[var(--faint)]">
           <span>Auto <Res r={c.auto_result} /></span>
           <span>Manual <Res r={c.manual_result} /></span>
         </div>}
-        {c.ticket && !c.caseless && (
+        {c.ticket && mode !== 'fix' && (
           <div className="mt-1 truncate text-[11px]">
             <span className="mono text-[var(--accent)]">{c.ticket.key}</span>
             <span className="text-[var(--muted)]"> · {STATE_LABEL[c.ticket.state]}</span>
@@ -425,7 +432,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
       </>}
 
       <Dialog open={!!ask} onClose={() => setAsk(null)}
-        title={ask?.kind === 'fail' ? `Record a failure · ${ask.card.tc_id}` : ask?.kind === 'build' ? 'Which build has the fix?' : ask?.kind === 'block' ? `What is blocking ${ask.card.ticket?.key ?? 'it'}?` : 'What did the retest show?'}>
+        title={ask?.kind === 'fail' ? `Record a failure · ${nameOf(ask.card)}` : ask?.kind === 'build' ? 'Which build has the fix?' : ask?.kind === 'block' ? `What is blocking ${ask.card.ticket?.key ?? 'it'}?` : 'What did the retest show?'}>
         {ask && (
           <form className="space-y-3" onSubmit={(e) => {
             e.preventDefault()
@@ -452,7 +459,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
         )}
       </Dialog>
 
-      <CaseDrawer caseId={open} ticketId={cards.find((c) => c.id === open)?.ticket?.id ?? null} onClose={() => setOpen(null)} role={role} people={people} sprints={sprints} active={active} />
+      <CaseDrawer caseId={cards.find((c) => c.id === open)?.case_id ?? null} ticketId={cards.find((c) => c.id === open)?.ticket?.id ?? null} onClose={() => setOpen(null)} role={role} people={people} sprints={sprints} active={active} />
     </div>
   )
 }

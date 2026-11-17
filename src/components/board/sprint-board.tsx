@@ -148,10 +148,9 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
   const lanes = [...new Set([...shown.map(areaOf), ...(mode === 'test' && !q && !onlyHigh && !owner ? emptyAreas.filter((a) => !area || a.label === area).map((a) => a.label) : [])])].sort()
   const sortByPriority = (list: SprintCard[]) => list.sort((a, b) => PRIORITY.indexOf(a.priority) - PRIORITY.indexOf(b.priority))
   // The open card's place among the cards on show, in board order, to step through with Next.
-  // Only open cards, as the count beside a name; cards without a test case open their ticket page
-  // instead, so they are left out too.
+  // Only open cards, as the count beside a name.
   const inStage = (list: SprintCard[]) => cols.flatMap((s) => sortByPriority(list.filter((c) => stageOf(c) === s)))
-  const seq = (byArea ? lanes.flatMap((l) => inStage(shown.filter((c) => areaOf(c) === l))) : inStage(shown)).filter((c) => c.case_id && !isDone(stageOf(c)))
+  const seq = (byArea ? lanes.flatMap((l) => inStage(shown.filter((c) => areaOf(c) === l))) : inStage(shown)).filter((c) => !isDone(stageOf(c)))
   const at = open ? seq.findIndex((c) => c.id === open) : -1
   const nav = at < 0 || seq.length < 2 ? undefined : {
     at, total: seq.length,
@@ -251,8 +250,8 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
       <article key={c.id} draggable
         onDragStart={(e) => { setDragging(c); e.dataTransfer.effectAllowed = 'move' }}
         onDragEnd={() => setDragging(null)}
-        onClick={() => (c.case_id ? setOpen(c.id) : router.push('/tickets/' + encodeURIComponent(nameOf(c))))}
-        onKeyDown={(e) => { if (e.key === 'Enter') { if (c.case_id) setOpen(c.id); else router.push('/tickets/' + encodeURIComponent(nameOf(c))) } }}
+        onClick={() => setOpen(c.id)}
+        onKeyDown={(e) => { if (e.key === 'Enter') setOpen(c.id) }}
         tabIndex={0}
         className={`cursor-pointer border bg-white p-2 outline-none hover:border-[var(--navy)] focus-visible:border-[var(--navy)] ${open === c.id ? 'border-[var(--navy)]' : 'border-[var(--line)]'} ${
           c.priority === 'Critical' ? 'shadow-[inset_3px_0_0_var(--crit)]' : c.priority === 'High' ? 'shadow-[inset_3px_0_0_var(--warn)]' : ''}`}>

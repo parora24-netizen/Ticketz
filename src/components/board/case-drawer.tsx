@@ -8,11 +8,14 @@ import { toast } from '@/components/toast'
 import { PriorityChip, ResultChip, StateChip } from '@/components/ui'
 import type { RunResult } from '@/lib/workflow/case-stage'
 import { allowedMoves, type Role, type TicketState } from '@/lib/workflow/ticket-machine'
-import { addTicketComment, getCaseDetail, type CaseDetail } from '@/app/(app)/actions'
+import { addTicketComment, getCaseDetail, getTicketDetail, type CaseDetail } from '@/app/(app)/actions'
+
+/** What the panel shows: a case (with its ticket, if any), or a ticket that has no case. */
+type Detail = Omit<CaseDetail, 'case'> & { case: CaseDetail['case'] | null }
 
 const day = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 
-/** Work on one case, and its open ticket, without leaving the board. Esc or the backdrop closes it. */
+/** Work on one case and its open ticket, or a ticket with no case, without leaving the board. Esc or the backdrop closes it. */
 export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, sprints, active = true, nav }: {
   caseId: string | null
   /** Step through the cards on show: this card's place, and the previous and next one. */
@@ -26,25 +29,32 @@ export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, spr
   people: { id: string; name: string }[]
   sprints: { id: string; name: string }[]
 }) {
-  const [data, setData] = useState<CaseDetail | null>(null)
+  const [data, setData] = useState<Detail | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [comment, setComment] = useState('')
   const [posting, startPost] = useTransition()
 
-  const load = useCallback(async (id: string) => {
-    const res = await getCaseDetail(id, ticketId)
+  const load = useCallback(async () => {
+    let res: Detail | { error: string } | null = null
+    if (caseId) res = await getCaseDetail(caseId, ticketId)
+    else if (ticketId) {
+      const r = await getTicketDetail(ticketId)
+      res = 'error' in r ? r : { case: null, ticket: r.ticket, runs: [], comments: r.comments }
+    }
+    if (!res) return
     if ('error' in res) setError(res.error)
     else { setError(null); setData(res) }
-  }, [ticketId])
+  }, [caseId, ticketId])
 
   useEffect(() => {
     setData(null)
     setComment('')
-    if (caseId) void load(caseId)
-  }, [caseId, load])
+    void load()
+  }, [load])
 
+  const shown = !!(caseId || ticketId)
   useEffect(() => {
-    if (!caseId) return
+    if (!shown) return
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement
       if (el.closest('dialog')) return
@@ -57,10 +67,10 @@ export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, spr
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [caseId, onClose, nav])
+  }, [shown, onClose, nav])
 
-  if (!caseId) return null
-  const reload = () => caseId && load(caseId)
+  if (!shown) return null
+  const reload = () => load()
   const tester = role !== 'dev'
   const c = data?.case
   const t = data?.ticket
@@ -68,16 +78,20 @@ export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, spr
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
       <button type="button" aria-label="Close panel" onClick={onClose} className="absolute inset-0 bg-[rgba(15,27,51,.25)]" />
-      <aside role="dialog" aria-modal="true" aria-label={c ? `${c.tc_id} ${c.title}` : 'Test case'}
+      <aside role="dialog" aria-modal="true" aria-label={c ? `${c.tc_id} ${c.title}` : t ? `${t.key} ${t.title}` : 'Test case'}
         className="relative flex h-full w-[min(560px,100vw)] flex-col border-l border-[var(--line)] bg-white shadow-[-18px_0_44px_rgba(9,17,38,.18)]">
         <header className="flex items-start gap-3 border-b border-[var(--line)] px-5 py-4">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              {c ? <Link href={`/cases/${c.tc_id}`} className="mono text-[12px] font-medium text-[var(--accent)] hover:underline">{c.tc_id}</Link> : <span className="h-3 w-24 animate-pulse bg-[var(--line-soft)]" />}
-              {c && <PriorityChip p={c.priority as 'Critical'} />}
-              {c && <span className="text-[12px] text-[var(--muted)]">{c.zone} · {c.page}</span>}
+              {c ? <Link href={`/cases/${c.tc_id}`} className="mono text-[12px] font-medium text-[var(--accent)] hover:underline">{c.tc_id}</Link>
+                : t ? <Link href={`/tickets/${encodeURIComponent(t.key)}`} className="mono text-[12px] font-medium text-[var(--accent)] hover:underline">{t.key}</Link>
+                : <span className="h-3 w-24 animate-pulse bg-[var(--line-soft)]" />}
+              {c ? <PriorityChip p={c.priority as 'Critical'} /> : t && <PriorityChip p={t.severity as 'Critical'} />}
+              {c ? <span className="text-[12px] text-[var(--muted)]">{c.zone} · {c.page}</span>
+                : t?.zone && <span className="text-[12px] text-[var(--muted)]">{t.zone} · {t.page}</span>}
             </div>
-            <h2 className="mt-1 text-[17px] leading-snug font-semibold text-[var(--navy-ink)]">{c?.title ?? 'Loading…'}</h2>
+            <h2 className="mt-1 text-[17px] leading-snug font-semibold text-[var(--navy-ink)]">{c?.title ?? t?.title ?? 'Loading…'}</h2>
+            {data && !c && <p className="mt-1 text-[12px] text-[var(--muted)]">No test case: a ticket on its own.</p>}
           </div>
           {nav && (
             <div className="flex shrink-0 items-center gap-1 text-[12px] text-[var(--muted)]">
@@ -91,9 +105,9 @@ export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, spr
 
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
           {error && <p className="text-[13px] text-[var(--crit)]">{error}</p>}
-          {c && (
+          {data && (
             <>
-              {tester && (
+              {c && tester && (
                 <section>
                   <h3 className="label mb-2">Record a result</h3>
                   {active
@@ -102,6 +116,7 @@ export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, spr
                 </section>
               )}
 
+              {!c && t?.description && <p className="whitespace-pre-wrap text-[13px] text-[var(--ink-2)]">{t.description}</p>}
               {t ? (
                 <section className="border border-[var(--line)]">
                   <div className="flex flex-wrap items-center gap-2 border-b border-[var(--line)] bg-[var(--surface-3)] px-3 py-2">
@@ -155,16 +170,16 @@ export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, spr
                 <p className="text-[12.5px] text-[var(--muted)]">No open ticket.</p>
               )}
 
-              <section className="grid grid-cols-2 gap-3">
+              {c && <section className="grid grid-cols-2 gap-3">
                 <label><span className="label mb-1 block">Tester</span>
                   <CaseTesterField caseId={c.id} value={c.tester_id} people={people} disabled={!tester} onDone={reload} />
                 </label>
                 <label><span className="label mb-1 block">Automation</span>
                   <CaseAutomationField caseId={c.id} value={c.automation} disabled={!tester} onDone={reload} />
                 </label>
-              </section>
+              </section>}
 
-              {(c.steps || c.expected) && (
+              {c && (c.steps || c.expected) && (
                 <section className="space-y-2 text-[12.5px]">
                   <h3 className="label">How to test</h3>
                   {c.preconditions && <p><b className="font-semibold">Before you start:</b> {c.preconditions}</p>}

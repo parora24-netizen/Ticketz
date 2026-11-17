@@ -807,9 +807,24 @@ ${v.data.note}` : ''}` })
 
 export type CaseDetail = {
   case: { id: string; tc_id: string; title: string; priority: string; automation: string; tester_id: string | null; preconditions: string | null; steps: string | null; test_data: string | null; expected: string | null; zone: string; page: string }
-  ticket: { id: string; key: string; title: string; state: string; severity: string; owner_id: string | null; current_sprint_id: string | null; fixed_in_build: string | null; blocked_reason: string | null } | null
+  ticket: { id: string; key: string; title: string; state: string; severity: string; owner_id: string | null; current_sprint_id: string | null; fixed_in_build: string | null; blocked_reason: string | null; description?: string | null; zone?: string | null; page?: string | null } | null
   runs: { kind: string; result: string; recorded_at: string; note: string | null; who: string | null; files: { name: string; url: string }[] }[]
   comments: { body: string; created_at: string; who: string | null }[]
+}
+/** A ticket with no test case, for the board's card panel: the ticket, its text and comments. */
+export async function getTicketDetail(ticketId: string): Promise<{ ticket: NonNullable<CaseDetail['ticket']>; comments: CaseDetail['comments'] } | { error: string }> {
+  await getMe()
+  if (!z.uuid().safeParse(ticketId).success) return { error: 'Unknown ticket' }
+  const supabase = await createClient()
+  const [{ data: t }, { data: comments }] = await Promise.all([
+    supabase.from('ticket_list').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build, blocked_reason, description, zone, page').eq('id', ticketId).maybeSingle(),
+    supabase.from('ticket_comments').select('body, created_at, people(name)').eq('ticket_id', ticketId).order('created_at', { ascending: false }).limit(10),
+  ])
+  if (!t) return { error: 'Ticket not found' }
+  return {
+    ticket: t as NonNullable<CaseDetail['ticket']>,
+    comments: (comments ?? []).map((m) => ({ body: m.body, created_at: m.created_at, who: (m.people as unknown as { name: string } | null)?.name ?? null })),
+  }
 }
 
 /** Everything the board's side panel shows for one case: a given ticket of it, else its latest open one. */

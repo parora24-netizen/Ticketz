@@ -32,10 +32,10 @@ export const RESOLVED_STATES: TicketState[] = ['closed', 'deferred', 'duplicate'
  * ticket-machine.test.ts fails if they drift apart.
  */
 export const TRANSITIONS: Partial<Record<TicketState, Partial<Record<TicketState, Role[]>>>> = {
-  new: { triaged: ['lead', 'qa'], in_fix: ['lead', 'dev'], closed: ['lead', 'qa'], deferred: ['lead'], duplicate: ['lead', 'qa'] },
-  triaged: { in_fix: ['lead', 'dev'], closed: ['lead', 'qa'], deferred: ['lead'], duplicate: ['lead', 'qa'] },
+  new: { triaged: ['lead', 'qa'], in_fix: ['lead', 'dev', 'qa'], closed: ['lead', 'qa'], deferred: ['lead'], duplicate: ['lead', 'qa'] },
+  triaged: { in_fix: ['lead', 'dev', 'qa'], closed: ['lead', 'qa'], deferred: ['lead'], duplicate: ['lead', 'qa'] },
   in_fix: { ready_for_retest: ['lead', 'dev'], deferred: ['lead'] },
-  reopened: { in_fix: ['lead', 'dev'], deferred: ['lead'] },
+  reopened: { in_fix: ['lead', 'dev', 'qa'], closed: ['lead', 'qa'], deferred: ['lead'] },
   ready_for_retest: { closed: ['lead', 'qa'], reopened: ['lead', 'qa'], deferred: ['lead'] },
   closed: { reopened: ['lead', 'qa'] },
   deferred: { triaged: ['lead'] },

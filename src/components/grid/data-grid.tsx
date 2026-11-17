@@ -163,11 +163,7 @@ export function DataGrid<T extends { id: string }>({
     bars = spec.order
       ? bars.sort((a, b) => (spec.order!.indexOf(a.label) + 1 || 99) - (spec.order!.indexOf(b.label) + 1 || 99))
       : bars.sort((a, b) => b.count - a.count)
-    const top = spec.top ?? 8
-    if (bars.length > top) {
-      const rest = bars.slice(top - 1).reduce((s, b) => s + b.count, 0)
-      bars = [...bars.slice(0, top - 1), { label: `Other (${bars.length - top + 1})`, count: rest }]
-    }
+    // Every value is passed on; the chart folds the long tail into "Other" until it is opened.
     const f = filters[spec.key]
     return { spec, bars, total, selected: f?.kind === 'values' ? f.values : [] }
   }), [charts, columns, rows, matches, cellValue, filters])

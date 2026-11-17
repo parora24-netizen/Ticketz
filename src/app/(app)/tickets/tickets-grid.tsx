@@ -31,7 +31,7 @@ export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, sta
     { key: 'sprint', header: 'Sprint', width: 90, value: (r) => (r.sprint_id ? sprintName.get(r.sprint_id) ?? 'Closed sprint' : 'No sprint'),
       edit: canTriage ? { field: 'current_sprint_id', kind: 'select', options: sprintOptions } : undefined },
     { key: 'kind', header: 'Kind', width: 100, value: (r) => (r.kind === 'defect' ? 'Defect' : r.kind === 'task' ? 'Task' : 'Test issue') },
-    { key: 'area', header: 'Area', width: 200, value: (r) => (r.zone ? `${r.zone} · ${r.page}` : '') },
+    { key: 'area', header: 'Area', width: 200, value: (r) => (r.zone ? `${r.zone} · ${r.page}` : 'No area') },
     { key: 'logged', header: 'Logged', width: 110, mono: true, value: (r) => r.logged_on },
   ]
   return (
@@ -46,6 +46,7 @@ export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, sta
         { key: 'severity', title: 'By severity', order: ['Critical', 'High', 'Medium', 'Low'] },
         { key: 'owner', title: 'By owner' },
         { key: 'sprint', title: 'By sprint' },
+        { key: 'area', title: 'By area' },
       ]}
       defaultFilters={linkFilters(state, severity, owner, tester)}
       defaultSort={[{ key: 'severity', dir: 1 }]}

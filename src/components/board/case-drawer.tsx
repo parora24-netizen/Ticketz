@@ -13,8 +13,10 @@ import { addTicketComment, getCaseDetail, type CaseDetail } from '@/app/(app)/ac
 const day = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 
 /** Work on one case, and its open ticket, without leaving the board. Esc or the backdrop closes it. */
-export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, sprints, active = true }: {
+export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, sprints, active = true, nav }: {
   caseId: string | null
+  /** Step through the cards on show: this card's place, and the previous and next one. */
+  nav?: { at: number; total: number; prev: () => void; next: () => void }
   /** Show this ticket of the case (any state); otherwise its latest open one. */
   ticketId?: string | null
   /** Results only count toward a running sprint, so the panel records them only then. */
@@ -43,10 +45,19 @@ export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, spr
 
   useEffect(() => {
     if (!caseId) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !(e.target as HTMLElement).closest('dialog')) onClose() }
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('dialog')) return
+      if (e.key === 'Escape') onClose()
+      // ← → step through the cards on show, unless typing or choosing.
+      if (nav && !el.closest('input, textarea, select, [contenteditable]')) {
+        if (e.key === 'ArrowRight') { e.preventDefault(); nav.next() }
+        if (e.key === 'ArrowLeft') { e.preventDefault(); nav.prev() }
+      }
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [caseId, onClose])
+  }, [caseId, onClose, nav])
 
   if (!caseId) return null
   const reload = () => caseId && load(caseId)
@@ -68,6 +79,13 @@ export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, spr
             </div>
             <h2 className="mt-1 text-[17px] leading-snug font-semibold text-[var(--navy-ink)]">{c?.title ?? 'Loading…'}</h2>
           </div>
+          {nav && (
+            <div className="flex shrink-0 items-center gap-1 text-[12px] text-[var(--muted)]">
+              <button type="button" onClick={nav.prev} aria-label="Previous" title="Previous (←)" className="btn btn-sm px-2">‹</button>
+              <span className="min-w-14 text-center">{nav.at + 1} of {nav.total}</span>
+              <button type="button" onClick={nav.next} aria-label="Next" title="Next (→)" className="btn btn-sm btn-primary px-2">Next ›</button>
+            </div>
+          )}
           <button type="button" onClick={onClose} aria-label="Close" className="-mr-2 flex h-8 w-8 cursor-pointer items-center justify-center text-[var(--muted)] hover:bg-[var(--surface-3)] hover:text-[var(--ink)]">✕</button>
         </header>
 

@@ -13,6 +13,7 @@ import { moveTicketFromBoard, recordCaseResult, setTicketBlocked, updateCases } 
 import type { StandupCard } from '@/lib/standup'
 import { StandupPersonCard } from '@/app/(app)/standup/standup-deck'
 import { CaseDrawer } from './case-drawer'
+import { PersonFilter } from './person-filter'
 import { useRemembered } from '@/components/remember'
 import { SearchInput } from '@/components/search-input'
 
@@ -91,7 +92,8 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
   const [q, setQ] = useState('')
   const [onlyHigh, setOnlyHigh] = useRemembered(`sprint-board:${sprintId}:high`, false)
   const [area, setArea] = useRemembered(`sprint-board:${sprintId}:area`, '')
-  const [owner, setOwner] = useRemembered(`sprint-board:${sprintId}:owner`, '') // '' everyone, '__none' nobody, else a person id
+  const [owner, setOwner] = useRemembered(`sprint-board:${sprintId}:owner`, '') // '' everyone, else person ids (or '__none' for nobody), comma-joined
+  const owners = owner ? owner.split(',') : []
   const [byArea, setByArea] = useRemembered(`sprint-board:${sprintId}:by-area`, false)
   const [turn, setTurn] = useState<number | null>(null) // standup: whose turn, or null when not running
   // Lanes the user folded, and finished lanes they opened (finished lanes start folded).
@@ -111,12 +113,11 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
     : boardMove(stageOf(c) as Stage, to as Stage, role, c.ticket?.state ?? null)
   const areaOf = (c: SprintCard) => `${c.zone} · ${c.page}`
   const matchesOwner = (c: SprintCard) => {
-    if (!owner) return true
+    if (!owners.length) return true
     const o = ownerOf(c, stageOf(c))
-    if (owner === '__none') return !o.id && !isDone(stageOf(c))
-    // Only cards that are this person's move now (the dev while it is being fixed, the tester to
-    // test or retest), so the board matches the count beside their name.
-    return o.id === owner
+    return owners.some((id) => (id === '__none' ? !o.id && !isDone(stageOf(c)) : o.id === id))
+    // Only cards that are these people's move now (the dev while it is being fixed, the tester to
+    // test or retest), so the board matches the count beside their names.
   }
   const shown = cards.filter((c) => (!onlyHigh || c.priority === 'Critical' || c.priority === 'High') && (!area || areaOf(c) === area)
     && matchesOwner(c) && (!q || `${c.tc_id} ${c.title} ${c.ticket?.key ?? ''}`.toLowerCase().includes(q.toLowerCase())))
@@ -146,6 +147,16 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
     : droppableStages(stageOf(dragging) as Stage, role, dragging.ticket?.state ?? null)
   const lanes = [...new Set([...shown.map(areaOf), ...(mode === 'test' && !q && !onlyHigh && !owner ? emptyAreas.filter((a) => !area || a.label === area).map((a) => a.label) : [])])].sort()
   const sortByPriority = (list: SprintCard[]) => list.sort((a, b) => PRIORITY.indexOf(a.priority) - PRIORITY.indexOf(b.priority))
+  // The open card's place among the cards on show, in board order, to step through with Next.
+  // Cards without a test case open their ticket page instead, so they are left out.
+  const inStage = (list: SprintCard[]) => cols.flatMap((s) => sortByPriority(list.filter((c) => stageOf(c) === s)))
+  const seq = (byArea ? lanes.flatMap((l) => inStage(shown.filter((c) => areaOf(c) === l))) : inStage(shown)).filter((c) => c.case_id)
+  const at = open ? seq.findIndex((c) => c.id === open) : -1
+  const nav = at < 0 || seq.length < 2 ? undefined : {
+    at, total: seq.length,
+    prev: () => setOpen(seq[(at - 1 + seq.length) % seq.length].id),
+    next: () => setOpen(seq[(at + 1) % seq.length].id),
+  }
 
   // Open work per person, for the owner filter and the standup walk.
   const load = useMemo(() => {
@@ -337,13 +348,8 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <div className="flex items-center">
           <button type="button" onClick={() => step(-1)} aria-label="Previous person" className="btn px-2">‹</button>
-          <select value={owner} onChange={(e) => { setOwner(e.target.value); if (turn !== null) { const n = order.indexOf(e.target.value); if (n < 0) endStandup(); else setTurn(n) } }}
-            aria-label="Person" className="select -ml-px min-w-48">
-            <option value="">Everyone · {cards.filter((c) => !isDone(stageOf(c))).length} open</option>
-            <option value={meId}>Me · {load.get(meId) ?? 0} open</option>
-            {people.filter((p) => p.id !== meId).map((p) => <option key={p.id} value={p.id}>{p.name} · {load.get(p.id) ?? 0} open</option>)}
-            {load.has('__none') && <option value="__none">No owner · {load.get('__none')} open</option>}
-          </select>
+          <PersonFilter people={people} meId={meId} value={owners} load={load} everyone={cards.filter((c) => !isDone(stageOf(c))).length}
+            onChange={(ids) => { setOwner(ids.join(',')); if (turn !== null) { const n = ids.length === 1 ? order.indexOf(ids[0]) : -1; if (n < 0) setTurn(null); else setTurn(n) } }} />
           <button type="button" onClick={() => step(1)} aria-label="Next person" className="btn -ml-px px-2">›</button>
         </div>
         {turn === null
@@ -459,7 +465,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
         )}
       </Dialog>
 
-      <CaseDrawer caseId={cards.find((c) => c.id === open)?.case_id ?? null} ticketId={cards.find((c) => c.id === open)?.ticket?.id ?? null} onClose={() => setOpen(null)} role={role} people={people} sprints={sprints} active={active} />
+      <CaseDrawer nav={nav} caseId={cards.find((c) => c.id === open)?.case_id ?? null} ticketId={cards.find((c) => c.id === open)?.ticket?.id ?? null} onClose={() => setOpen(null)} role={role} people={people} sprints={sprints} active={active} />
     </div>
   )
 }

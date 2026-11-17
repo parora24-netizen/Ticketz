@@ -114,9 +114,9 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
     if (!owner) return true
     const o = ownerOf(c, stageOf(c))
     if (owner === '__none') return !o.id && !isDone(stageOf(c))
-    // On a fix board a person sees every card they are on, as the fixer or as the tester, so a
-    // ticket they handed to Retest stays in their view.
-    return o.id === owner || (mode === 'fix' && (c.ticket?.owner_id === owner || c.tester_id === owner))
+    // Only cards that are this person's move now (the dev while it is being fixed, the tester to
+    // test or retest), so the board matches the count beside their name.
+    return o.id === owner
   }
   const shown = cards.filter((c) => (!onlyHigh || c.priority === 'Critical' || c.priority === 'High') && (!area || areaOf(c) === area)
     && matchesOwner(c) && (!q || `${c.tc_id} ${c.title} ${c.ticket?.key ?? ''}`.toLowerCase().includes(q.toLowerCase())))

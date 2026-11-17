@@ -148,9 +148,10 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
   const lanes = [...new Set([...shown.map(areaOf), ...(mode === 'test' && !q && !onlyHigh && !owner ? emptyAreas.filter((a) => !area || a.label === area).map((a) => a.label) : [])])].sort()
   const sortByPriority = (list: SprintCard[]) => list.sort((a, b) => PRIORITY.indexOf(a.priority) - PRIORITY.indexOf(b.priority))
   // The open card's place among the cards on show, in board order, to step through with Next.
-  // Cards without a test case open their ticket page instead, so they are left out.
+  // Only open cards, as the count beside a name; cards without a test case open their ticket page
+  // instead, so they are left out too.
   const inStage = (list: SprintCard[]) => cols.flatMap((s) => sortByPriority(list.filter((c) => stageOf(c) === s)))
-  const seq = (byArea ? lanes.flatMap((l) => inStage(shown.filter((c) => areaOf(c) === l))) : inStage(shown)).filter((c) => c.case_id)
+  const seq = (byArea ? lanes.flatMap((l) => inStage(shown.filter((c) => areaOf(c) === l))) : inStage(shown)).filter((c) => c.case_id && !isDone(stageOf(c)))
   const at = open ? seq.findIndex((c) => c.id === open) : -1
   const nav = at < 0 || seq.length < 2 ? undefined : {
     at, total: seq.length,

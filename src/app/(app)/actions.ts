@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { getMe, safeNext } from '@/lib/auth'
 import { RUNNER_EMAIL, SCOPES, scopesOf } from '@/lib/ci-api'
 import { currentTicketKey } from '@/lib/ids'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { currentSprint, loadSprintAreas, loadSprints, trackOf } from '@/lib/data'
 import { fixSprintForArea } from '@/lib/workflow/fix-sprint'
 import { canMove, requiredFor, retestResult, type TicketState } from '@/lib/workflow/ticket-machine'
@@ -867,6 +867,7 @@ export async function addTicketComment(ticketId: string, body: string): Promise<
 /**
  * Retire test cases (reason given) or restore them (reason null). A retired case keeps its text and
  * history but leaves every list, board and count, and the runner is told to stop running it.
+ * Its open tickets are deferred with it, so they leave the boards too; restoring a case leaves them deferred.
  */
 export async function retireCases(ids: string[], reason: string | null, as: 'retired' | 'deferred' = 'retired'): Promise<{ error?: string }> {
   const me = await getMe()
@@ -881,6 +882,14 @@ export async function retireCases(ids: string[], reason: string | null, as: 'ret
     .update(why ? { retired_at: now, retired_by: me.id, retired_reason: why.data, retired_as: as === 'deferred' ? 'deferred' : 'retired', updated_at: now } : { retired_at: null, retired_by: null, retired_reason: null, retired_as: null, updated_at: now })
     .in('id', idList.data)
   if (error) return { error: error.message }
+  if (why) {
+    // Whoever may retire a case may take its tickets with it, whatever stage they are at, so this
+    // goes through the server key, recorded as this person.
+    const { error: ticketError } = await createServiceClient(me.id).from('tickets')
+      .update({ state: 'deferred', defer_reason: `Test case ${as}: ${why.data}`.slice(0, 2000) })
+      .in('case_id', idList.data).not('state', 'in', '(closed,deferred,duplicate)')
+    if (ticketError) return { error: `The cases are ${as}, but their open tickets could not be deferred: ${ticketError.message}` }
+  }
   revalidatePath('/', 'layout')
   return {}
 }

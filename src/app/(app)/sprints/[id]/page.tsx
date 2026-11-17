@@ -9,6 +9,7 @@ import { SubmitButton } from '@/components/submit-button'
 import { Tabs, nowSprints, sprintTabs } from '@/components/tabs'
 import { Chip, PageHeader, PriorityChip, StateChip, TicketLink } from '@/components/ui'
 import { getMe } from '@/lib/auth'
+import { RUNNER_EMAIL } from '@/lib/ci-api'
 import {
   runningSprints, daysLeft, daysUntil, fmtDate, loadActivity, loadAreas, loadHolidays, loadCases, loadPeople, loadRelease, loadSprintAreas, loadSprintRunTimes, loadSprintRuns,
   loadSprints, loadTasks, loadTickets, toStageInput, type CaseRow, type TicketRow,
@@ -146,9 +147,11 @@ export default async function SprintPage({
         cards={fixMode ? tickets.map((t) => {
           // The ticket is the card; its test case, if it has one, is the detail.
           const c = t.case_id ? caseById.get(t.case_id) : undefined
+          // Retest goes to the case's tester; without one, to the person who raised the ticket (not the runner).
+          const raiser = !c?.tester_id && t.created_by ? activePeople.find((p) => p.id === t.created_by && p.email !== RUNNER_EMAIL) : undefined
           return {
             id: t.id, case_id: c?.id ?? null, tc_id: c?.tc_id ?? '', title: t.title, priority: t.severity, zone: t.zone ?? 'No area', page: t.page ?? '—',
-            stage: fixStage(t.state, !!t.blocked_reason) as 'test', test_by: c ? testBy(toStageInput(c)) : 'manual' as const, tester_id: c?.tester_id ?? null, tester_name: c?.tester_name ?? null,
+            stage: fixStage(t.state, !!t.blocked_reason) as 'test', test_by: c ? testBy(toStageInput(c)) : 'manual' as const, tester_id: c?.tester_id ?? raiser?.id ?? null, tester_name: c?.tester_name ?? raiser?.name ?? null,
             auto_result: c?.auto_result ?? null, manual_result: c?.manual_result ?? null, needs_ticket: false, caseless: !c,
             ticket: { id: t.id, key: t.key, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name, kind: t.kind, blocked_reason: t.blocked_reason },
           }

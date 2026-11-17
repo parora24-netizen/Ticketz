@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/server'
 import { loadAreas, loadPeople, loadSprints } from '@/lib/data'
 import { MARKERS, Timeline, type TimelineItem } from '@/components/timeline'
 import { editItems, ticketEventItems } from '@/components/ticket-timeline'
+import { TicketField } from '@/components/ticket-controls'
 import { changeEntries, type ChangeRow } from '@/lib/activity'
 import { mismatch } from '@/lib/workflow/case-stage'
 import { addCaseComment, raiseTicket, updateCaseText } from '../../actions'
@@ -38,7 +39,7 @@ export default async function CasePage({
   }
   const [{ data: runs }, { data: tickets }, sprints, { data: edits }, people, areas, { data: comments }] = await Promise.all([
     supabase.from('test_runs').select('*, people(name)').eq('case_id', c.id).order('recorded_at', { ascending: false }),
-    supabase.from('tickets').select('id, key, title, state, severity').eq('case_id', c.id).order('logged_on', { ascending: false }),
+    supabase.from('tickets').select('id, key, title, state, severity, owner_id').eq('case_id', c.id).order('logged_on', { ascending: false }),
     loadSprints(),
     // Field edits; the change log is readable by the lead only.
     supabase.from('change_log').select('*').eq('row_id', c.id).eq('action', 'update').order('at', { ascending: false }).limit(200),
@@ -190,7 +191,14 @@ export default async function CasePage({
             <h2 className="font-semibold">Tickets</h2>
             <ul className="mt-2 space-y-1.5">
               {(tickets ?? []).map((t) => (
-                <li key={t.key} className="flex items-center gap-2 text-sm"><TicketLink k={t.key} /><StateChip s={t.state} /></li>
+                <li key={t.key} className="text-sm">
+                  <div className="flex items-center gap-2"><TicketLink k={t.key} /><StateChip s={t.state} /></div>
+                  {/* Who the ticket is with: change it here after recording a result, without opening the ticket. */}
+                  {!['closed', 'deferred', 'duplicate'].includes(t.state) && (
+                    <div className="mt-1"><TicketField ticketId={t.id} field="owner_id" value={(t.owner_id as string | null) ?? ''} disabled={!canTest}
+                      options={[{ value: '', label: 'Unassigned' }, ...people.filter((p) => p.active).map((p) => ({ value: p.id, label: p.name }))]} /></div>
+                  )}
+                </li>
               ))}
               {!tickets?.length && <li className="text-sm text-[var(--muted)]">None</li>}
             </ul>

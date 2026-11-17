@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_TICKET_ATTACHMENTS, isTicketFilePath, ticketFileFolder, withAttachments } from './ticket-files'
+import { MAX_TICKET_ATTACHMENTS, attachmentAddedBy, isTicketFilePath, ticketFileFolder, withAttachments } from './ticket-files'
 
 const T = '11111111-2222-3333-4444-555555555555'
 const OTHER = '99999999-2222-3333-4444-555555555555'
@@ -19,5 +19,21 @@ describe('ticket files', () => {
     const r = withAttachments(full, ['new'])
     expect(r.paths).toBe(full)
     expect(r.error).toContain(`up to ${MAX_TICKET_ATTACHMENTS}`)
+  })
+})
+
+describe('who added a ticket screenshot', () => {
+  const p = 'tickets/x/a.png'
+  it('is the person whose change put it there, else who raised the ticket', () => {
+    const log = [
+      { action: 'insert', changes: { attachments: [] }, actor_id: 'raiser' },
+      { action: 'update', changes: { severity: ['Low', 'High'] }, actor_id: 'lead' },
+      { action: 'update', changes: { attachments: [[], [p]] }, actor_id: 'sara' },
+      { action: 'update', changes: { attachments: [[p], [p, 'b']] }, actor_id: 'juan' },
+    ]
+    expect(attachmentAddedBy(p, log, 'raiser')).toBe('sara')
+    expect(attachmentAddedBy('b', log, 'raiser')).toBe('juan')
+    expect(attachmentAddedBy(p, [{ action: 'insert', changes: { attachments: [p] }, actor_id: null }], 'raiser')).toBe('raiser')
+    expect(attachmentAddedBy(p, [], null)).toBeNull()
   })
 })

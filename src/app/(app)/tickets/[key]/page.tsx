@@ -14,6 +14,8 @@ import { allowedMoves, type TicketState } from '@/lib/workflow/ticket-machine'
 import { addComment, assignToMe } from '../../actions'
 import { TicketActions, TicketField } from '@/components/ticket-controls'
 import { TicketAttach } from './attach'
+import { RemoveShot } from './remove-shot'
+import { attachmentAddedBy } from '@/lib/ticket-files'
 
 export default async function TicketPage({
   params, searchParams,
@@ -45,7 +47,16 @@ export default async function TicketPage({
   // Screenshots raised with the ticket, through short-lived signed links (the bucket is private).
   const attachments = ((t.attachments as string[] | null) ?? [])
   const { data: links } = attachments.length ? await supabase.storage.from('evidence').createSignedUrls(attachments, 3600) : { data: [] }
-  const shots = (links ?? []).filter((l) => l.signedUrl && l.path).map((l) => ({ url: l.signedUrl as string, name: l.path!.split('/').pop()!.replace(/^[0-9a-f-]{36}-/, '') }))
+  // Whoever added a screenshot can remove it, and so can a lead.
+  const { data: shotLog } = attachments.length && me.role !== 'lead'
+    ? await supabase.from('change_log').select('action, changes, actor_id').eq('table_name', 'tickets').eq('row_id', t.id).in('action', ['insert', 'update']).order('at', { ascending: true }).order('id', { ascending: true })
+    : { data: [] }
+  const shots = (links ?? []).filter((l) => l.signedUrl && l.path).map((l) => ({
+    url: l.signedUrl as string,
+    path: l.path!,
+    name: l.path!.split('/').pop()!.replace(/^[0-9a-f-]{36}-/, ''),
+    canRemove: me.role === 'lead' || attachmentAddedBy(l.path!, shotLog ?? [], (t.created_by as string | null) ?? null) === me.id,
+  }))
   const sprintName = new Map(sprints.map((s) => [s.id, s.name]))
   const teamNames = people.filter((p) => p.active).map((p) => p.name)
   const names = new Map<string, string>([...people.map((p) => [p.id, p.name] as [string, string]), ...sprintName])
@@ -95,6 +106,7 @@ export default async function TicketPage({
                         // eslint-disable-next-line @next/next/no-img-element -- a signed link to a private file, not a static asset
                         : <img src={s.url} alt={s.name} className="h-24 w-36 object-cover" />}
                     </a>
+                    {s.canRemove && <RemoveShot ticketId={t.id} path={s.path} name={s.name} />}
                   </li>
                 ))}
               </ul>

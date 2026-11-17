@@ -20,3 +20,19 @@ export function withAttachments(current: string[], added: string[]): { paths: st
   if (paths.length > MAX_TICKET_ATTACHMENTS) return { paths: current, error: `A ticket can hold up to ${MAX_TICKET_ATTACHMENTS} screenshots or PDFs; it has ${current.length}.` }
   return { paths }
 }
+
+type Change = { action: string; changes: Record<string, unknown> | null; actor_id: string | null }
+const holds = (v: unknown, path: string) => Array.isArray(v) && v.includes(path)
+
+/**
+ * Who added a screenshot: the person on the first change that put it on the ticket (oldest first),
+ * else whoever raised the ticket. Null when nobody is known, so only a lead can remove it.
+ */
+export function attachmentAddedBy(path: string, changes: Change[], raisedBy: string | null): string | null {
+  for (const c of changes) {
+    const a = c.changes?.attachments
+    if (c.action === 'insert' && holds(a, path)) return c.actor_id ?? raisedBy
+    if (c.action === 'update' && Array.isArray(a) && holds(a[1], path) && !holds(a[0], path)) return c.actor_id
+  }
+  return raisedBy
+}

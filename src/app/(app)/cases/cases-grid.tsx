@@ -44,12 +44,12 @@ export function CasesGrid({ rows, areas, people, canEdit, isLead, inSprint, reme
     { key: 'legacy_tc_id', header: 'Old ID', width: 120, mono: true, muted: true, filter: 'text', value: (r) => r.legacy_tc_id ?? '' },
     { key: 'title', header: 'Title', width: 380, value: (r) => r.title, edit: canEdit ? { field: 'title', kind: 'text' } : undefined },
     { key: 'area', header: 'Area', width: 220, value: (r) => r.area, edit: canEdit ? { field: 'area_id', kind: 'select', options: areas } : undefined },
+    { key: 'tester', header: 'Tester', width: 140, value: (r) => r.tester_name ?? 'No tester',
+      edit: canEdit ? { field: 'tester_id', kind: 'select', options: testers } : undefined },
     { key: 'scenario_id', header: 'Scenario', width: 110, mono: true, filter: 'text', value: (r) => r.scenario_id ?? '' },
     { key: 'requirement_id', header: 'Requirement', width: 120, mono: true, filter: 'text', value: (r) => r.requirement_id ?? '' },
     { key: 'priority', header: 'Priority', width: 110, sortValue: (r) => ['Critical', 'High', 'Medium', 'Low'].indexOf(r.priority), value: (r) => r.priority, render: (r) => <PriorityChip p={r.priority} />,
       edit: canEdit ? { field: 'priority', kind: 'select', options: PRIORITY } : undefined },
-    { key: 'tester', header: 'Tester', width: 140, value: (r) => r.tester_name ?? 'No tester',
-      edit: canEdit ? { field: 'tester_id', kind: 'select', options: testers } : undefined },
     { key: 'automation', header: 'Automation', width: 130, value: (r) => AUTOMATION.find((a) => a.value === r.automation)!.label,
       edit: canEdit ? { field: 'automation', kind: 'select', options: AUTOMATION } : undefined },
     { key: 'auto', header: 'Auto result', width: 120, value: (r) => (r.auto_result ? RESULT_LABEL[r.auto_result] : 'Not run'), render: (r) => <ResultChip r={r.auto_result} /> },
@@ -65,6 +65,7 @@ export function CasesGrid({ rows, areas, people, canEdit, isLead, inSprint, reme
       remember={remember}
       charts={[
         { key: 'area', title: 'By area' },
+        { key: 'tester', title: 'By tester' },
         { key: 'priority', title: 'By priority', order: ['Critical', 'High', 'Medium', 'Low'] },
         { key: 'manual', title: 'Manual result', order: ['Passed', 'Failed', 'Blocked', 'Not tested'] },
         inSprint

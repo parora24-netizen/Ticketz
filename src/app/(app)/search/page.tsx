@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { CaseLink, PageHeader, PriorityChip, StateChip, TicketLink } from '@/components/ui'
 import { casesByAnyId, currentTicketKey } from '@/lib/ids'
+import { idFromSearch } from '@/lib/search-id'
 import { createClient } from '@/lib/supabase/server'
 
 /** Jump straight to an exact test case id or ticket key; otherwise list title matches. */
@@ -9,7 +10,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   const q = ((await searchParams).q ?? '').trim().slice(0, 100)
   if (!q) redirect('/')
   const supabase = await createClient()
-  const up = q.toUpperCase()
+  // "dev 648" or "tc 491" mean DEV-648 and TC_491.
+  const up = idFromSearch(q)
   const [exactCase, exactTicket] = await Promise.all([casesByAnyId(supabase, [up]).then((m) => m.get(up)), currentTicketKey(supabase, up)])
   if (exactTicket) redirect(`/tickets/${encodeURIComponent(exactTicket)}`)
   if (exactCase) redirect(`/cases/${encodeURIComponent(exactCase.tc_id)}`)

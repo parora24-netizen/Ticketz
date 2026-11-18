@@ -106,6 +106,13 @@ export const loadSprintAreas = cache(async function loadSprintAreas(): Promise<{
   return data ?? []
 })
 
+/** Testers set on tickets that have no test case (ticket id → person id). */
+export const loadTicketTesters = cache(async function loadTicketTesters(): Promise<Map<string, string>> {
+  const supabase = await createClient()
+  const { data } = await supabase.from('tickets').select('id, tester_id').not('tester_id', 'is', null)
+  return new Map((data ?? []).map((t) => [t.id as string, t.tester_id as string]))
+})
+
 export const loadPeople = cache(async function loadPeople(): Promise<Person[]> {
   const supabase = await createClient()
   const { data, error } = await supabase.from('people').select('id, name, email, role, active').order('name')

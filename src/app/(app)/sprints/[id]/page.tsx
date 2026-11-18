@@ -14,7 +14,7 @@ import { readyTimes, retestOwner } from '@/lib/workflow/retest'
 import { createClient } from '@/lib/supabase/server'
 import {
   runningSprints, daysLeft, daysUntil, fmtDate, loadActivity, loadAreas, loadHolidays, loadCases, loadPeople, loadRelease, loadSprintAreas, loadSprintRunTimes, loadSprintRuns,
-  loadSprints, loadTasks, loadTickets, toStageInput, type CaseRow, type TicketRow,
+  loadSprints, loadTasks, loadTicketTesters, loadTickets, toStageInput, type CaseRow, type TicketRow,
 } from '@/lib/data'
 import { buildStandup, lastWorkingDayStart } from '@/lib/standup'
 import { casesTestedByDay, istDate } from '@/lib/trends'
@@ -45,6 +45,7 @@ export default async function SprintPage({
   ])
   // The sprint's own tickets: fix sprints are made of them; test sprints raise them for later.
   const tickets = allTickets.filter((t) => t.current_sprint_id === id)
+  const ticketTesters = await loadTicketTesters()
   // When each ticket waiting for retest got there, to tell a manual pass since the fix from an older one.
   const retestIds = tickets.filter((t) => t.state === 'ready_for_retest').map((t) => t.id)
   const { data: readyEvents } = retestIds.length
@@ -156,7 +157,9 @@ export default async function SprintPage({
           // The ticket is the card; its test case, if it has one, is the detail.
           const c = t.case_id ? caseById.get(t.case_id) : undefined
           // Retest goes to the case's tester; without one, to the person who raised the ticket (not the runner).
-          const raiser = !c?.tester_id && t.created_by ? activePeople.find((p) => p.id === t.created_by && p.email !== RUNNER_EMAIL) : undefined
+          // No test case: the ticket's own tester, else whoever raised it (not the runner).
+          const own = !c && ticketTesters.has(t.id) ? activePeople.find((p) => p.id === ticketTesters.get(t.id)) : undefined
+          const raiser = !c?.tester_id && !own && t.created_by ? activePeople.find((p) => p.id === t.created_by && p.email !== RUNNER_EMAIL) : undefined
           // Passed by hand since the fix: only the automated run is left, so it is the owner's (e.g. Juan's).
           const owner = activePeople.find((p) => p.id === t.owner_id)
           const handed = c && t.state === 'ready_for_retest' && retestOwner({
@@ -165,7 +168,7 @@ export default async function SprintPage({
           }).waitingOnAutomation ? owner : undefined
           return {
             id: t.id, case_id: c?.id ?? null, tc_id: c?.tc_id ?? '', title: t.title, priority: t.severity, zone: t.zone ?? 'No area', page: t.page ?? '—',
-            stage: fixStage(t.state, !!t.blocked_reason) as 'test', test_by: c ? testBy(toStageInput(c)) : 'manual' as const, tester_id: handed?.id ?? c?.tester_id ?? raiser?.id ?? null, tester_name: handed?.name ?? c?.tester_name ?? raiser?.name ?? null,
+            stage: fixStage(t.state, !!t.blocked_reason) as 'test', test_by: c ? testBy(toStageInput(c)) : 'manual' as const, tester_id: handed?.id ?? c?.tester_id ?? own?.id ?? raiser?.id ?? null, tester_name: handed?.name ?? c?.tester_name ?? own?.name ?? raiser?.name ?? null,
             auto_result: c?.auto_result ?? null, manual_result: c?.manual_result ?? null, needs_ticket: false, caseless: !c,
             ticket: { id: t.id, key: t.key, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name, kind: t.kind, blocked_reason: t.blocked_reason },
           }

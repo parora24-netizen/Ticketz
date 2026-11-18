@@ -502,12 +502,19 @@ export async function setTicketTesters(ticketIds: string[], testerId: string | n
   const tester = z.uuid().nullable().safeParse(testerId)
   if (!ids.success || !tester.success) return { error: 'Nothing valid to save' }
   const supabase = await createClient()
-  const { data: rows, error: readError } = await supabase.from('tickets').select('case_id').in('id', ids.data)
+  const { data: rows, error: readError } = await supabase.from('tickets').select('id, case_id').in('id', ids.data)
   if (readError) return { error: readError.message }
+  // A ticket with a test case is tested by the case's tester; one without keeps its own.
   const caseIds = [...new Set((rows ?? []).map((r) => r.case_id as string | null).filter((c): c is string => !!c))]
-  if (!caseIds.length) return { error: 'These tickets have no test case to give a tester' }
-  const { error } = await supabase.from('test_cases').update({ tester_id: tester.data, updated_at: new Date().toISOString() }).in('id', caseIds)
-  if (error) return { error: error.message }
+  const caseless = (rows ?? []).filter((r) => !r.case_id).map((r) => r.id as string)
+  if (caseIds.length) {
+    const { error } = await supabase.from('test_cases').update({ tester_id: tester.data, updated_at: new Date().toISOString() }).in('id', caseIds)
+    if (error) return { error: error.message }
+  }
+  if (caseless.length) {
+    const { error } = await supabase.from('tickets').update({ tester_id: tester.data }).in('id', caseless)
+    if (error) return { error: error.message }
+  }
   revalidatePath('/', 'layout')
   return {}
 }

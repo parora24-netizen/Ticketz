@@ -6,10 +6,11 @@ import { startSprint } from './actions'
 import { getMe } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import {
-  currentSprint, loadRelease, daysUntil, fmtDate, loadActivity, loadCases, loadSprintAreas, loadSprintRuns, loadSprints, loadTickets,
+  currentSprint, loadRelease, daysUntil, fmtDate, loadActivity, loadCases, loadSprintAreas, loadSprintRuns, loadSprints, loadTicketTesters, loadTickets,
   timeAgo, toStageInput, type TicketRow,
 } from '@/lib/data'
 import { lastWorkingDayStart } from '@/lib/standup'
+import { RUNNER_EMAIL } from '@/lib/ci-api'
 import { istDate } from '@/lib/trends'
 import { caseStage, testBy, needsTicket } from '@/lib/workflow/case-stage'
 import { gateFor } from '@/lib/workflow/sprint-gate'
@@ -79,11 +80,11 @@ export default async function Home() {
   const readyForRetest = tickets.filter((t) => t.state === 'ready_for_retest')
   const retestCaseIds = [...new Set(readyForRetest.map((t) => t.case_id).filter((id): id is string => !!id))]
   const db = await createClient()
-  const [{ data: testerRows }, { data: readyEvents }, { data: team }] = retestCaseIds.length
+  const [{ data: testerRows }, { data: readyEvents }, { data: team }] = readyForRetest.length
     ? await Promise.all([
       db.from('case_latest').select('id, tester_id, automation, manual_result, manual_at').in('id', retestCaseIds),
       db.from('ticket_events').select('ticket_id, from_state, to_state, at').in('ticket_id', readyForRetest.map((t) => t.id)).eq('to_state', 'ready_for_retest'),
-      db.from('people').select('id, name, role'),
+      db.from('people').select('id, name, role, email'),
     ])
     : [{ data: [] }, { data: [] }, { data: [] }]
   const caseOf = new Map((testerRows ?? []).map((r) => [r.id as string, r]))
@@ -92,8 +93,12 @@ export default async function Home() {
   const nameOfPerson = new Map((team ?? []).map((p) => [p.id as string, p.name as string]))
   // Whose retest it is: the case's tester, or once they have passed it by hand since the fix, the
   // owner waiting on the automated run (see retestOwner).
-  const testerIdOf = (t: { id: string; case_id: string | null; owner_id: string | null }) => {
-    const c = t.case_id ? caseOf.get(t.case_id) : undefined
+  const ticketTesters = await loadTicketTesters()
+  const runnerIds = new Set((team ?? []).filter((p) => p.email === RUNNER_EMAIL).map((p) => p.id as string))
+  const testerIdOf = (t: { id: string; case_id: string | null; owner_id: string | null; created_by?: string | null }) => {
+    // No test case: the ticket's own tester, else whoever raised it (not the runner).
+    if (!t.case_id) return ticketTesters.get(t.id) ?? (t.created_by && !runnerIds.has(t.created_by) ? t.created_by : null)
+    const c = caseOf.get(t.case_id)
     if (!c) return null
     return retestOwner({
       testerId: (c.tester_id as string | null) ?? null, ownerId: t.owner_id, ownerIsDev: !!t.owner_id && devIds.has(t.owner_id),

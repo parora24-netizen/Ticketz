@@ -14,6 +14,7 @@ import { istDate } from '@/lib/trends'
 import { caseStage, testBy, needsTicket } from '@/lib/workflow/case-stage'
 import { gateFor } from '@/lib/workflow/sprint-gate'
 import { STATE_LABEL } from '@/lib/workflow/ticket-machine'
+import { readyTimes, retestOwner } from '@/lib/workflow/retest'
 
 const SEV = ['Critical', 'High', 'Medium', 'Low']
 const bySeverity = (a: TicketRow, b: TicketRow) => SEV.indexOf(a.severity) - SEV.indexOf(b.severity)
@@ -77,12 +78,29 @@ export default async function Home() {
   // Retests go to the case's tester. QA see theirs and any with no tester yet; the lead sees all.
   const readyForRetest = tickets.filter((t) => t.state === 'ready_for_retest')
   const retestCaseIds = [...new Set(readyForRetest.map((t) => t.case_id).filter((id): id is string => !!id))]
-  const { data: testerRows } = retestCaseIds.length
-    ? await (await createClient()).from('test_cases').select('id, tester_id, people:tester_id(name)').in('id', retestCaseIds)
-    : { data: [] }
-  const testerOf = new Map((testerRows ?? []).map((r) => [r.id as string, { id: r.tester_id as string | null, name: (r.people as unknown as { name: string } | null)?.name ?? null }]))
-  // QA see their own work; work with no tester shows as a count to pick up from, not in their list.
-  const testerIdOf = (t: { case_id: string | null }) => (t.case_id ? testerOf.get(t.case_id)?.id ?? null : null)
+  const db = await createClient()
+  const [{ data: testerRows }, { data: readyEvents }, { data: team }] = retestCaseIds.length
+    ? await Promise.all([
+      db.from('case_latest').select('id, tester_id, automation, manual_result, manual_at').in('id', retestCaseIds),
+      db.from('ticket_events').select('ticket_id, from_state, to_state, at').in('ticket_id', readyForRetest.map((t) => t.id)).eq('to_state', 'ready_for_retest'),
+      db.from('people').select('id, name, role'),
+    ])
+    : [{ data: [] }, { data: [] }, { data: [] }]
+  const caseOf = new Map((testerRows ?? []).map((r) => [r.id as string, r]))
+  const readyAt = readyTimes(readyEvents ?? [])
+  const devIds = new Set((team ?? []).filter((p) => p.role === 'dev').map((p) => p.id as string))
+  const nameOfPerson = new Map((team ?? []).map((p) => [p.id as string, p.name as string]))
+  // Whose retest it is: the case's tester, or once they have passed it by hand since the fix, the
+  // owner waiting on the automated run (see retestOwner).
+  const testerIdOf = (t: { id: string; case_id: string | null; owner_id: string | null }) => {
+    const c = t.case_id ? caseOf.get(t.case_id) : undefined
+    if (!c) return null
+    return retestOwner({
+      testerId: (c.tester_id as string | null) ?? null, ownerId: t.owner_id, ownerIsDev: !!t.owner_id && devIds.has(t.owner_id),
+      automated: c.automation === 'automated', manualResult: (c.manual_result as string | null) ?? null, manualAt: (c.manual_at as string | null) ?? null,
+      readyAt: readyAt.get(t.id) ?? null,
+    }).id
+  }
   const retests = readyForRetest.filter((t) => me.role === 'lead' || testerIdOf(t) === me.id).sort(bySeverity)
   const unclaimedRetests = me.role === 'lead' ? 0 : readyForRetest.filter((t) => !testerIdOf(t)).length
   const manualAll = cases.filter((c, i) => stages[i] === 'test' && testBy(toStageInput(c)) === 'manual')
@@ -189,7 +207,8 @@ export default async function Home() {
               )}
               <Panel title={me.role === 'lead' ? 'Retest queue' : 'Your retests'} count={retests.length} href="/tickets?view=grid&state=ready_for_retest" empty={unclaimedRetests ? undefined : 'Nothing ready for you to retest.'}>
                 <TicketRows rows={retests} limit={8} all={{ href: '/tickets?view=grid&state=ready_for_retest', label: `All ${retests.length} retests` }} note={(t) => {
-                  const tester = t.case_id ? testerOf.get(t.case_id) : undefined
+                  const tid = testerIdOf(t)
+                  const tester = tid ? { id: tid, name: nameOfPerson.get(tid) ?? null } : undefined
                   return [t.owner_name && `fixed by ${t.owner_name}`, t.fixed_in_build && `build ${t.fixed_in_build}`,
                     tester?.id === me.id ? null : tester?.name ? `${tester.name} retests` : 'no tester'].filter(Boolean).join(' · ')
                 }} />

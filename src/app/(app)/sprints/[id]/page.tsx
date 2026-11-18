@@ -10,6 +10,8 @@ import { Tabs, nowSprints, sprintTabs } from '@/components/tabs'
 import { Chip, PageHeader, PriorityChip, StateChip, TicketLink } from '@/components/ui'
 import { getMe } from '@/lib/auth'
 import { RUNNER_EMAIL } from '@/lib/ci-api'
+import { readyTimes, retestOwner } from '@/lib/workflow/retest'
+import { createClient } from '@/lib/supabase/server'
 import {
   runningSprints, daysLeft, daysUntil, fmtDate, loadActivity, loadAreas, loadHolidays, loadCases, loadPeople, loadRelease, loadSprintAreas, loadSprintRunTimes, loadSprintRuns,
   loadSprints, loadTasks, loadTickets, toStageInput, type CaseRow, type TicketRow,
@@ -43,6 +45,12 @@ export default async function SprintPage({
   ])
   // The sprint's own tickets: fix sprints are made of them; test sprints raise them for later.
   const tickets = allTickets.filter((t) => t.current_sprint_id === id)
+  // When each ticket waiting for retest got there, to tell a manual pass since the fix from an older one.
+  const retestIds = tickets.filter((t) => t.state === 'ready_for_retest').map((t) => t.id)
+  const { data: readyEvents } = retestIds.length
+    ? await (await createClient()).from('ticket_events').select('ticket_id, from_state, to_state, at').in('ticket_id', retestIds).eq('to_state', 'ready_for_retest')
+    : { data: [] }
+  const readyAt = readyTimes(readyEvents ?? [])
   const ticketCases = new Set(tickets.map((t) => t.case_id).filter(Boolean))
   const cases = sprint.kind === 'fix' ? loaded.filter((c) => ticketCases.has(c.id)) : loaded
   const caseIds = new Set(cases.map((c) => c.id))
@@ -149,9 +157,15 @@ export default async function SprintPage({
           const c = t.case_id ? caseById.get(t.case_id) : undefined
           // Retest goes to the case's tester; without one, to the person who raised the ticket (not the runner).
           const raiser = !c?.tester_id && t.created_by ? activePeople.find((p) => p.id === t.created_by && p.email !== RUNNER_EMAIL) : undefined
+          // Passed by hand since the fix: only the automated run is left, so it is the owner's (e.g. Juan's).
+          const owner = activePeople.find((p) => p.id === t.owner_id)
+          const handed = c && t.state === 'ready_for_retest' && retestOwner({
+            testerId: c.tester_id, ownerId: t.owner_id, ownerIsDev: owner?.role === 'dev', automated: c.automation === 'automated',
+            manualResult: c.manual_result, manualAt: c.manual_at, readyAt: readyAt.get(t.id) ?? null,
+          }).waitingOnAutomation ? owner : undefined
           return {
             id: t.id, case_id: c?.id ?? null, tc_id: c?.tc_id ?? '', title: t.title, priority: t.severity, zone: t.zone ?? 'No area', page: t.page ?? '—',
-            stage: fixStage(t.state, !!t.blocked_reason) as 'test', test_by: c ? testBy(toStageInput(c)) : 'manual' as const, tester_id: c?.tester_id ?? raiser?.id ?? null, tester_name: c?.tester_name ?? raiser?.name ?? null,
+            stage: fixStage(t.state, !!t.blocked_reason) as 'test', test_by: c ? testBy(toStageInput(c)) : 'manual' as const, tester_id: handed?.id ?? c?.tester_id ?? raiser?.id ?? null, tester_name: handed?.name ?? c?.tester_name ?? raiser?.name ?? null,
             auto_result: c?.auto_result ?? null, manual_result: c?.manual_result ?? null, needs_ticket: false, caseless: !c,
             ticket: { id: t.id, key: t.key, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name, kind: t.kind, blocked_reason: t.blocked_reason },
           }

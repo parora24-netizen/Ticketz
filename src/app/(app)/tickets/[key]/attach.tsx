@@ -1,13 +1,16 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { useTransition } from 'react'
-import { EvidenceField, useEvidence } from '@/components/evidence'
+import { useEffect, useRef, useTransition } from 'react'
+import { EvidenceField, filesIn, useEvidence } from '@/components/evidence'
 import { toast } from '@/components/toast'
 import { ticketFileFolder } from '@/lib/ticket-files'
 import { addTicketAttachments } from './attach-actions'
 
-/** Add screenshots or PDFs to a ticket after it was raised: choose, drop or paste them. */
+/**
+ * Add screenshots or PDFs to a ticket after it was raised: choose them, drop them anywhere on the
+ * page, or press Ctrl+V anywhere on it (a pasted image is never meant for a text box).
+ */
 export function TicketAttach({ ticketId, hasFiles }: { ticketId: string; hasFiles: boolean }) {
   const router = useRouter()
   const ev = useEvidence(ticketFileFolder(ticketId))
@@ -23,11 +26,35 @@ export function TicketAttach({ ticketId, hasFiles }: { ticketId: string; hasFile
     return up
   }
 
+  // Paste and drop work on the whole page, not only on the box.
+  const addRef = useRef(add)
+  addRef.current = add
+  useEffect(() => {
+    const inDialog = (t: EventTarget | null) => t instanceof Element && !!t.closest('dialog, [role="dialog"]')
+    const onPaste = (e: ClipboardEvent) => {
+      if (inDialog(e.target)) return
+      const imgs = filesIn(e.clipboardData).filter((f) => f.type.startsWith('image/'))
+      if (imgs.length) { e.preventDefault(); void addRef.current(imgs) }
+    }
+    const onDragOver = (e: DragEvent) => { if (e.dataTransfer?.types.includes('Files')) e.preventDefault() }
+    const onDrop = (e: DragEvent) => {
+      if (e.defaultPrevented || inDialog(e.target) || !e.dataTransfer?.types.includes('Files')) return
+      e.preventDefault()
+      const dropped = filesIn(e.dataTransfer)
+      if (dropped.length) void addRef.current(dropped)
+    }
+    document.addEventListener('paste', onPaste)
+    document.addEventListener('dragover', onDragOver)
+    document.addEventListener('drop', onDrop)
+    return () => {
+      document.removeEventListener('paste', onPaste)
+      document.removeEventListener('dragover', onDragOver)
+      document.removeEventListener('drop', onDrop)
+    }
+  }, [])
+
   return (
-    <div className="mt-4" onPaste={(e) => {
-      const imgs = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/'))
-      if (imgs.length) { e.preventDefault(); void add(imgs) }
-    }}>
+    <div className="mt-4">
       <EvidenceField ev={{ ...ev, add }} label={hasFiles ? 'Add more' : 'Screenshots'} />
     </div>
   )

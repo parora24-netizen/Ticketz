@@ -55,10 +55,21 @@ export function useEvidence(folder: string, opts: { bucket?: string; maxBytes?: 
     reset: () => setFiles([]),
     /** For a form's onPaste: a pasted screenshot is attached. */
     onPaste: (e: React.ClipboardEvent) => {
-      const imgs = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/'))
+      const imgs = filesIn(e.clipboardData).filter((f) => f.type.startsWith('image/'))
       if (imgs.length) { e.preventDefault(); void add(imgs) }
     },
   }
+}
+
+/**
+ * The files in a drop or paste. Some apps hand a screenshot over as an item rather than in
+ * `files`, so both are read.
+ */
+export function filesIn(dt: DataTransfer | null): File[] {
+  if (!dt) return []
+  const files = [...dt.files]
+  if (files.length) return files
+  return [...dt.items].filter((i) => i.kind === 'file').map((i) => i.getAsFile()).filter((f): f is File => !!f)
 }
 
 export function EvidenceField({ ev, label = 'Screenshots (optional)', accept = 'image/png,image/jpeg,image/gif,image/webp,application/pdf', hint = 'Images or PDF, up to 10 MB each', prompt = 'drop them here, or paste a screenshot' }: {
@@ -67,7 +78,12 @@ export function EvidenceField({ ev, label = 'Screenshots (optional)', accept = '
   return (
     <div>
       <span className="label">{label}</span>
-      <label onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); void ev.add(e.dataTransfer.files) }}
+      <label onDragOver={(e) => e.preventDefault()} onDrop={(e) => {
+        e.preventDefault()
+        const dropped = filesIn(e.dataTransfer)
+        if (dropped.length) void ev.add(dropped)
+        else toast('Nothing to attach in that drop. Save the image as a file and drop that, or copy it and press Ctrl+V.', 'error')
+      }}
         className="mt-1 flex cursor-pointer flex-col items-center gap-1 border border-dashed border-[var(--line)] bg-[var(--surface-3)] px-3 py-3 text-center text-[12px] text-[var(--muted)] hover:border-[var(--navy)]">
         <input type="file" multiple accept={accept} className="sr-only"
           onChange={(e) => { if (e.target.files) void ev.add(e.target.files); e.target.value = '' }} />

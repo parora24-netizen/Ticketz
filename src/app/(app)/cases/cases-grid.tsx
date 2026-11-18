@@ -43,6 +43,8 @@ export function CasesGrid({ rows, areas, people, canEdit, isLead, inSprint, reme
       render: (r) => <Link href={`/cases/${r.tc_id}`} className="font-medium text-[var(--accent)] hover:underline">{r.tc_id}</Link> },
     { key: 'legacy_tc_id', header: 'Old ID', width: 120, mono: true, muted: true, filter: 'text', value: (r) => r.legacy_tc_id ?? '' },
     { key: 'title', header: 'Title', width: 380, value: (r) => r.title, edit: canEdit ? { field: 'title', kind: 'text' } : undefined },
+    // The product zone (Data Hub, Engine…), so a whole zone is one filter.
+    { key: 'zone', header: 'Zone', width: 130, value: (r) => r.area.split(' · ')[0] },
     { key: 'area', header: 'Area', width: 220, value: (r) => r.area, edit: canEdit ? { field: 'area_id', kind: 'select', options: areas } : undefined },
     { key: 'tester', header: 'Tester', width: 140, value: (r) => r.tester_name ?? 'No tester',
       edit: canEdit ? { field: 'tester_id', kind: 'select', options: testers } : undefined },
@@ -64,6 +66,7 @@ export function CasesGrid({ rows, areas, people, canEdit, isLead, inSprint, reme
       csvName="test-cases"
       remember={remember}
       charts={[
+        { key: 'zone', title: 'By zone' },
         { key: 'area', title: 'By area' },
         { key: 'tester', title: 'By tester' },
         { key: 'priority', title: 'By priority', order: ['Critical', 'High', 'Medium', 'Low'] },

@@ -22,6 +22,7 @@ import { STAGES, TEST_STAGES, caseStage, needsTicket, testBy, testStage } from '
 import { gateFor } from '@/lib/workflow/sprint-gate'
 import { FIX_STAGES, fixStage } from '@/lib/workflow/board-moves'
 import { startSprint } from '../../actions'
+import { CleanupButton } from './cleanup-button'
 
 export default async function SprintPage({
   params, searchParams,
@@ -108,6 +109,9 @@ export default async function SprintPage({
         <Chip tone={sprint.status === 'active' ? 'accent' : sprint.status === 'closed' ? 'good' : 'muted'}>
           {sprint.status === 'active' ? `Running · ${daysLeft(sprint.ends_on)}` : sprint.status === 'closed' ? 'Closed' : `Planned · starts in ${Math.max(daysUntil(sprint.starts_on), 0)} days`}
         </Chip>
+        {lead && sprint.status !== 'closed' && sprint.kind === 'fix' && (
+          <CleanupButton sprintId={id} sprintName={sprint.name} people={activePeople.map((p) => ({ id: p.id, name: p.name }))} />
+        )}
         {lead && sprint.status !== 'closed' && (
           <ExtendSprintButton sprintId={id} sprints={sprints} holidays={holidays.map((h) => h.day)} release={{ release_on: release.release_on, go_no_go_on: release.go_no_go_on }} />
         )}

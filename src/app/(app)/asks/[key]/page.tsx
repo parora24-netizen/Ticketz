@@ -7,6 +7,7 @@ import { askJson, type AskRow } from '@/lib/asks-server'
 import { KIND_LABEL } from '@/lib/automation-loop'
 import { loadPeople } from '@/lib/data'
 import { createClient } from '@/lib/supabase/server'
+import { ListNav } from '@/components/list-nav'
 import { AskAnswer, AskOwnerDue } from './ask-controls'
 
 /** One ask: what is asked, who owns it, the cases waiting, and the answer or decision. */
@@ -19,8 +20,12 @@ export default async function AskPage({ params, searchParams }: { params: Promis
   if (!data) notFound()
   const [a] = await askJson(supabase, [data as AskRow])
   const people = (await loadPeople()).filter((p) => p.active).map((p) => p.name)
+  // Without a list to come from: every open ask, newest first.
+  const { data: open } = await supabase.from('asks').select('key').eq('state', 'open').order('created_at', { ascending: false }).limit(1000)
+  const fallback = (open ?? []).map((o) => o.key as string)
   return (
     <>
+      <ListNav name="asks" current={a.key} fallback={fallback.includes(a.key) ? fallback : [a.key, ...fallback]} fallbackFrom="open asks" base="/asks" noun="ask" />
       <PageHeader title={a.title} sub={<><span className="mono">{a.key}</span> · {KIND_LABEL[a.kind]}{a.created_by ? ` · asked by ${a.created_by}` : ''} · {new Date(a.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })}</>}>
         <Chip tone={a.state === 'open' ? 'accent' : a.state === 'done' ? 'good' : 'muted'}>{a.status}</Chip>
       </PageHeader>

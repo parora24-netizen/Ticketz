@@ -44,6 +44,8 @@ type Props<T extends { id: string }> = {
   defaultSort?: { key: string; dir: 1 | -1 }[]
   /** Column filters to start with, e.g. from a link like /tickets?view=grid&state=new. */
   defaultFilters?: Record<string, string[]>
+  /** Filters for a first visit; unlike defaultFilters, the person's own filters still come back next time. */
+  initialFilters?: Record<string, string[]>
   searchPlaceholder?: string
   emptyText?: string
   selectable?: boolean
@@ -74,11 +76,11 @@ const EMPTY = '(blank)'
  */
 export function DataGrid<T extends { id: string }>({
   rows, columns, onSave, bulkFields = [], bulkActions = [], csvName = 'export', toolbar, actions,
-  defaultSort = [], defaultFilters, searchPlaceholder = 'Search', emptyText = 'No rows.', selectable = true, footerNote, charts, remember = true, onView, summary,
+  defaultSort = [], defaultFilters, initialFilters, searchPlaceholder = 'Search', emptyText = 'No rows.', selectable = true, footerNote, charts, remember = true, onView, summary,
 }: Props<T>) {
   const [overrides, setOverrides] = useState<Record<string, Record<string, string | null>>>({})
   const [filters, setFilters] = useState<Record<string, Filter>>(() =>
-    Object.fromEntries(Object.entries(defaultFilters ?? {}).map(([k, values]) => [k, { kind: 'values' as const, values }])))
+    Object.fromEntries(Object.entries(defaultFilters ?? initialFilters ?? {}).map(([k, values]) => [k, { kind: 'values' as const, values }])))
   const [query, setQuery] = useState('')
   const [sorts, setSorts] = useState<Sort[]>(defaultSort)
   // Each person's filters and sort come back next visit, until they clear them. The search box

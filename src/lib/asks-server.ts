@@ -1,4 +1,5 @@
 import 'server-only'
+import { askZone } from './ask-zone'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { askStatus, holdActive, type AskKind, type AskState, type Outcome } from '@/lib/automation-loop'
 import { casesByAnyId, currentTicketKey } from '@/lib/ids'
@@ -146,18 +147,23 @@ export async function askJson(db: Db, rows: AskRow[]) {
   const ids = rows.map((r) => r.id)
   const [{ data: people }, { data: links }, { data: tickets }] = await Promise.all([
     db.from('people').select('id, name'),
-    ids.length ? db.from('ask_cases').select('ask_id, test_cases(tc_id)').in('ask_id', ids) : Promise.resolve({ data: [] }),
+    ids.length ? db.from('ask_cases').select('ask_id, test_cases(tc_id, areas(zone))').in('ask_id', ids) : Promise.resolve({ data: [] }),
     db.from('tickets').select('id, key').in('id', rows.map((r) => r.ticket_id).filter(Boolean) as string[]),
   ])
   const name = new Map((people ?? []).map((p) => [p.id, p.name]))
   const key = new Map((tickets ?? []).map((t) => [t.id, t.key]))
   const cases = new Map<string, string[]>()
-  for (const l of (links ?? []) as { ask_id: string; test_cases: { tc_id: string } | { tc_id: string }[] | null }[]) {
+  const zones = new Map<string, Set<string>>()
+  type Linked = { tc_id: string; areas: { zone: string } | { zone: string }[] | null }
+  for (const l of (links ?? []) as { ask_id: string; test_cases: Linked | Linked[] | null }[]) {
     const tc = Array.isArray(l.test_cases) ? l.test_cases[0] : l.test_cases
-    if (tc) cases.set(l.ask_id, [...(cases.get(l.ask_id) ?? []), tc.tc_id])
+    if (!tc) continue
+    cases.set(l.ask_id, [...(cases.get(l.ask_id) ?? []), tc.tc_id])
+    const zone = (Array.isArray(tc.areas) ? tc.areas[0] : tc.areas)?.zone
+    if (zone) zones.set(l.ask_id, (zones.get(l.ask_id) ?? new Set()).add(zone))
   }
   return rows.map((r) => ({
-    key: r.key, kind: r.kind, title: r.title, detail: r.detail, need_key: r.need_key, store: r.store, options: r.options,
+    key: r.key, kind: r.kind, title: r.title, zone: askZone(zones.get(r.id), r.title), detail: r.detail, need_key: r.need_key, store: r.store, options: r.options,
     owner: r.owner_id ? name.get(r.owner_id) ?? null : null, due_on: r.due_on, state: r.state, status: askStatus(r.kind, r.state),
     answer: r.answer, outcome: r.outcome, ticket: r.ticket_id ? key.get(r.ticket_id) ?? null : null,
     cases: (cases.get(r.id) ?? []).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), cases_waiting: r.state === 'open' ? cases.get(r.id)?.length ?? 0 : 0,
@@ -166,9 +172,14 @@ export async function askJson(db: Db, rows: AskRow[]) {
   }))
 }
 
+const zoneIn = (rel: unknown): string => {
+  const a = (Array.isArray(rel) ? rel[0] : rel) as { zone?: string } | null | undefined
+  return a?.zone ?? ''
+}
+
 // The inbox --------------------------------------------------------------------------------------
 
-export type InboxItem = { type: string; title: string; href: string; detail?: string; due_on?: string | null; overdue?: boolean; count?: number }
+export type InboxItem = { type: string; title: string; href: string; zone?: string; detail?: string; due_on?: string | null; overdue?: boolean; count?: number }
 const today = () => new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10)
 
 /**
@@ -182,8 +193,8 @@ export async function loadInbox(db: Db, person: { id: string; role: string }): P
   const lead = (await oversightIds(db)).includes(person.id)
   const now = today()
   const [{ data: asks }, { data: retests }, { data: pages }, { data: people }] = await Promise.all([
-    db.from('asks').select('id, key, kind, title, owner_id, due_on, created_at').eq('state', 'open'),
-    db.from('tickets').select('key, title, state, severity').in('state', ['new', 'triaged', 'in_fix', 'reopened', 'ready_for_retest']).eq('owner_id', person.id),
+    db.from('asks').select('id, key, kind, title, owner_id, due_on, created_at, ask_cases(test_cases(areas(zone)))').eq('state', 'open'),
+    db.from('tickets').select('key, title, state, severity, areas(zone)').in('state', ['new', 'triaged', 'in_fix', 'reopened', 'ready_for_retest']).eq('owner_id', person.id),
     db.from('areas').select('id, zone, page, owner_id').eq('owner_id', person.id),
     db.from('people').select('id, name'),
   ])
@@ -193,7 +204,8 @@ export async function loadInbox(db: Db, person: { id: string; role: string }): P
     const overdue = !!a.due_on && a.due_on < now
     const mine = a.owner_id === person.id
     if (mine || (lead && (overdue || !a.owner_id))) {
-      items.push({ type: a.kind, title: `${a.key}: ${a.title}`, href: `/asks/${a.key}`, due_on: a.due_on, overdue,
+      const fromCases = new Set(((a.ask_cases ?? []) as unknown as { test_cases: unknown }[]).map((l) => zoneIn((Array.isArray(l.test_cases) ? l.test_cases[0] : l.test_cases as { areas?: unknown } | null)?.areas)).filter(Boolean))
+      items.push({ type: a.kind, title: `${a.key}: ${a.title}`, href: `/asks/${a.key}`, zone: askZone(fromCases, a.title), due_on: a.due_on, overdue,
         detail: mine ? undefined : !a.owner_id ? 'No owner yet' : `Overdue with ${name.get(a.owner_id) ?? 'someone'}` })
     }
   }
@@ -202,7 +214,7 @@ export async function loadInbox(db: Db, person: { id: string; role: string }): P
   const mine = (retests ?? []).filter((t) => t.state !== 'ready_for_retest')
   const SEV = ['Critical', 'High', 'Medium', 'Low']
   const urgent = mine.filter((t) => t.severity === 'Critical' || t.severity === 'High').sort((a, b) => SEV.indexOf(a.severity) - SEV.indexOf(b.severity))
-  for (const t of urgent) items.push({ type: 'ticket', title: `${t.key}: ${t.title}`, href: `/tickets/${encodeURIComponent(t.key)}`, detail: `${t.severity} · ${STATE[t.state] ?? t.state}` })
+  for (const t of urgent) items.push({ type: 'ticket', title: `${t.key}: ${t.title}`, href: `/tickets/${encodeURIComponent(t.key)}`, zone: zoneIn(t.areas), detail: `${t.severity} · ${STATE[t.state] ?? t.state}` })
   const rest = mine.length - urgent.length
   if (rest) {
     const { data: me } = await db.from('people').select('name').eq('id', person.id).maybeSingle()
@@ -216,12 +228,12 @@ export async function loadInbox(db: Db, person: { id: string; role: string }): P
     const { data: tested } = await db.from('test_cases').select('id').eq('tester_id', person.id)
     const caseIds = (tested ?? []).map((c) => c.id as string)
     const { data: viaCase } = caseIds.length
-      ? await db.from('tickets').select('key, title, severity').eq('state', 'ready_for_retest').in('case_id', caseIds)
+      ? await db.from('tickets').select('key, title, severity, areas(zone)').eq('state', 'ready_for_retest').in('case_id', caseIds)
       : { data: [] }
     const toRetest = [...owned, ...(viaCase ?? []).filter((t) => !owned.some((o) => o.key === t.key))]
       .sort((a, b) => SEV.indexOf(a.severity) - SEV.indexOf(b.severity))
     const named = toRetest.length > 10 ? toRetest.filter((t) => t.severity === 'Critical' || t.severity === 'High') : toRetest
-    for (const t of named) items.push({ type: 'retest', title: `Retest ${t.key}: ${t.title}`, href: `/tickets/${encodeURIComponent(t.key)}`, detail: t.severity })
+    for (const t of named) items.push({ type: 'retest', title: `Retest ${t.key}: ${t.title}`, href: `/tickets/${encodeURIComponent(t.key)}`, zone: zoneIn(t.areas), detail: t.severity })
     const more = toRetest.length - named.length
     if (more) {
       const { data: me } = await db.from('people').select('name').eq('id', person.id).maybeSingle()
@@ -234,7 +246,7 @@ export async function loadInbox(db: Db, person: { id: string; role: string }): P
     const { data: thin } = await db.from('test_cases').select('area_id').eq('needs_detail', true).in('area_id', pageIds)
     for (const p of pages ?? []) {
       const n = (thin ?? []).filter((c) => c.area_id === p.id).length
-      if (n) items.push({ type: 'detail', title: `Complete the Expected result on ${p.zone} · ${p.page}`, href: `/cases?area=${p.id}&needs_detail=1`, count: n, detail: `${n} case${n === 1 ? '' : 's'} with placeholder text` })
+      if (n) items.push({ type: 'detail', title: `Complete the Expected result on ${p.zone} · ${p.page}`, href: `/cases?area=${p.id}&needs_detail=1`, zone: p.zone, count: n, detail: `${n} case${n === 1 ? '' : 's'} with placeholder text` })
     }
     const { data: rewrites } = await db.from('asks').select('key, title, resolved_at, ask_cases(test_cases(tc_id, area_id, text_updated_at))').eq('kind', 'decision').eq('outcome', 'rewrite').eq('state', 'done')
     for (const r of rewrites ?? []) {

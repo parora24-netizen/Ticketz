@@ -264,6 +264,8 @@ export async function createTicket(c: Caller, p: TicketCreate, dryRun = false) {
     key, kind: p.kind, title: p.title ?? `Failing ${tcIds[0]}`, description: failureText(p) || null,
     severity: p.severity ?? p.priority ?? 'Medium', priority: p.priority ?? null,
     owner_id: owner?.id ?? null, accountable_id: accountable?.id ?? null, created_by: c.actorId, created_via: c.tokenId,
+    // With no test case, a person who raised it retests it until someone changes that; a runner cannot.
+    tester_id: !cases.length && c.role === 'tester' ? c.actorId : null,
     case_id: cases[0]?.id ?? null, area_id: page?.id ?? null, current_sprint_id: sprintId,
     found_in_sprint_id: p.kind === 'task' ? null : currentSprint(sprints)?.id ?? null,
     requirement_ids: p.requirement_ids ?? null, defect_id: p.defect_id ?? null, external_ref: p.external_ref ?? null,

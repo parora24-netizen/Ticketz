@@ -12,10 +12,12 @@ import { fmtDate, loadPeople, loadSprints, loadTickets } from '@/lib/data'
 import { TicketNav } from '@/components/ticket-nav'
 import { allowedMoves, type TicketState } from '@/lib/workflow/ticket-machine'
 import { addComment, assignToMe } from '../../actions'
-import { TicketActions, TicketField } from '@/components/ticket-controls'
+import { TicketActions, TicketField, TicketTesterField } from '@/components/ticket-controls'
 import { TicketAttach } from './attach'
 import { RemoveShot } from './remove-shot'
 import { attachmentAddedBy } from '@/lib/ticket-files'
+
+const CASE_TESTER_NOTE = 'Retests it. This is the test case’s tester, so changing it changes the case too.'
 
 export default async function TicketPage({
   params, searchParams,
@@ -150,6 +152,10 @@ export default async function TicketPage({
             <div className="px-4 py-2.5"><dt className="label mb-1">Owner</dt><dd>
               <TicketField ticketId={t.id} field="owner_id" value={t.owner_id ?? ''} options={ownerOptions} />
               {!canEdit && <p className="mt-1 text-[11.5px] text-[var(--faint)]">Hand it to whoever acts next, e.g. back to QA for a retest.</p>}
+            </dd></div>
+            <div className="px-4 py-2.5"><dt className="label mb-1">Tester</dt><dd>
+              <TicketTesterField ticketId={t.id} value={t.tester_id ?? ''} options={[{ value: '', label: 'No tester' }, ...ownerOptions.slice(1)]} disabled={!canEdit} />
+              <p className="mt-1 text-[11.5px] text-[var(--faint)]">{t.case_id ? CASE_TESTER_NOTE : 'Retests it. With no test case, the ticket has its own tester: whoever raised it, until changed.'}</p>
             </dd></div>
             <div className="px-4 py-2.5"><dt className="label mb-1">Severity</dt><dd>
               <TicketField ticketId={t.id} field="severity" value={t.severity} options={severityOptions} disabled={!canEdit} />

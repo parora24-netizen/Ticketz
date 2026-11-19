@@ -176,6 +176,8 @@ async function raiseLoose(c: Caller, p: RaisePayload): Promise<Raised> {
     key, case_id: null, area_id: areaId, kind: 'defect', title: p.title!, description: text || null,
     severity: p.severity ?? 'Medium', found_in_sprint_id: currentSprint(sprints)?.id ?? null,
     current_sprint_id: fixSprint?.id ?? null, created_by: c.actorId, defect_id: p.defect_id ?? null,
+    // A person's token raised it, so that person retests it; a runner cannot.
+    tester_id: c.role === 'tester' ? c.actorId : null,
   })
   if (error) return { error: error.message, status: 500 }
   return { key, created: true, url: ticketUrl(key) }

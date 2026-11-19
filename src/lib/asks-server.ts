@@ -133,7 +133,7 @@ export async function applyOutcome(db: Db, a: AskRow, actor: Actor): Promise<str
     if (keyError) return `Could not open a ticket: ${keyError.message}`
     const { data: t, error } = await db.from('tickets').insert({
       key, kind: 'defect', case_id: c?.id ?? null, title: `Restore: ${a.title}`.slice(0, 300), description: [a.detail, a.answer].filter(Boolean).join('\n\n') || null,
-      severity: c?.priority ?? 'Medium', current_sprint_id: fix?.id ?? null, created_by: actor.personId,
+      severity: c?.priority ?? 'Medium', current_sprint_id: fix?.id ?? null, created_by: actor.personId, tester_id: c ? null : actor.personId,
     }).select('id').single()
     if (error) return `Could not open a ticket: ${error.message}`
     await db.from('asks').update({ ticket_id: t.id }).eq('id', a.id)
@@ -230,7 +230,9 @@ export async function loadInbox(db: Db, person: { id: string; role: string }): P
     const { data: viaCase } = caseIds.length
       ? await db.from('tickets').select('key, title, severity, areas(zone)').eq('state', 'ready_for_retest').in('case_id', caseIds)
       : { data: [] }
-    const toRetest = [...owned, ...(viaCase ?? []).filter((t) => !owned.some((o) => o.key === t.key))]
+    // Tickets with no test case carry their own tester.
+    const { data: ownTester } = await db.from('tickets').select('key, title, severity, areas(zone)').eq('state', 'ready_for_retest').is('case_id', null).eq('tester_id', person.id)
+    const toRetest = [...owned, ...[...(viaCase ?? []), ...(ownTester ?? [])].filter((t, i, all) => !owned.some((o) => o.key === t.key) && all.findIndex((x) => x.key === t.key) === i)]
       .sort((a, b) => SEV.indexOf(a.severity) - SEV.indexOf(b.severity))
     const named = toRetest.length > 10 ? toRetest.filter((t) => t.severity === 'Critical' || t.severity === 'High') : toRetest
     for (const t of named) items.push({ type: 'retest', title: `Retest ${t.key}: ${t.title}`, href: `/tickets/${encodeURIComponent(t.key)}`, zone: zoneIn(t.areas), detail: t.severity })
@@ -278,10 +280,9 @@ export async function loadInbox(db: Db, person: { id: string; role: string }): P
       else if (r.confounded) items.push({ type: 'run', title: `Run ${r.run_id} is confounded: the bundle changed mid-run`, href })
       if (!r.finished_at && r.eta && r.eta < new Date().toISOString()) items.push({ type: 'run', title: `Run ${r.run_id} is still going past its expected end`, href })
     }
-    // Retests nobody gets: ready for retest, and the case has no tester (or there is no case).
-    const { data: ready } = await db.from('tickets').select('key, case_id, test_cases(tester_id)').eq('state', 'ready_for_retest')
-    const orphans = (ready ?? []).filter((t) => !((Array.isArray(t.test_cases) ? t.test_cases[0] : t.test_cases) as { tester_id: string | null } | null)?.tester_id)
-    if (orphans.length) items.push({ type: 'retest', title: `${orphans.length} ticket${orphans.length === 1 ? ' is' : 's are'} ready for retest with no tester on the case`, href: '/tickets?view=grid&state=ready_for_retest&tester=No%20tester', count: orphans.length, detail: 'Give their cases a tester so the retest reaches someone' })
+    // Retests nobody gets: ready for retest with no tester, the case's or (with no case) the ticket's own.
+    const { data: orphans } = await db.from('ticket_list').select('key').eq('state', 'ready_for_retest').is('tester_id', null)
+    if (orphans?.length) items.push({ type: 'retest', title: `${orphans.length} ticket${orphans.length === 1 ? ' is' : 's are'} ready for retest with no tester`, href: '/tickets?view=grid&state=ready_for_retest&tester=No%20tester', count: orphans.length, detail: 'Give them a tester so the retest reaches someone' })
     const { count } = await db.from('test_cases').select('id', { count: 'exact', head: true }).not('automation_proposed', 'is', null)
     if (count) items.push({ type: 'approve', title: `Approve or turn down ${count} "not automatable" proposal${count === 1 ? '' : 's'}`, href: '/cases/automation#proposals', count })
     items.push(...await runnerAlerts(db))

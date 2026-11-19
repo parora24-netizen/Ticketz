@@ -69,6 +69,9 @@ export type TicketRow = {
   blocked_reason: string | null
   blocked_at: string | null
   created_by?: string | null // who raised it
+  /** Who retests it: the ticket's own tester, else its test case's (from ticket_list). */
+  tester_id?: string | null
+  tester_name?: string | null
 }
 export type Person = { id: string; name: string; email: string | null; role: 'lead' | 'dev' | 'qa'; active: boolean }
 

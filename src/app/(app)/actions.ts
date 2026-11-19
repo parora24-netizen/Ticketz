@@ -160,6 +160,8 @@ export async function raiseTicket(formData: FormData) {
     found_in_sprint_id: sprintId,
     current_sprint_id: await fixSprintId(caseArea ?? (v.area_id || null)),
     created_by: me.id,
+    // With no test case to name a tester, whoever raised it retests it until someone changes that.
+    ...(v.case_id ? {} : { tester_id: me.id }),
     ...(v.area_id ? { area_id: v.area_id } : {}),
     ...(files.data.length ? { attachments: files.data } : {}),
   })

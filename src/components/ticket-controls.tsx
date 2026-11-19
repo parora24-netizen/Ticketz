@@ -5,7 +5,7 @@ import { useState, useTransition } from 'react'
 import { Dialog } from '@/components/dialog'
 import { toast } from '@/components/toast'
 import { ACTION_LABEL, STATE_LABEL, requiredFor, type TicketState } from '@/lib/workflow/ticket-machine'
-import { moveTicketFromBoard, setTicketBlocked, updateTickets } from '@/app/(app)/actions'
+import { moveTicketFromBoard, setTicketBlocked, setTicketTesters, updateTickets } from '@/app/(app)/actions'
 
 const ASK = {
   fixed_in_build: { title: 'Which build has the fix?', placeholder: 'e.g. b39a5eab1', field: 'fixed_in_build', required: true },
@@ -128,6 +128,28 @@ export function TicketField({ ticketId, field, value, options, disabled, onDone 
             router.refresh()
             onDone?.()
           }
+        })
+      }}>
+      {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  )
+}
+
+/** Who retests the ticket. With a test case this is the case's tester; without one, the ticket's own. */
+export function TicketTesterField({ ticketId, value, options, disabled }: { ticketId: string; value: string; options: { value: string; label: string }[]; disabled?: boolean }) {
+  const router = useRouter()
+  const [v, setV] = useState(value)
+  const [pending, start] = useTransition()
+  return (
+    <select value={v} disabled={disabled || pending} className="select w-full" aria-label="Tester"
+      onChange={(e) => {
+        const next = e.target.value
+        const before = v
+        setV(next)
+        start(async () => {
+          const res = await setTicketTesters([ticketId], next === '' ? null : next)
+          if (res.error) { setV(before); toast(res.error, 'error') }
+          else { toast('Tester saved'); router.refresh() }
         })
       }}>
       {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}

@@ -13,14 +13,14 @@ type Row = PageRow & { status_writing: string; status_automation: string; status
 
 const ORDER = {
   writing: ['Completed', 'Writing', 'Late', 'Not started'],
-  automation: ['Fully automated', 'Partly', 'Late', 'Not started', 'No cases'],
+  automation: ['Fully automated', 'Partly', 'Late', 'Not started', 'Manual only', 'No cases'],
   hand: ['Done', 'In progress', 'Not started', 'Nothing to test'],
 }
 const WRITING_EDIT = [{ value: 'done', label: 'Completed' }, { value: 'open', label: 'Not completed' }]
 
 const fmt = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
 const days = (from: string, to: string) => Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000)
-const sum = (rows: Row[], k: 'cases' | 'automated' | 'autoPassed' | 'needManual' | 'manualDone' | 'manualPassed' | 'untested') => rows.reduce((s, r) => s + r[k], 0)
+const sum = (rows: Row[], k: 'cases' | 'automatable' | 'automated' | 'autoPassed' | 'needManual' | 'manualDone' | 'manualPassed' | 'untested') => rows.reduce((s, r) => s + r[k], 0)
 
 /**
  * Test cases progress as one grid of pages. The cards on top are the flow (① write, ② automate,
@@ -58,14 +58,17 @@ export function ProgressGrid({ pages, team, isLead, meId, today, mismatches, ski
     { key: 'writingDate', header: 'Due', width: 110, mono: true, value: (r) => (r.writing === 'done' ? '' : r.due_on) ?? '',
       render: (r) => r.writing === 'done' ? <span className="text-[var(--faint)]">---</span> : due(r, r.due_on, r.late),
       edit: lead({ field: 'due_on', kind: 'date' as const }), editable: (r) => r.writing !== 'done' },
-    { key: 'cases', header: 'Cases', width: 70, align: 'right', value: (r) => r.cases },
-    { key: 'automated', header: 'Automated', width: 170, value: (r) => pct(r.automated, r.cases), sortValue: (r) => (r.cases ? r.automated / r.cases : -1),
-      render: (r) => r.cases ? <MiniBar n={r.automated} of={r.cases} parts={[{ value: r.autoPassed, tone: 'good', label: 'Passing' }, { value: r.automated - r.autoPassed, tone: 'warn', label: 'Not passing' }, { value: r.cases - r.automated, tone: 'muted', label: 'Not automated' }]} /> : null },
+    { key: 'cases', header: 'Total cases', width: 90, align: 'right', value: (r) => r.cases },
+    // Automatable: every case but "manual only". Automation is measured against these.
+    { key: 'automatable', header: 'Automatable', width: 100, align: 'right', value: (r) => r.automatable,
+      render: (r) => <span title={r.cases - r.automatable ? `${r.cases - r.automatable} manual only` : undefined}>{r.automatable}{r.cases - r.automatable ? <span className="text-[11px] text-[var(--faint)]"> (+{r.cases - r.automatable} manual)</span> : null}</span> },
+    { key: 'automated', header: 'Automated', width: 170, value: (r) => pct(r.automated, r.automatable), sortValue: (r) => (r.automatable ? r.automated / r.automatable : -1),
+      render: (r) => r.automatable ? <MiniBar n={r.automated} of={r.automatable} parts={[{ value: r.autoPassed, tone: 'good', label: 'Passing' }, { value: r.automated - r.autoPassed, tone: 'warn', label: 'Not passing' }, { value: Math.max(r.automatable - r.automated, 0), tone: 'muted', label: 'Not automated' }]} /> : null },
     { key: 'automation', header: 'Automation', width: 130, value: (r) => r.status_automation, sortValue: (r) => ORDER.automation.indexOf(r.status_automation),
       render: (r) => <Chip tone={TONE[r.status_automation] ?? 'muted'}>{r.status_automation}</Chip> },
     { key: 'automateDate', header: 'Automation due', width: 130, mono: true, value: (r) => r.automate_due_on ?? '',
-      render: (r) => r.status_automation === 'Fully automated' ? <span className="text-[var(--faint)]">—</span> : due(r, r.automate_due_on, r.automateLate),
-      edit: lead({ field: 'automate_due_on', kind: 'date' as const }), editable: (r) => r.status_automation !== 'Fully automated' },
+      render: (r) => r.status_automation === 'Fully automated' || r.status_automation === 'Manual only' ? <span className="text-[var(--faint)]">—</span> : due(r, r.automate_due_on, r.automateLate),
+      edit: lead({ field: 'automate_due_on', kind: 'date' as const }), editable: (r) => r.status_automation !== 'Fully automated' && r.status_automation !== 'Manual only' },
     { key: 'manual', header: 'Tested by hand', width: 150, value: (r) => pct(r.manualDone, r.needManual), sortValue: (r) => (r.needManual ? r.manualDone / r.needManual : -1),
       render: (r) => r.needManual ? <MiniBar n={r.manualDone} of={r.needManual} parts={[{ value: r.manualPassed, tone: 'good', label: 'Passed' }, { value: r.manualDone - r.manualPassed, tone: 'crit', label: 'Not passed' }, { value: r.untested, tone: 'muted', label: 'Left' }]} /> : null },
     { key: 'hand', header: 'Hand testing', width: 120, value: (r) => r.status_hand, sortValue: (r) => ORDER.hand.indexOf(r.status_hand),
@@ -111,14 +114,14 @@ function Cards({ charts, rowsFor, toggle, today, mismatches, skipped }: {
   const chart = (key: string) => charts.find((c) => c.spec.key === key)!
   const w = rowsFor('writing'), a = rowsFor('automation'), h = rowsFor('hand'), byWriter = rowsFor('writer')
   const nextDue = w.filter((r) => r.writing !== 'done' && r.due_on).map((r) => r.due_on!).sort()[0]
-  const [cases, automated, autoPassed] = [sum(a, 'cases'), sum(a, 'automated'), sum(a, 'autoPassed')]
+  const [cases, automatable, automated, autoPassed] = [sum(a, 'cases'), sum(a, 'automatable'), sum(a, 'automated'), sum(a, 'autoPassed')]
   const [needManual, manualDone, manualPassed, untested] = [sum(h, 'needManual'), sum(h, 'manualDone'), sum(h, 'manualPassed'), sum(h, 'untested')]
   return (
     <section className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="The flow">
       <FilterCard label="① Write" value={`${w.filter((r) => r.writing === 'done').length} of ${w.length}`} unit="pages completed" chart={chart('writing')} toggle={toggle}
         line={`${sum(w, 'cases').toLocaleString()} cases${nextDue ? ` · due ${fmt(nextDue)} (${Math.max(days(today, nextDue), 0)} days)` : ''}`} />
-      <FilterCard label="② Automate" value={`${pct(automated, cases)}%`} unit={`${automated.toLocaleString()} of ${cases.toLocaleString()} cases`} chart={chart('automation')} toggle={toggle}
-        line={`${autoPassed.toLocaleString()} passing in their latest run (${pct(autoPassed, automated)}%)${skipped ? ` · ${skipped} skipped` : ''}`} />
+      <FilterCard label="② Automate" value={`${pct(automated, automatable)}%`} unit={`${automated.toLocaleString()} of ${automatable.toLocaleString()} automatable cases`} chart={chart('automation')} toggle={toggle}
+        line={`${autoPassed.toLocaleString()} passing in their latest run (${pct(autoPassed, automated)}%)${cases - automatable ? ` · ${(cases - automatable).toLocaleString()} manual only` : ''}${skipped ? ` · ${skipped} skipped` : ''}`} />
       <FilterCard label="③ Test by hand" value={`${pct(manualDone, needManual)}%`} unit={`${manualDone.toLocaleString()} of ${needManual.toLocaleString()} cases`} chart={chart('hand')} toggle={toggle}
         line={<>
           <Link href="/cases?stage=test" className="hover:underline">{untested.toLocaleString()} left</Link> · {pct(manualPassed, manualDone)}% passing

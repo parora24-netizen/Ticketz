@@ -42,6 +42,11 @@ describe('test case progress', () => {
       [c({ area_id: 'a1', automation: 'automated' }), c({ area_id: 'a2' })], '2026-11-10')
     expect(auto.map((p) => p.automateLate)).toEqual([false, true])
     expect(auto.map((p) => pageStatus(p).automation)).toEqual(['Fully automated', 'Late'])
+    // Manual-only cases do not count against automation: 1 automated of 1 automatable is fully automated.
+    const withManual = pageProgress([{ id: 'a1', zone: 'E', page: 'P', sort: 1, automate_due_on: '2026-11-07' }, { id: 'a2', zone: 'E', page: 'M', sort: 2 }],
+      [c({ area_id: 'a1', automation: 'automated' }), c({ area_id: 'a1', automation: 'manual_only' }), c({ area_id: 'a2', automation: 'manual_only' })], '2026-11-10')
+    expect(withManual.map((p) => [p.cases, p.automatable, p.automated, p.automateLate])).toEqual([[2, 1, 1, false], [1, 0, 0, false]])
+    expect(withManual.map((p) => pageStatus(p).automation)).toEqual(['Fully automated', 'Manual only'])
     expect(pages.map((p) => pageStatus(p).writing)).toEqual(['Completed', 'Late', 'Late'])
     expect(pages.map((p) => pageStatus(p).hand)).toEqual(['Not started', 'Not started', 'Nothing to test'])
     expect(pct(1, 3)).toBe(33)

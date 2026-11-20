@@ -13,6 +13,7 @@ export const WRITING_LABEL: Record<Writing, string> = { done: 'Completed', writi
 
 export type Counts = {
   cases: number
+  automatable: number // every case but "manual only": what automation can be measured against
   automated: number // automation status says automated
   autoRun: number // of those, with an automated result
   autoPassed: number // of those, passing in their latest run
@@ -23,8 +24,9 @@ export type Counts = {
 }
 
 export function count(cases: ProgressCase[]): Counts {
-  const c: Counts = { cases: cases.length, automated: 0, autoRun: 0, autoPassed: 0, needManual: 0, manualDone: 0, manualPassed: 0, untested: 0 }
+  const c: Counts = { cases: cases.length, automatable: 0, automated: 0, autoRun: 0, autoPassed: 0, needManual: 0, manualDone: 0, manualPassed: 0, untested: 0 }
   for (const x of cases) {
+    if (x.automation !== 'manual_only') c.automatable++
     if (x.automation === 'automated') {
       c.automated++
       if (x.auto_result) c.autoRun++
@@ -50,7 +52,8 @@ export function pageProgress(areas: ProgressArea[], cases: ProgressCase[], today
   return areas.filter((a) => a.in_release !== false).sort((a, b) => a.sort - b.sort).map((a) => {
     const n = count(byArea.get(a.id) ?? [])
     const writing: Writing = a.cases_done_on ? 'done' : n.cases ? 'writing' : 'not_started'
-    const allAutomated = n.cases > 0 && n.automated === n.cases
+    // Manual-only cases are out of automation's count: a page is fully automated when every case that can be is.
+    const allAutomated = n.automatable > 0 && n.automated >= n.automatable
     return { ...a, ...n, writing, late: writing !== 'done' && !!a.due_on && a.due_on < today, automateLate: !allAutomated && !!a.automate_due_on && a.automate_due_on < today }
   })
 }
@@ -75,7 +78,7 @@ export function passFail(cases: Pick<ProgressCase, 'auto_result' | 'manual_resul
 export function pageStatus(p: PageProgress) {
   return {
     writing: p.late ? 'Late' : WRITING_LABEL[p.writing],
-    automation: !p.cases ? 'No cases' : p.automated === p.cases ? 'Fully automated' : p.automateLate ? 'Late' : p.automated ? 'Partly' : 'Not started',
+    automation: !p.cases ? 'No cases' : !p.automatable ? 'Manual only' : p.automated >= p.automatable ? 'Fully automated' : p.automateLate ? 'Late' : p.automated ? 'Partly' : 'Not started',
     hand: !p.needManual ? 'Nothing to test' : !p.untested ? 'Done' : p.manualDone ? 'In progress' : 'Not started',
   }
 }

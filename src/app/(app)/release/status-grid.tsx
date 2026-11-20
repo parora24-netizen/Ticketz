@@ -44,8 +44,9 @@ export function StatusGrid({ rows, noPage }: { rows: StatusRow[]; noPage: NoPage
       render: (r) => <Chip tone={TONE[r.status] ?? 'muted'}>{r.status}</Chip> },
     { key: 'cases', header: 'Cases', width: 70, align: 'right', value: (r) => r.cases,
       render: (r) => (r.cases ? <Link href={casesHref({ area: r.id })} className="text-[var(--accent)] hover:underline">{r.cases}</Link> : none) },
-    { key: 'automated', header: 'Automated', width: 150, value: (r) => pct(r.automated, r.cases), sortValue: (r) => (r.cases ? r.automated / r.cases : -1),
-      render: (r) => r.cases ? <Link href={casesHref({ area: r.id, automation: 'automated' })} className="block hover:underline"><MiniBar n={r.automated} of={r.cases} parts={[{ value: r.automated, tone: 'accent', label: 'Automated' }, { value: r.cases - r.automated, tone: 'muted', label: 'Not automated' }]} /></Link> : null },
+    // Against automatable cases (all but "manual only"), as on Test cases › Progress.
+    { key: 'automated', header: 'Automated', width: 150, value: (r) => pct(r.automated, r.automatable), sortValue: (r) => (r.automatable ? r.automated / r.automatable : -1),
+      render: (r) => r.automatable ? <Link href={casesHref({ area: r.id, automation: 'automated' })} className="block hover:underline"><MiniBar n={r.automated} of={r.automatable} parts={[{ value: r.automated, tone: 'accent', label: 'Automated' }, { value: Math.max(r.automatable - r.automated, 0), tone: 'muted', label: 'Not automated' }]} /></Link> : null },
     { key: 'autoRun', header: 'Automation passing', width: 150, value: (r) => pct(r.autoPassed, r.autoRun), sortValue: (r) => (r.autoRun ? r.autoPassed / r.autoRun : -1),
       render: (r) => r.automated ? <Link href={casesHref({ area: r.id, auto: 'passed' })} className="block hover:underline"><MiniBar n={r.autoPassed} of={r.autoRun} parts={[{ value: r.autoPassed, tone: 'good', label: 'Passing' }, { value: r.autoRun - r.autoPassed, tone: 'crit', label: 'Not passing' }, { value: r.automated - r.autoRun, tone: 'muted', label: 'Not run' }]} /></Link> : null },
     { key: 'manual', header: 'Tested by hand', width: 150, value: (r) => pct(r.manualDone, r.needManual), sortValue: (r) => (r.needManual ? r.manualDone / r.needManual : -1),

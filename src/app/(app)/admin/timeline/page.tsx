@@ -98,7 +98,7 @@ export default async function TimelinePage({ searchParams }: { searchParams: Pro
 
       {groups.map((g) => (
         <section key={g.day} className="mb-5">
-          <h2 className="sticky top-14 z-10 bg-[var(--bg)] py-1.5 text-[13px] font-semibold text-[var(--navy-ink)]">{g.day} <span className="font-normal text-[var(--muted)]">· {g.entries.length}</span></h2>
+          <h2 className="sticky top-0 z-10 bg-[var(--bg)] py-1.5 text-[13px] font-semibold text-[var(--navy-ink)]">{g.day} <span className="font-normal text-[var(--muted)]">· {g.entries.length}</span></h2>
           <ol className="card divide-y divide-[var(--line-soft)]">
             {g.entries.map((e) => (
               <li key={e.key} className="grid grid-cols-[52px_110px_minmax(0,1fr)] gap-3 px-4 py-2.5 text-[12.5px] max-sm:grid-cols-[44px_minmax(0,1fr)]">

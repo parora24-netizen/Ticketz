@@ -65,7 +65,7 @@ export function StatusGrid({ rows, noPage }: { rows: StatusRow[]; noPage: NoPage
     { key: 'tickets', header: 'Tickets', width: 110, value: (r) => r.tickets, sortValue: (r) => ORDER.tickets.indexOf(r.tickets) },
   ]
   return (
-    <DataGrid rows={rows} columns={cols} csvName="release-status" searchPlaceholder="Search pages" selectable={false}
+    <DataGrid fill={false} rows={rows} columns={cols} csvName="release-status" searchPlaceholder="Search pages" selectable={false}
       charts={[
         { key: 'status', title: 'Status', order: ORDER.status },
         { key: 'automation', title: 'Automation', order: ORDER.automation },

@@ -315,7 +315,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
   // Step headings: stick under the title bar while the page scrolls, so the columns keep their names.
   const gridCols = { gridTemplateColumns: `repeat(${cols.length}, minmax(0, 1fr))` }
   const headings = (counts: (s: Col) => number) => (
-    <div className="sticky top-14 z-10 grid gap-2 bg-[var(--bg)] pt-1 pb-2" style={gridCols}>
+    <div className="sticky top-0 z-10 grid gap-2 bg-[var(--bg)] pt-1 pb-2" style={gridCols}>
       {cols.map((stage, n) => (
         <div key={stage} className={`border-t-2 bg-white px-2.5 py-2 shadow-[0_1px_0_var(--line)] ${counts(stage) && !isDone(stage) ? (stage === 'failed' ? 'border-[var(--crit)]' : 'border-[var(--navy)]') : 'border-[var(--line)]'}`}>
           <div className="flex items-baseline justify-between">

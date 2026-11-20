@@ -54,6 +54,11 @@ type Props<T extends { id: string }> = {
   charts?: ChartSpec[]
   /** Keep this person's search, filters and sort for next time (off when a link opened the grid with filters of its own). */
   remember?: boolean
+  /**
+   * Take the height left on the page and run to the bottom of the window, so the grid scrolls inside
+   * itself and the page doesn't, with its status bar along the bottom. Off when more content follows.
+   */
+  fill?: boolean
   /** Told the rows on show, in order, whenever they change (e.g. for Previous / Next on a detail page). */
   onView?: (rows: T[]) => void
   /**
@@ -76,7 +81,7 @@ const EMPTY = '(blank)'
  */
 export function DataGrid<T extends { id: string }>({
   rows, columns, onSave, bulkFields = [], bulkActions = [], csvName = 'export', toolbar, actions,
-  defaultSort = [], defaultFilters, initialFilters, searchPlaceholder = 'Search', emptyText = 'No rows.', selectable = true, footerNote, charts, remember = true, onView, summary,
+  defaultSort = [], defaultFilters, initialFilters, searchPlaceholder = 'Search', emptyText = 'No rows.', selectable = true, footerNote, charts, remember = true, fill = true, onView, summary,
 }: Props<T>) {
   const [overrides, setOverrides] = useState<Record<string, Record<string, string | null>>>({})
   const [filters, setFilters] = useState<Record<string, Filter>>(() =>
@@ -320,7 +325,7 @@ export function DataGrid<T extends { id: string }>({
   const colHeader = (key: string) => columns.find((c) => c.key === key)?.header ?? key
 
   return (
-    <div className="flex min-h-0 flex-col">
+    <div className={`flex min-h-0 flex-col ${fill ? 'grid-fill flex-1' : ''}`}>
       {summary?.({ charts: chartData, rowsFor: (key) => rows.filter((r) => matches(r, key)), toggle: toggleChartValue })}
       {/* Toolbar: search and scope on the left, the page's buttons on the right. */}
       <div className="flex flex-wrap items-center gap-2 pb-3">
@@ -428,7 +433,7 @@ export function DataGrid<T extends { id: string }>({
 
 
       <div ref={gridRef} tabIndex={0} onKeyDown={onKeyDown} role="grid" aria-rowcount={view.length}
-        className="grid-scroll overflow-auto border border-[var(--line)] bg-white outline-none">
+        className="grid-scroll min-h-0 flex-1 overflow-auto border border-[var(--line)] bg-white outline-none">
         <table className="table grid-table" style={{ minWidth: columns.reduce((s, c) => s + (c.width ?? 140), selectable ? 40 : 0) }}>
           <thead className="sticky top-0 z-10">
             <tr>
@@ -534,7 +539,8 @@ export function DataGrid<T extends { id: string }>({
           </div>
         )}
       </div>
-      <p className="pt-2 text-[11.5px] text-[var(--muted)]">
+      {/* The grid's status bar: along the bottom of the window when the grid fills the page. */}
+      <p className="shrink-0 border-x border-b border-[var(--line)] bg-[var(--surface-3)] px-3 py-1.5 text-[11.5px] text-[var(--muted)]">
         Showing {Math.min(view.length, limit)} of {rows.length}
         {(query || activeFilters > 0) && view.length < rows.length && <>
           {' · '}

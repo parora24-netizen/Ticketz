@@ -40,7 +40,7 @@ export function SprintsGrid({ rows }: { rows: SprintRow[] }) {
         </Link>
       ) : none },
   ]
-  return <DataGrid rows={rows} columns={cols} csvName="sprints" selectable={false} charts={[{ key: 'kind', title: 'By type', order: ['Triage', 'Test', 'Fix', 'Regression'] }, { key: 'status', title: 'By status', order: ['Running', 'Planned', 'Closed'] }]} defaultSort={[{ key: 'dates', dir: 1 }]} searchPlaceholder="Search sprints" />
+  return <DataGrid fill={false} rows={rows} columns={cols} csvName="sprints" selectable={false} charts={[{ key: 'kind', title: 'By type', order: ['Triage', 'Test', 'Fix', 'Regression'] }, { key: 'status', title: 'By status', order: ['Running', 'Planned', 'Closed'] }]} defaultSort={[{ key: 'dates', dir: 1 }]} searchPlaceholder="Search sprints" />
 }
 
 // ---- Plan ------------------------------------------------------------------------------------
@@ -70,7 +70,7 @@ export function PlanGrid({ rows, sprints, isLead }: { rows: TaskRow[]; sprints: 
       edit: { field: 'status', kind: 'select', options: STATUS } },
   ]
   return (
-    <DataGrid rows={rows} columns={cols} csvName="release-plan"
+    <DataGrid fill={false} rows={rows} columns={cols} csvName="release-plan"
       charts={[
         { key: 'status', title: 'By status', order: ['Not started', 'In progress', 'Blocked', 'Done'] },
         { key: 'phase', title: 'By phase' },
@@ -128,7 +128,7 @@ export function TeamGrid({ rows }: { rows: PersonRow[] }) {
     { key: 'active', header: 'Access', width: 110, value: (r) => (r.active ? 'Active' : 'Off'), edit: { field: 'active', kind: 'select', options: ACTIVE } },
   ]
   return (
-    <DataGrid rows={rows} columns={cols} csvName="team" charts={[{ key: 'role', title: 'By role' }, { key: 'active', title: 'Access' }]} searchPlaceholder="Search people"
+    <DataGrid fill={false} rows={rows} columns={cols} csvName="team" charts={[{ key: 'role', title: 'By role' }, { key: 'active', title: 'Access' }]} searchPlaceholder="Search people"
       onSave={(ids, patch) => updatePeople(ids, patch)}
       bulkFields={[{ field: 'role', label: 'Set role', options: ROLES }, { field: 'active', label: 'Set access', options: ACTIVE }]} />
   )

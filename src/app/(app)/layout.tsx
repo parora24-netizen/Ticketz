@@ -32,8 +32,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <Toaster />
       <Presence />
       <Sidebar isLead={me.role === 'lead'} sprintLabel={sprintLabel} />
-      <div className="md:pl-[216px]">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-4 border-b border-[var(--line)] bg-white px-4 sm:px-6">
+      {/* The page is as tall as the window. A grid takes the height left under the page's heading
+          and scrolls inside itself, with its status bar along the bottom, so there is one
+          scrollbar, not two. A page that doesn't fit (a long form, a ticket) scrolls in <main>. */}
+      <div className="flex h-dvh flex-col md:pl-[216px]">
+        <header className="z-20 flex h-14 shrink-0 items-center gap-4 border-b border-[var(--line)] bg-white px-4 sm:px-6">
           <Link href="/" className="flex h-[32px] shrink-0 items-center rounded-[3px] bg-[var(--navy)] px-1.5 md:hidden" aria-label="Home">
             <span className="flex h-[26px] items-center rounded-[2px] bg-white px-1"><Image src="/vulqan-logo.png" alt="" width={15} height={20} /></span>
           </Link>
@@ -48,7 +51,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <ProfileMenu name={me.name} email={me.email} role={ROLE[me.role]} initials={initials} emailPrefs={emailPrefs} />
           </div>
         </header>
-        <main className="px-4 pt-5 pb-24 sm:px-6 md:pb-8"><RememberProvider personId={me.id}>{children}</RememberProvider></main>
+        <main className="min-h-0 flex-1 overflow-auto px-4 pt-5 pb-24 sm:px-6 md:pb-4">
+          <div className="flex h-full min-w-0 flex-col"><RememberProvider personId={me.id}>{children}</RememberProvider></div>
+        </main>
       </div>
       <BottomBar isLead={me.role === 'lead'} />
     </div>

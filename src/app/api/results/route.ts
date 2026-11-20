@@ -158,6 +158,23 @@ export async function POST(request: NextRequest) {
     const { error } = await supabase.from('test_runs').insert(rows.slice(i, i + 500))
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
+  // A result that names its ask links the case to it, so the case shows as waiting on that ask.
+  const askKeys = [...new Set(results.filter((r) => r.ask_id && caseIds.has(r.tc_id)).map((r) => r.ask_id!.toUpperCase()))]
+  const asks_linked: string[] = []
+  const asks_not_open: string[] = []
+  if (askKeys.length) {
+    const { data: open } = await supabase.from('asks').select('id, key').in('key', askKeys).eq('state', 'open')
+    const idOf = new Map((open ?? []).map((a) => [a.key as string, a.id as string]))
+    asks_not_open.push(...askKeys.filter((k) => !idOf.has(k)))
+    const links = results.filter((r) => r.ask_id && idOf.has(r.ask_id.toUpperCase()) && caseIds.has(r.tc_id))
+      .map((r) => ({ ask_id: idOf.get(r.ask_id!.toUpperCase())!, case_id: caseIds.get(r.tc_id)!.id }))
+    if (links.length) {
+      const { error } = await supabase.from('ask_cases').upsert(links, { onConflict: 'ask_id,case_id', ignoreDuplicates: true })
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      asks_linked.push(...new Set(links.map((l) => [...idOf].find(([, id]) => id === l.ask_id)![0])))
+    }
+  }
+
   // A case that has automated results is automated, unless someone has said it is blocked or cannot be.
   const newlyAutomated = [...caseIds.values()].filter((c) => c.automation === 'not_automated' || c.automation === 'in_progress').map((c) => c.id)
   if (newlyAutomated.length) await supabase.from('test_cases').update({ automation: 'automated' }).in('id', newlyAutomated)
@@ -189,6 +206,8 @@ export async function POST(request: NextRequest) {
     recorded: rows.length,
     ...(ignored.length ? { ignored_fields: ignored, accepted_fields: RESULT_FIELDS } : {}),
     retests_closed,
+    ...(asks_linked.length ? { asks_linked } : {}),
+    ...(asks_not_open.length ? { asks_not_open, asks_not_open_note: 'These asks are not open (answered, declined or unknown): the cases were not linked.' } : {}),
     sprint: sprint?.name ?? null,
     unmatched: ids.filter((id) => !found.has(id)),
     ...(retired.length ? { retired, retired_note: 'These cases are retired or deferred (out of this release): their results were not recorded. Stop running them.' } : {}),

@@ -46,7 +46,7 @@ export const ResultTelemetry = z.object({
   not_tested_reason: text(1000).optional(), error_head: text(1000).optional(), fixture_engine: text(200).optional(),
   artifacts: z.array(z.object({ kind: z.enum(['screenshot', 'trace', 'error_context', 'log']), url: z.url({ protocol: /^https?$/ }).max(1000) })).max(20).optional(),
 })
-export const RESULT_FIELDS = ['tc_id', 'status', 'duration_ms', 'error', 'url', 'defect_id', ...Object.keys(ResultTelemetry.shape)]
+export const RESULT_FIELDS = ['tc_id', 'status', 'duration_ms', 'error', 'url', 'defect_id', 'ask_id', ...Object.keys(ResultTelemetry.shape)]
 
 /** A finer outcome as one of the results Launchpad counts. */
 export const resultOf = (outcome: string | undefined, status: string): string =>

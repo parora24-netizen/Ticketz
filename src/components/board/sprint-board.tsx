@@ -33,6 +33,8 @@ export type SprintCard = {
   tester_name: string | null
   auto_result: string | null
   manual_result: string | null
+  /** Open asks this case's skipped automated run waits on. */
+  waiting?: { key: string; title: string; owner: string | null }[]
   needs_ticket: boolean
   /** A fix sprint's ticket with no test case: the card opens the ticket's page. */
   caseless?: boolean
@@ -45,6 +47,10 @@ const RESULT: Record<string, [string, string]> = {
 }
 const Res = ({ r }: { r: string | null }) =>
   r ? <span className={`font-semibold ${RESULT[r]?.[1] ?? ''}`}>{RESULT[r]?.[0] ?? r}</span> : <span>—</span>
+/** The automated result on a card: a skip held up by an open ask names the ask instead. */
+const AutoRes = ({ c }: { c: SprintCard }) => c.waiting?.length
+  ? <span className="font-semibold text-[var(--warn)]" title={c.waiting.map((a) => `${a.key}, waiting on ${a.owner ?? 'nobody yet'}: ${a.title}`).join('\n')}>Waiting · {c.waiting.map((a) => a.key).join(', ')}</span>
+  : <Res r={c.auto_result} />
 const PRIORITY = ['Critical', 'High', 'Medium', 'Low']
 
 /** A column on either board: the case board (To test, Fix, Retest, Done) or a test sprint's. */
@@ -124,6 +130,10 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
   // Fix sprints: a ticket whose case passes again can be closed in one click (lead and QA).
   const closable = (c: SprintCard) => mode === 'fix' && !!c.ticket && passesNow(c) && !isDone(stageOf(c)) && !('error' in moveOf(c, 'done'))
   const passing = shown.filter(closable)
+  // Skipped cases held up by an open ask, counted by ask so "8 on Inder" reads apart from "8 skipped".
+  const waitingCards = shown.filter((c) => c.waiting?.length && !isDone(stageOf(c)))
+  const waitingAsks = [...waitingCards.flatMap((c) => c.waiting ?? []).reduce((m, a) => m.set(a.key, { ...a, n: (m.get(a.key)?.n ?? 0) + 1 }), new Map<string, { key: string; title: string; owner: string | null; n: number }>()).values()]
+    .sort((a, b) => b.n - a.n)
   const [closing, setClosing] = useState(false)
   async function closePassing() {
     const list = passing
@@ -266,10 +276,10 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
         <p className="mt-0.5 line-clamp-2 text-[12.5px] leading-snug">{c.title}</p>
         {mode === 'fix'
           ? <div className="mt-1 flex flex-wrap items-center gap-x-3 text-[11px] text-[var(--faint)]">
-              {c.case_id ? <><span className="mono text-[var(--ink-2)]">{c.tc_id}</span><span>Auto <Res r={c.auto_result} /></span><span>Manual <Res r={c.manual_result} /></span></> : <span>No test case</span>}
+              {c.case_id ? <><span className="mono text-[var(--ink-2)]">{c.tc_id}</span><span>Auto <AutoRes c={c} /></span><span>Manual <Res r={c.manual_result} /></span></> : <span>No test case</span>}
             </div>
           : <div className="mt-1 flex items-center gap-3 text-[11px] text-[var(--faint)]">
-          <span>Auto <Res r={c.auto_result} /></span>
+          <span>Auto <AutoRes c={c} /></span>
           <span>Manual <Res r={c.manual_result} /></span>
         </div>}
         {c.ticket && mode !== 'fix' && (
@@ -391,6 +401,14 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
 
       {(cards.length > 0 || emptyAreas.length > 0) && <>
 
+      {waitingCards.length > 0 && (
+        <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 border border-[var(--warn-line)] bg-[var(--warn-soft)] px-3 py-2 text-[12.5px]">
+          <span><b className="font-semibold">{waitingCards.length}</b> {waitingCards.length === 1 ? 'case is' : 'cases are'} waiting on an ask, not skipped:</span>
+          {waitingAsks.map((a) => (
+            <a key={a.key} href={`/asks/${a.key}`} title={a.title} className="text-[var(--accent)] hover:underline">{a.n} on {a.owner ?? 'nobody yet'} ({a.key})</a>
+          ))}
+        </div>
+      )}
       {passing.length > 0 && (
         <div className="mb-2 flex flex-wrap items-center gap-3 border border-[var(--good-line)] bg-[var(--good-soft)] px-3 py-2 text-[12.5px]">
           <span><b className="font-semibold">{passing.length}</b> {passing.length === 1 ? 'ticket’s case passes' : 'tickets’ cases pass'} now, so {passing.length === 1 ? 'it' : 'they'} can be closed without a fix.</span>

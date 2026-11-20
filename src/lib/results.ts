@@ -15,6 +15,8 @@ export const ResultsPayload = z.object({
         url: z.url({ protocol: /^https?$/ }).max(1000).optional(),
         /** The recorded defect this result belongs to; with raise_tickets, one ticket per defect. */
         defect_id: z.string().trim().min(1).max(100).optional(),
+        /** The open ask this case waits on (e.g. "ASK-87"): the case is linked to it, so it shows as waiting. */
+        ask_id: z.string().trim().regex(/^ASK-\d+$/i, 'ask_id looks like ASK-87').optional(),
       }).extend(ResultTelemetry.shape),
     )
     .min(1)

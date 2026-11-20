@@ -14,7 +14,7 @@ import { readyTimes, retestOwner } from '@/lib/workflow/retest'
 import { createClient } from '@/lib/supabase/server'
 import {
   runningSprints, daysLeft, daysUntil, fmtDate, loadActivity, loadAreas, loadHolidays, loadCases, loadPeople, loadRelease, loadSprintAreas, loadSprintRunTimes, loadSprintRuns,
-  loadSprints, loadTasks, loadTicketTesters, loadTickets, toStageInput, type CaseRow, type TicketRow,
+  loadSprints, loadTasks, loadTicketTesters, loadTickets, loadWaitingAsks, toStageInput, waitingOn, type CaseRow, type TicketRow,
 } from '@/lib/data'
 import { buildStandup, lastWorkingDayStart } from '@/lib/standup'
 import { casesTestedByDay, istDate } from '@/lib/trends'
@@ -47,6 +47,7 @@ export default async function SprintPage({
   // The sprint's own tickets: fix sprints are made of them; test sprints raise them for later.
   const tickets = allTickets.filter((t) => t.current_sprint_id === id)
   const ticketTesters = await loadTicketTesters()
+  const waitingAsks = await loadWaitingAsks(loaded)
   // When each ticket waiting for retest got there, to tell a manual pass since the fix from an older one.
   const retestIds = tickets.filter((t) => t.state === 'ready_for_retest').map((t) => t.id)
   const { data: readyEvents } = retestIds.length
@@ -173,7 +174,7 @@ export default async function SprintPage({
           return {
             id: t.id, case_id: c?.id ?? null, tc_id: c?.tc_id ?? '', title: t.title, priority: t.severity, zone: t.zone ?? 'No area', page: t.page ?? '—',
             stage: fixStage(t.state, !!t.blocked_reason) as 'test', test_by: c ? testBy(toStageInput(c)) : 'manual' as const, tester_id: handed?.id ?? c?.tester_id ?? own?.id ?? raiser?.id ?? null, tester_name: handed?.name ?? c?.tester_name ?? own?.name ?? raiser?.name ?? null,
-            auto_result: c?.auto_result ?? null, manual_result: c?.manual_result ?? null, needs_ticket: false, caseless: !c,
+            auto_result: c?.auto_result ?? null, manual_result: c?.manual_result ?? null, waiting: c ? waitingOn(c, waitingAsks) : [], needs_ticket: false, caseless: !c,
             ticket: { id: t.id, key: t.key, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name, kind: t.kind, blocked_reason: t.blocked_reason },
           }
         }) : cases.map((c) => {
@@ -181,7 +182,7 @@ export default async function SprintPage({
           return {
             id: c.id, case_id: c.id, tc_id: c.tc_id, title: c.title, priority: c.priority, zone: c.zone, page: c.page,
             stage: stageOf.get(c.id)! as 'test', test_by: testBy(toStageInput(c)), tester_id: c.tester_id, tester_name: c.tester_name,
-            auto_result: c.auto_result, manual_result: c.manual_result,
+            auto_result: c.auto_result, manual_result: c.manual_result, waiting: waitingOn(c, waitingAsks),
             needs_ticket: needsTicket(toStageInput(c, runs)),
             ticket: t ? { id: t.id, key: t.key, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name, kind: t.kind, blocked_reason: t.blocked_reason } : null,
           }

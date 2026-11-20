@@ -10,13 +10,13 @@ export type ChartSpec = { key: string; title: string; top?: number; order?: stri
 export type ChartData = { spec: ChartSpec; bars: { label: string; count: number }[]; total: number; selected: string[] }
 
 // Static class names, so Tailwind keeps them.
-const XL_COLS: Record<number, string> = { 1: 'xl:grid-cols-1', 2: 'xl:grid-cols-2', 3: 'xl:grid-cols-3', 4: 'xl:grid-cols-4', 5: 'xl:grid-cols-5', 6: 'xl:grid-cols-3' }
+const XL_COLS: Record<number, string> = { 1: 'xl:grid-cols-1', 2: 'xl:grid-cols-2', 3: 'xl:grid-cols-3', 4: 'xl:grid-cols-4', 5: 'xl:grid-cols-5', 6: 'xl:grid-cols-3', 7: 'xl:grid-cols-4', 8: 'xl:grid-cols-4' }
 
 export function GridCharts({ charts, onToggle }: { charts: ChartData[]; onToggle: (key: string, value: string) => void }) {
   const [opened, setOpened] = useState<Set<string>>(new Set())
   const flip = (key: string) => setOpened((s) => { const n = new Set(s); if (n.has(key)) n.delete(key); else n.add(key); return n })
   return (
-    <div className={`mb-3 grid grid-cols-1 items-start gap-3 sm:grid-cols-2 ${XL_COLS[Math.min(charts.length, 6)] ?? 'xl:grid-cols-4'}`}>
+    <div className={`mb-3 grid grid-cols-1 items-start gap-3 sm:grid-cols-2 ${XL_COLS[Math.min(charts.length, 8)] ?? 'xl:grid-cols-4'}`}>
       {charts.map(({ spec, bars: all, total, selected }) => {
         const top = spec.top ?? 8
         const open = opened.has(spec.key)

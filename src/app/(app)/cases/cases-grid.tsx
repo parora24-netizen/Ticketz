@@ -4,6 +4,7 @@ import type { Automation } from '@/lib/workflow/case-stage'
 import Link from 'next/link'
 import { DataGrid, type Column } from '@/components/grid/data-grid'
 import { PriorityChip, ResultChip } from '@/components/ui'
+import { AutoResult, autoLabel, type Waiting } from '@/components/auto-result'
 import type { Priority, RunResult } from '@/lib/workflow/case-stage'
 import { deleteRows, recordResults, updateCases } from '../actions'
 
@@ -18,6 +19,10 @@ export type CaseGridRow = {
   priority: Priority
   automation: Automation
   auto_result: RunResult | null
+  /** The latest automated result's note, shown on hover. */
+  auto_note?: string | null
+  /** Open asks a skipped case waits on. */
+  waiting?: Waiting[]
   manual_result: RunResult | null
   stage: string
   open_tickets: number
@@ -54,7 +59,8 @@ export function CasesGrid({ rows, areas, people, canEdit, isLead, inSprint, reme
       edit: canEdit ? { field: 'priority', kind: 'select', options: PRIORITY } : undefined },
     { key: 'automation', header: 'Automation', width: 130, value: (r) => AUTOMATION.find((a) => a.value === r.automation)!.label,
       edit: canEdit ? { field: 'automation', kind: 'select', options: AUTOMATION } : undefined },
-    { key: 'auto', header: 'Auto result', width: 120, value: (r) => (r.auto_result ? RESULT_LABEL[r.auto_result] : 'Not run'), render: (r) => <ResultChip r={r.auto_result} /> },
+    { key: 'auto', header: 'Auto result', width: 140, value: (r) => autoLabel(r.auto_result, r.waiting ?? []),
+      render: (r) => <AutoResult r={r.auto_result} note={r.auto_note} waiting={r.waiting ?? []} /> },
     { key: 'manual', header: 'Manual result', width: 120, value: (r) => (r.manual_result ? RESULT_LABEL[r.manual_result] : 'Not tested'), render: (r) => <ResultChip r={r.manual_result} /> },
     ...(inSprint ? [{ key: 'stage', header: 'Stage', width: 120, value: (r: CaseGridRow) => r.stage }] : []),
     { key: 'tickets', header: 'Open tickets', width: 100, align: 'right', value: (r) => r.open_tickets || null },
@@ -71,6 +77,7 @@ export function CasesGrid({ rows, areas, people, canEdit, isLead, inSprint, reme
         { key: 'tester', title: 'By tester' },
         { key: 'priority', title: 'By priority', order: ['Critical', 'High', 'Medium', 'Low'] },
         { key: 'manual', title: 'Manual result', order: ['Passed', 'Failed', 'Blocked', 'Not tested'] },
+        { key: 'auto', title: 'Auto result', order: ['Passed', 'Failed', 'Known defect', 'Waiting on ask', 'Skipped', 'Blocked', 'Not run'] },
         inSprint
           ? { key: 'stage', title: 'Stage in this sprint', order: ['To test', 'Fix', 'Retest', 'Done'] }
           : { key: 'automation', title: 'Automation', order: ['Automated', 'In progress', 'Blocked', 'Not yet', 'Manual only'] },

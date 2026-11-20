@@ -3,7 +3,7 @@ import { PageHeader } from '@/components/ui'
 import { CASES_TABS, Tabs } from '@/components/tabs'
 import { getMe } from '@/lib/auth'
 import { caseLinkLabel, matchesCaseLink } from '@/lib/case-links'
-import { loadAreas, loadCases, loadPeople, loadSprintAreas, loadSprintRuns, loadSprints, toStageInput } from '@/lib/data'
+import { loadAreas, loadCases, loadPeople, loadSprintAreas, loadSprintRuns, loadSprints, loadWaitingAsks, toStageInput, waitingOn } from '@/lib/data'
 import { STAGE_LABEL, caseStage, mismatch, type Stage } from '@/lib/workflow/case-stage'
 import { CasesGrid } from './cases-grid'
 
@@ -15,6 +15,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
   const sprint = sp.sprint ? sprints.find((s) => s.id === sp.sprint) : undefined
   const scope = sprint ? sprintAreas.filter((x) => x.sprint_id === sprint.id).map((x) => x.area_id) : undefined
   const [all, runs] = await Promise.all([loadCases(scope), sprint ? loadSprintRuns(sprint.id) : Promise.resolve(undefined)])
+  const asks = await loadWaitingAsks(all)
 
   // ?mismatch=type_i (automation failed, manual passed), type_ii (the other way), or 1 for either.
   const kind = (c: (typeof all)[number]) => mismatch(c.auto_result, c.manual_result)
@@ -36,6 +37,8 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
       priority: c.priority,
       automation: c.automation,
       auto_result: c.auto_result,
+      auto_note: c.auto_note ?? null,
+      waiting: waitingOn(c, asks),
       manual_result: c.manual_result,
       stage: STAGE_LABEL[caseStage(toStageInput(c, runs))],
       open_tickets: c.open_fix + c.awaiting_retest,

@@ -62,6 +62,7 @@ export function PayloadExample({ appUrl }: { appUrl: string }) {
         <dt className="mono text-[var(--muted)]">limits</dt><dd>up to 5,000 results per call; a test reported twice keeps its last result</dd>
         <dt className="mono text-[var(--muted)]">lands in</dt><dd>the running test sprint; the response lists recorded, sprint and unmatched</dd>
         <dt className="mono text-[var(--muted)]">defect_id</dt><dd>optional; your id for the recorded defect behind a result. Stored on the result; all results with the same defect_id share one ticket</dd>
+        <dt className="mono text-[var(--muted)]">ask_id</dt><dd>optional; the open ask a skipped case waits on, e.g. ASK-87. The case is linked to the ask, so it shows as waiting on it (and in waiting_on_asks) until the ask is answered. The reply lists asks_linked, and asks_not_open for any that are answered or unknown</dd>
         <dt className="mono text-[var(--muted)]">tickets</dt><dd>every failed result raises a ticket, adds to the open one, or reopens the closed one, and the response lists them. It is a mismatch (MM-) if the latest manual test passed, else a defect (DEV-). known_defect raises nothing. Up to 200 per call; tickets_not_raised counts any beyond that. raise_tickets is no longer needed</dd>
       </dl>
     </section>

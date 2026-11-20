@@ -41,6 +41,10 @@ export type CaseRow = {
   tester_name: string | null
   needs_detail?: boolean | null
   automation_block?: string | null
+  /** The latest automated result's note (a skip's reason, a failure's error). */
+  auto_note?: string | null
+  /** Open asks this case waits on, e.g. ["ASK-87"]. */
+  waiting_asks?: string[] | null
   open_fix: number
   awaiting_retest: number
 }
@@ -110,6 +114,22 @@ export const loadSprintAreas = cache(async function loadSprintAreas(): Promise<{
 })
 
 /** Testers set on tickets that have no test case (ticket id → person id). */
+/** An open ask a case waits on, for "Waiting · ASK-87" with its owner and question on hover. */
+export type WaitingAsk = { key: string; title: string; owner: string | null }
+
+/** The open asks behind these cases' waiting_asks, by key. */
+export async function loadWaitingAsks(cases: { waiting_asks?: string[] | null }[]): Promise<Map<string, WaitingAsk>> {
+  const keys = [...new Set(cases.flatMap((c) => c.waiting_asks ?? []))]
+  if (!keys.length) return new Map()
+  const supabase = await createClient()
+  const { data } = await supabase.from('asks').select('key, title, owner:people!asks_owner_id_fkey(name)').in('key', keys)
+  return new Map((data ?? []).map((a) => [a.key as string, { key: a.key as string, title: a.title as string, owner: (a.owner as unknown as { name: string } | null)?.name ?? null }]))
+}
+
+/** A case is waiting on an ask when its latest automated result is a skip and an ask is still open. */
+export const waitingOn = (c: { auto_result: string | null; waiting_asks?: string[] | null }, asks: Map<string, WaitingAsk>): WaitingAsk[] =>
+  c.auto_result === 'skipped' ? (c.waiting_asks ?? []).map((k) => asks.get(k)).filter((a): a is WaitingAsk => !!a) : []
+
 export const loadTicketTesters = cache(async function loadTicketTesters(): Promise<Map<string, string>> {
   const supabase = await createClient()
   const { data } = await supabase.from('tickets').select('id, tester_id').not('tester_id', 'is', null)

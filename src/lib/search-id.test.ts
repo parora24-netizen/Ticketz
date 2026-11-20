@@ -6,6 +6,7 @@ describe('ids typed into search', () => {
     for (const q of ['dev 648', 'DEV648', 'dev-648', 'Dev_648', ' dev  648 ']) expect(idFromSearch(q)).toBe('DEV-648')
     expect(idFromSearch('mm 99')).toBe('MM-99')
     expect(idFromSearch('task 3')).toBe('TASK-3')
+    for (const q of ['ask 90', 'ASK-90', 'ask90']) expect(idFromSearch(q)).toBe('ASK-90')
     for (const q of ['tc 491', 'TC-491', 'tc491', 'TC_491', 'tc_0491']) expect(idFromSearch(q)).toBe('TC_491')
   })
   it('leaves anything else as typed, in capitals', () => {

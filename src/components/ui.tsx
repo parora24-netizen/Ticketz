@@ -72,7 +72,7 @@ export function Stat({ label, value, sub, tone }: { label: string; value: React.
  */
 export function PageHeader({ title, sub, children }: { title?: string; sub?: React.ReactNode; children?: React.ReactNode }) {
   return (
-    <div className="mb-4 flex min-h-8 flex-wrap items-center justify-between gap-3">
+    <div className="mb-4 flex min-h-8 shrink-0 flex-wrap items-center justify-between gap-3">
       <div className="min-w-0">
         {title && <h2 className="text-[20px] leading-tight font-semibold text-[var(--navy-ink)]">{title}</h2>}
         {sub && <p className={`${title ? 'mt-1' : ''} text-[13px] text-[var(--muted)]`}>{sub}</p>}

@@ -12,13 +12,19 @@ export type ChartData = { spec: ChartSpec; bars: { label: string; count: number 
 // Static class names, so Tailwind keeps them.
 const XL_COLS: Record<number, string> = { 1: 'xl:grid-cols-1', 2: 'xl:grid-cols-2', 3: 'xl:grid-cols-3', 4: 'xl:grid-cols-4', 5: 'xl:grid-cols-5', 6: 'xl:grid-cols-3', 7: 'xl:grid-cols-4', 8: 'xl:grid-cols-4' }
 
-export function GridCharts({ charts, onToggle }: { charts: ChartData[]; onToggle: (key: string, value: string) => void }) {
+/**
+ * `compact`: one row of charts (scrolling sideways if they don't fit) with fewer bars each, for a
+ * grid that fills the page, so the rows keep most of the height.
+ */
+export function GridCharts({ charts, onToggle, compact = false }: { charts: ChartData[]; onToggle: (key: string, value: string) => void; compact?: boolean }) {
   const [opened, setOpened] = useState<Set<string>>(new Set())
   const flip = (key: string) => setOpened((s) => { const n = new Set(s); if (n.has(key)) n.delete(key); else n.add(key); return n })
   return (
-    <div className={`mb-3 grid grid-cols-1 items-start gap-3 sm:grid-cols-2 ${XL_COLS[Math.min(charts.length, 8)] ?? 'xl:grid-cols-4'}`}>
+    <div className={compact
+      ? 'mb-3 grid shrink-0 auto-cols-[minmax(190px,1fr)] grid-flow-col items-start gap-2 overflow-x-auto'
+      : `mb-3 grid grid-cols-1 items-start gap-3 sm:grid-cols-2 ${XL_COLS[Math.min(charts.length, 8)] ?? 'xl:grid-cols-4'}`}>
       {charts.map(({ spec, bars: all, total, selected }) => {
-        const top = spec.top ?? 8
+        const top = spec.top ?? (compact ? 6 : 8)
         const open = opened.has(spec.key)
         const folds = all.length > top
         // Folded: the first top-1 values, then the rest as one bar (a selected value stays in view).
@@ -45,7 +51,7 @@ export function GridCharts({ charts, onToggle }: { charts: ChartData[]; onToggle
                     <button type="button" onClick={() => (other ? flip(spec.key) : onToggle(spec.key, b.label))}
                       title={other ? `Show all ${all.length} in a list you can scroll` : `${spec.title}: ${b.label} · ${b.count} (${pct}%). Click to ${on ? 'remove from' : 'add to'} the filter.`}
                       aria-pressed={other ? undefined : on} aria-expanded={other ? false : undefined}
-                      className="group grid w-full grid-cols-[minmax(0,7.5rem)_1fr_2.5rem] items-center gap-2 py-[3px] text-left hover:bg-[var(--surface-3)]">
+                      className={`group grid w-full ${compact ? 'grid-cols-[minmax(0,6.5rem)_1fr_2rem] gap-1.5' : 'grid-cols-[minmax(0,7.5rem)_1fr_2.5rem] gap-2'} items-center py-[3px] text-left hover:bg-[var(--surface-3)]`}>
                       <span className={`truncate text-[11.5px] ${on ? 'font-semibold text-[var(--navy-ink)]' : 'text-[var(--ink-2)]'}`}>{b.label}</span>
                       <span className="h-3 bg-[var(--surface-2)]">
                         <span className={`block h-3 rounded-r-[4px] transition-colors ${

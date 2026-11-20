@@ -355,7 +355,7 @@ export function DataGrid<T extends { id: string }>({
         </div>
       </div>
 
-      {charts && charts.length > 0 && showCharts && !summary && <GridCharts charts={chartData} onToggle={toggleChartValue} />}
+      {charts && charts.length > 0 && showCharts && !summary && <GridCharts charts={chartData} onToggle={toggleChartValue} compact={fill} />}
 
       {/* Sort and filter summary, like "Sorted by Name ▲ × + then by…" */}
       <div className="flex flex-wrap items-center gap-1.5 pb-2 text-[12px] text-[var(--muted)]">

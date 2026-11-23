@@ -16,6 +16,10 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
   const scope = sprint ? sprintAreas.filter((x) => x.sprint_id === sprint.id).map((x) => x.area_id) : undefined
   const [all, runs] = await Promise.all([loadCases(scope), sprint ? loadSprintRuns(sprint.id) : Promise.resolve(undefined)])
   const asks = await loadWaitingAsks(all)
+  // Each page's fix sprint (the first it is planned in), so cases can be filtered by sprint.
+  const fixSprints = sprints.filter((s) => s.kind === 'fix').sort((a, b) => a.starts_on.localeCompare(b.starts_on))
+  const sprintOfArea = new Map<string, string>()
+  for (const s of fixSprints) for (const x of sprintAreas) if (x.sprint_id === s.id && !sprintOfArea.has(x.area_id)) sprintOfArea.set(x.area_id, s.name)
 
   // ?mismatch=type_i (automation failed, manual passed), type_ii (the other way), or 1 for either.
   const kind = (c: (typeof all)[number]) => mismatch(c.auto_result, c.manual_result)
@@ -43,6 +47,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
       stage: STAGE_LABEL[caseStage(toStageInput(c, runs))],
       open_tickets: c.open_fix + c.awaiting_retest,
       tester_name: c.tester_name,
+      sprint: sprintOfArea.get(c.area_id) ?? 'Not planned',
     }))
   const area = sp.area ? areas.find((a) => a.id === sp.area) : undefined
   const scopeText = [sprint && `Sprint ${sprint.name}`, area && `${area.zone} · ${area.page}`, sp.stage && STAGE_LABEL[sp.stage as Stage], sp.mismatch && MISMATCH_LABEL[sp.mismatch as keyof typeof MISMATCH_LABEL], caseLinkLabel(sp)].filter(Boolean).join(' · ')

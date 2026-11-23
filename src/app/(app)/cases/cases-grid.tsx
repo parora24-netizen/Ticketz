@@ -10,6 +10,8 @@ import { deleteRows, recordResults, updateCases } from '../actions'
 
 export type CaseGridRow = {
   id: string
+  /** The page's fix sprint. */
+  sprint?: string
   tc_id: string
   legacy_tc_id?: string | null
   scenario_id?: string | null
@@ -50,6 +52,7 @@ export function CasesGrid({ rows, areas, people, canEdit, isLead, inSprint, reme
     { key: 'title', header: 'Title', width: 380, value: (r) => r.title, edit: canEdit ? { field: 'title', kind: 'text' } : undefined },
     // The product zone (Data Hub, Engine…), so a whole zone is one filter.
     { key: 'zone', header: 'Zone', width: 130, value: (r) => r.area.split(' · ')[0] },
+    { key: 'sprint', header: 'Sprint', width: 90, value: (r) => r.sprint ?? 'Not planned' },
     { key: 'area', header: 'Area', width: 220, value: (r) => r.area, edit: canEdit ? { field: 'area_id', kind: 'select', options: areas } : undefined },
     { key: 'tester', header: 'Tester', width: 140, value: (r) => r.tester_name ?? 'No tester',
       edit: canEdit ? { field: 'tester_id', kind: 'select', options: testers } : undefined },
@@ -73,6 +76,7 @@ export function CasesGrid({ rows, areas, people, canEdit, isLead, inSprint, reme
       remember={remember}
       charts={[
         { key: 'zone', title: 'By zone' },
+        { key: 'sprint', title: 'By sprint' },
         { key: 'area', title: 'By area' },
         { key: 'tester', title: 'By tester' },
         { key: 'priority', title: 'By priority', order: ['Critical', 'High', 'Medium', 'Low'] },

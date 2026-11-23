@@ -147,23 +147,34 @@ export async function askJson(db: Db, rows: AskRow[]) {
   const ids = rows.map((r) => r.id)
   const [{ data: people }, { data: links }, { data: tickets }] = await Promise.all([
     db.from('people').select('id, name'),
-    ids.length ? db.from('ask_cases').select('ask_id, test_cases(tc_id, areas(zone))').in('ask_id', ids) : Promise.resolve({ data: [] }),
+    ids.length ? db.from('ask_cases').select('ask_id, test_cases(tc_id, area_id, areas(zone))').in('ask_id', ids) : Promise.resolve({ data: [] }),
     db.from('tickets').select('id, key').in('id', rows.map((r) => r.ticket_id).filter(Boolean) as string[]),
   ])
+  // Each page's fix sprint (the first it is planned in), for the sprint an ask's cases belong to.
+  const [{ data: fixSprints }, { data: planned }] = await Promise.all([
+    db.from('sprints').select('id, name, starts_on').eq('kind', 'fix').order('starts_on'),
+    db.from('sprint_areas').select('sprint_id, area_id'),
+  ])
+  const sprintOfArea = new Map<string, { name: string; starts_on: string }>()
+  for (const s of fixSprints ?? []) for (const x of planned ?? []) if (x.sprint_id === s.id && !sprintOfArea.has(x.area_id)) sprintOfArea.set(x.area_id, s)
+  const askSprints = new Map<string, Map<string, string>>()
   const name = new Map((people ?? []).map((p) => [p.id, p.name]))
   const key = new Map((tickets ?? []).map((t) => [t.id, t.key]))
   const cases = new Map<string, string[]>()
   const zones = new Map<string, Set<string>>()
-  type Linked = { tc_id: string; areas: { zone: string } | { zone: string }[] | null }
+  type Linked = { tc_id: string; area_id: string; areas: { zone: string } | { zone: string }[] | null }
   for (const l of (links ?? []) as { ask_id: string; test_cases: Linked | Linked[] | null }[]) {
     const tc = Array.isArray(l.test_cases) ? l.test_cases[0] : l.test_cases
     if (!tc) continue
     cases.set(l.ask_id, [...(cases.get(l.ask_id) ?? []), tc.tc_id])
     const zone = (Array.isArray(tc.areas) ? tc.areas[0] : tc.areas)?.zone
     if (zone) zones.set(l.ask_id, (zones.get(l.ask_id) ?? new Set()).add(zone))
+    const sp = sprintOfArea.get(tc.area_id)
+    if (sp) askSprints.set(l.ask_id, (askSprints.get(l.ask_id) ?? new Map()).set(sp.name, sp.starts_on))
   }
   return rows.map((r) => ({
-    key: r.key, kind: r.kind, title: r.title, zone: askZone(zones.get(r.id), r.title), detail: r.detail, need_key: r.need_key, store: r.store, options: r.options,
+    key: r.key, kind: r.kind, title: r.title, zone: askZone(zones.get(r.id), r.title),
+    sprint: [...(askSprints.get(r.id) ?? new Map<string, string>())].sort((a, b) => a[1].localeCompare(b[1])).map(([n]) => n).join(', ') || null, detail: r.detail, need_key: r.need_key, store: r.store, options: r.options,
     owner: r.owner_id ? name.get(r.owner_id) ?? null : null, due_on: r.due_on, state: r.state, status: askStatus(r.kind, r.state),
     answer: r.answer, outcome: r.outcome, ticket: r.ticket_id ? key.get(r.ticket_id) ?? null : null,
     cases: (cases.get(r.id) ?? []).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), cases_waiting: r.state === 'open' ? cases.get(r.id)?.length ?? 0 : 0,

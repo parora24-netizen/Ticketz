@@ -8,7 +8,7 @@ import { Chip } from '@/components/ui'
 import { KIND_LABEL, type AskKind } from '@/lib/automation-loop'
 import { changeAsk } from './actions'
 
-type Row = { key: string; kind: AskKind; title: string; zone: string; owner: string | null; due_on: string | null; state: string; status: string; cases_waiting: number; created_by: string | null; need_key: string | null }
+type Row = { key: string; kind: AskKind; title: string; zone: string; sprint?: string | null; owner: string | null; due_on: string | null; state: string; status: string; cases_waiting: number; created_by: string | null; need_key: string | null }
 
 const today = () => new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10)
 
@@ -21,6 +21,7 @@ export function AsksGrid({ rows, people }: { rows: Row[]; people: string[] }) {
       render: (r) => <Link href={`/asks/${r.key}`} className="font-medium text-[var(--accent)] hover:underline">{r.key}</Link> },
     { key: 'title', header: 'Title', width: 380, value: (r) => r.title },
     { key: 'zone', header: 'Zone', width: 130, value: (r) => r.zone || 'No zone' },
+    { key: 'sprint', header: 'Sprint', width: 90, value: (r) => r.sprint || 'No sprint' },
     { key: 'owner', header: 'Owner', width: 130, value: (r) => r.owner ?? 'No owner', edit: { field: 'owner', kind: 'select', options: owners } },
     { key: 'status', header: 'State', width: 110, value: (r) => r.status,
       render: (r) => <Chip tone={r.state === 'open' ? 'accent' : r.state === 'done' ? 'good' : 'muted'}>{r.status}</Chip> },
@@ -35,7 +36,7 @@ export function AsksGrid({ rows, people }: { rows: Row[]; people: string[] }) {
     <DataGrid rows={rows.map((r) => ({ ...r, id: r.key }))} columns={cols} csvName="asks" selectable searchPlaceholder="Search asks"
       defaultSort={[{ key: 'cases', dir: -1 }]} initialFilters={{ status: ['requested', 'open'] }}
       onView={(shown) => rememberList('asks', shown.map((r) => r.key), shown.length === rows.length ? 'all asks' : 'your filtered asks')}
-      charts={[{ key: 'status', title: 'By state' }, { key: 'owner', title: 'By owner' }, { key: 'zone', title: 'By zone' }, { key: 'kind', title: 'By kind' }]}
+      charts={[{ key: 'status', title: 'By state' }, { key: 'owner', title: 'By owner' }, { key: 'zone', title: 'By zone' }, { key: 'sprint', title: 'By sprint' }, { key: 'kind', title: 'By kind' }]}
       onSave={async (ids, patch) => {
         // Owner and due date, one ask at a time through the same change the ask page makes.
         const p: { owner?: string | null; due_on?: string | null } = {}

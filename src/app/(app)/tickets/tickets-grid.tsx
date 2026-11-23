@@ -9,10 +9,10 @@ import type { BoardTicket } from '@/components/board/ticket-board'
 import { deleteRows, setTicketTesters, updateTickets } from '../actions'
 import { rememberTicketList } from '@/components/ticket-nav'
 
-type Row = BoardTicket & { kind: 'defect' | 'test_mismatch' | 'task'; logged_on: string; sprint_id: string | null; tester_name: string | null }
+type Row = BoardTicket & { kind: 'defect' | 'test_mismatch' | 'task'; logged_on: string; sprint_id: string | null; tester_name: string | null; raised_by: string | null }
 const SEVERITY = ['Critical', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: p }))
 
-export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, state, severity, owner, tester, remember = true }: { rows: Row[]; people: { value: string; label: string }[]; sprints?: { value: string; label: string }[]; canTriage: boolean; isLead?: boolean; state?: string; severity?: string; owner?: string; tester?: string; remember?: boolean }) {
+export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, state, severity, owner, tester, raisedBy, remember = true }: { rows: Row[]; people: { value: string; label: string }[]; sprints?: { value: string; label: string }[]; canTriage: boolean; isLead?: boolean; state?: string; severity?: string; owner?: string; tester?: string; raisedBy?: string; remember?: boolean }) {
   const router = useRouter()
   const owners = [{ value: '__none', label: 'Unassigned' }, ...people]
   const sprintOptions = [{ value: '__none', label: 'No sprint' }, ...sprints]
@@ -28,6 +28,7 @@ export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, sta
       edit: { field: 'owner_id', kind: 'select', options: owners } },
     { key: 'tester', header: 'Tester', width: 120, value: (r) => r.tester_name ?? (r.case_id ? 'No tester' : ''),
       edit: canTriage ? { field: 'tester_id', kind: 'select', options: owners.map((o) => (o.value === '__none' ? { value: '__none', label: 'No tester' } : o)) } : undefined },
+    { key: 'raised_by', header: 'Raised by', width: 120, value: (r) => r.raised_by ?? 'Not recorded' },
     { key: 'sprint', header: 'Sprint', width: 90, value: (r) => (r.sprint_id ? sprintName.get(r.sprint_id) ?? 'Closed sprint' : 'No sprint'),
       edit: canTriage ? { field: 'current_sprint_id', kind: 'select', options: sprintOptions } : undefined },
     { key: 'kind', header: 'Kind', width: 100, value: (r) => (r.kind === 'defect' ? 'Defect' : r.kind === 'task' ? 'Task' : 'Test issue') },
@@ -45,10 +46,11 @@ export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, sta
         { key: 'state', title: 'By state', order: Object.values(STATE_LABEL) },
         { key: 'severity', title: 'By severity', order: ['Critical', 'High', 'Medium', 'Low'] },
         { key: 'owner', title: 'By owner' },
+        { key: 'raised_by', title: 'By who raised it' },
         { key: 'sprint', title: 'By sprint' },
         { key: 'area', title: 'By area' },
       ]}
-      defaultFilters={linkFilters(state, severity, owner, tester)}
+      defaultFilters={linkFilters(state, severity, owner, tester, raisedBy)}
       defaultSort={[{ key: 'severity', dir: 1 }]}
       emptyText="No tickets match."
       onSave={(ids, patch) => {
@@ -71,8 +73,9 @@ export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, sta
 }
 
 /** Filters from a link: state is a state or "open"; severity is one of Critical/High/Medium/Low. */
-function linkFilters(state?: string, severity?: string, owner?: string, tester?: string): Record<string, string[]> | undefined {
+function linkFilters(state?: string, severity?: string, owner?: string, tester?: string, raisedBy?: string): Record<string, string[]> | undefined {
   const f: Record<string, string[]> = {}
+  if (raisedBy) f.raised_by = [raisedBy]
   if (owner) f.owner = [owner]
   if (tester) f.tester = [tester]
   if (state === 'open') f.state = OPEN_STATES.map((x) => STATE_LABEL[x])

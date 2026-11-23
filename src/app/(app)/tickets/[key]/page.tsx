@@ -166,6 +166,7 @@ export default async function TicketPage({
             <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Kind</dt><dd>{t.kind === 'test_mismatch' ? <Chip>Test issue</Chip> : t.kind === 'task' ? <Chip>Task</Chip> : 'Product defect'}</dd></div>
             {t.defect_id && <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Defect</dt><dd className="mono">{t.defect_id}</dd></div>}
             {t.fixed_in_build && <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Fixed in</dt><dd className="mono">{t.fixed_in_build}</dd></div>}
+            <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Raised by</dt><dd>{t.created_by ? names.get(t.created_by) ?? 'Someone' : <span className="text-[var(--faint)]">Not recorded</span>}</dd></div>
             <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Logged</dt><dd className="mono text-[12px]">{fmtDate(t.logged_on)}</dd></div>
             <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Found in</dt><dd>{t.found_in_sprint_id ? sprintName.get(t.found_in_sprint_id) : 'Before sprints'}</dd></div>
             <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt className="label">Sprint now</dt><dd>{t.current_sprint_id ? sprintName.get(t.current_sprint_id) : '—'}</dd></div>

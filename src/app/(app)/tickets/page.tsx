@@ -26,6 +26,8 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
   const rows = tickets.map((t) => ({
     id: t.id, key: t.key, title: t.title, severity: t.severity, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name,
     tc_id: t.tc_id, case_id: t.case_id, zone: t.zone, page: t.page, updated_at: t.updated_at, kind: t.kind, logged_on: t.logged_on, sprint_id: t.current_sprint_id, tester_name: t.case_id ? testerName.get(t.case_id) ?? null : personName.get(ticketTesters.get(t.id) ?? '') ?? null,
+    // The runner raises tickets for the e2e suite; it reads as such rather than as a person.
+    raised_by: t.created_by ? personName.get(t.created_by) ?? null : null,
   }))
 
   return (
@@ -45,7 +47,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
       {view === 'board'
         ? <TicketBoard tickets={rows} role={me.role} meId={me.id} zones={zones}
           people={people.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name }))} sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ id: s.id, name: s.name }))} />
-        : <TicketsGrid rows={rows} sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ value: s.id, label: s.name }))} state={sp.state} severity={sp.severity} owner={sp.owner} tester={sp.tester} remember={!scope && !area && !sp.state && !sp.severity && !sp.owner && !sp.tester} canTriage={me.role !== 'dev'} isLead={me.role === 'lead'} people={people.filter((p) => p.active).map((p) => ({ value: p.id, label: p.name }))} />}
+        : <TicketsGrid rows={rows} sprints={sprints.filter((s) => s.status !== 'closed').map((s) => ({ value: s.id, label: s.name }))} state={sp.state} severity={sp.severity} owner={sp.owner} tester={sp.tester} raisedBy={sp.raised_by} remember={!scope && !area && !sp.state && !sp.severity && !sp.owner && !sp.tester && !sp.raised_by} canTriage={me.role !== 'dev'} isLead={me.role === 'lead'} people={people.filter((p) => p.active).map((p) => ({ value: p.id, label: p.name }))} />}
     </>
   )
 }

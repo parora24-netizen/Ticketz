@@ -23,6 +23,7 @@ export const TicketFilters = z.object({
   severities: z.array(z.enum(['Critical', 'High', 'Medium', 'Low'])).optional(),
   sprint: z.string().optional().describe('Sprint name, e.g. S2'),
   owner: z.string().optional().describe('Owner name (part of it is fine), or "none" for unassigned'),
+  raised_by: z.string().optional().describe('Who raised (created) it, by name (part of it is fine)'),
   zone: z.string().optional(),
   page: z.string().optional(),
   kind: z.enum(['defect', 'test_mismatch']).optional().describe('defect = product bug (DEV-); test_mismatch = automated test disagrees with manual (MM-)'),
@@ -63,6 +64,7 @@ export function filterTickets(ctx: Ctx, f: TicketFilter): TicketRow[] {
     inList(t.severity, f.severities) &&
     (!f.sprint || t.current_sprint_id === sprint?.id) &&
     (!f.owner || (owners ? !!t.owner_id && owners.includes(t.owner_id) : !t.owner_id)) &&
+    (!f.raised_by || (!!t.created_by && ctx.personByName(f.raised_by).includes(t.created_by))) &&
     has(t.zone, f.zone) && has(t.page, f.page) &&
     (!f.kind || t.kind === f.kind) &&
     (f.blocked === undefined || !!t.blocked_reason === f.blocked))
@@ -86,7 +88,7 @@ export function filterCases(ctx: Ctx, f: CaseFilter): CaseRow[] {
 
 const ticketBrief = (ctx: Ctx, t: TicketRow) => ({
   key: t.key, title: t.title, severity: t.severity, state: t.state, kind: t.kind,
-  owner: t.owner_name, sprint: t.current_sprint_id ? ctx.sprintName.get(t.current_sprint_id) : null,
+  owner: t.owner_name, raised_by: t.created_by ? ctx.people.find((p) => p.id === t.created_by)?.name ?? null : null, sprint: t.current_sprint_id ? ctx.sprintName.get(t.current_sprint_id) : null,
   area: t.zone ? `${t.zone} · ${t.page}` : null, case: t.tc_id, logged_on: t.logged_on,
   fixed_in_build: t.fixed_in_build, blocked: t.blocked_reason,
 })

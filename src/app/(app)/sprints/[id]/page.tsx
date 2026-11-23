@@ -147,6 +147,8 @@ export default async function SprintPage({
       )}
 
       <SprintBoard
+        sprintName={sprint.name}
+        endsOn={sprint.ends_on}
         mode={fixMode ? 'fix' : testMode ? 'test' : 'cases'}
         emptyAreas={emptyAreaIds.map((a) => ({ id: a, label: areaName.get(a) ?? '' }))}
         role={me.role}

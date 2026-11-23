@@ -13,6 +13,7 @@ import { moveTicketFromBoard, recordCaseResult, setTicketBlocked, updateCases } 
 import type { StandupCard } from '@/lib/standup'
 import { StandupPersonCard } from '@/app/(app)/standup/standup-deck'
 import { CaseDrawer } from './case-drawer'
+import { ClosureSummary } from './closure-summary'
 import { PersonFilter } from './person-filter'
 import { useRemembered } from '@/components/remember'
 import { SearchInput } from '@/components/search-input'
@@ -70,8 +71,11 @@ function ownerOf(c: SprintCard, stage: Col): { id: string | null; name: string |
  * pass, raise the failure, mark a fix ready, close on retest); click a card to work on it in place.
  * Filter by person to run the standup from here: ‹ › walks the team.
  */
-export function SprintBoard({ cards, role, meId, people, sprints, active, areas = [], standup = [], today, sprintId, mode = 'cases', emptyAreas = [] }: {
+export function SprintBoard({ cards, role, meId, people, sprints, active, areas = [], standup = [], today, sprintId, mode = 'cases', emptyAreas = [], sprintName = '', endsOn }: {
   cards: SprintCard[]
+  sprintName?: string
+  /** The sprint's last day, for what is left to close it. */
+  endsOn?: string
   /** 'test' for a test sprint (No cases … Failed); 'fix' for a fix sprint (Not started, In progress, Retest, Done). */
   mode?: 'cases' | 'test' | 'fix'
   /** Test sprints: areas with no cases yet, shown in To write. */
@@ -407,6 +411,14 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
       )}
 
       {(cards.length > 0 || emptyAreas.length > 0) && <>
+
+      {mode === 'fix' && endsOn && turn === null && (
+        <ClosureSummary sprintName={sprintName} today={today} endsOn={endsOn} closing={closing}
+          onClose={passing.length && cards.filter(closable).length === passing.length ? () => void closePassing() : undefined}
+          onPerson={(id) => { setOwner(id ?? '__none'); setOnlyHigh(false); setArea(''); setQ('') }}
+          onHigh={() => { setOnlyHigh(true); setOwner(''); setArea('') }}
+          cards={cards.map((c) => { const s = stageOf(c); const o = ownerOf(c, s); return { id: c.id, stage: s, priority: c.priority, owner: { id: o.id, name: o.name }, waiting: (c.waiting ?? []).map((w) => ({ key: w.key, owner: w.owner })), closable: closable(c) } })} />
+      )}
 
       {waitingCards.length > 0 && (
         <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 border border-[var(--warn-line)] bg-[var(--warn-soft)] px-3 py-2 text-[12.5px]">

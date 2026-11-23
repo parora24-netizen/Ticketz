@@ -132,8 +132,15 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
   const passing = shown.filter(closable)
   // Skipped cases held up by an open ask, counted by ask so "8 on Inder" reads apart from "8 skipped".
   const waitingCards = shown.filter((c) => c.waiting?.length && !isDone(stageOf(c)))
-  const waitingAsks = [...waitingCards.flatMap((c) => c.waiting ?? []).reduce((m, a) => m.set(a.key, { ...a, n: (m.get(a.key)?.n ?? 0) + 1 }), new Map<string, { key: string; title: string; owner: string | null; n: number }>()).values()]
-    .sort((a, b) => b.n - a.n)
+  const waitingAsksList = [...waitingCards.flatMap((c) => c.waiting ?? []).reduce((m, a) => m.set(a.key, { ...a, n: (m.get(a.key)?.n ?? 0) + 1 }), new Map<string, { key: string; title: string; owner: string | null; n: number }>()).values()]
+  // One entry per person, with the cases waiting on them across all their asks.
+  const waitingByOwner = [...waitingAsksList.reduce((m, a) => {
+    const k = a.owner ?? ''
+    const o = m.get(k) ?? { owner: a.owner, cases: new Set<string>(), asks: [] as typeof waitingAsksList }
+    o.asks.push(a)
+    for (const c of waitingCards) if (c.waiting?.some((w) => w.key === a.key)) o.cases.add(c.id)
+    return m.set(k, o)
+  }, new Map<string, { owner: string | null; cases: Set<string>; asks: typeof waitingAsksList }>()).values()].sort((a, b) => b.cases.size - a.cases.size)
   const [closing, setClosing] = useState(false)
   async function closePassing() {
     const list = passing
@@ -404,8 +411,13 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
       {waitingCards.length > 0 && (
         <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 border border-[var(--warn-line)] bg-[var(--warn-soft)] px-3 py-2 text-[12.5px]">
           <span><b className="font-semibold">{waitingCards.length}</b> {waitingCards.length === 1 ? 'case is' : 'cases are'} waiting on an ask, not skipped:</span>
-          {waitingAsks.map((a) => (
-            <a key={a.key} href={`/asks/${a.key}`} title={a.title} className="text-[var(--accent)] hover:underline">{a.n} on {a.owner ?? 'nobody yet'} ({a.key})</a>
+          {waitingByOwner.map((o) => (
+            <span key={o.owner ?? ''}>
+              {o.cases.size} on {o.owner ?? 'nobody yet'} (
+              {o.asks.map((a, i) => (
+                <span key={a.key}>{i > 0 && ', '}<a href={`/asks/${a.key}`} title={`${a.title} · ${a.n} case${a.n === 1 ? '' : 's'}`} className="text-[var(--accent)] hover:underline">{a.key}</a></span>
+              ))})
+            </span>
           ))}
         </div>
       )}

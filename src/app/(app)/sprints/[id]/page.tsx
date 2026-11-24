@@ -177,7 +177,7 @@ export default async function SprintPage({
             id: t.id, case_id: c?.id ?? null, tc_id: c?.tc_id ?? '', title: t.title, priority: t.severity, zone: t.zone ?? 'No area', page: t.page ?? '—',
             stage: fixStage(t.state, !!t.blocked_reason) as 'test', test_by: c ? testBy(toStageInput(c)) : 'manual' as const, tester_id: handed?.id ?? c?.tester_id ?? own?.id ?? raiser?.id ?? null, tester_name: handed?.name ?? c?.tester_name ?? own?.name ?? raiser?.name ?? null,
             auto_result: c?.auto_result ?? null, manual_result: c?.manual_result ?? null, waiting: c ? waitingOn(c, waitingAsks) : [], needs_ticket: false, caseless: !c,
-            ticket: { id: t.id, key: t.key, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name, kind: t.kind, blocked_reason: t.blocked_reason },
+            ticket: { id: t.id, key: t.key, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name, kind: t.kind, blocked_reason: t.blocked_reason, focus: !!t.focus },
           }
         }) : cases.map((c) => {
           const t = openTicket(c)

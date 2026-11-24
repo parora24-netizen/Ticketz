@@ -15,6 +15,7 @@ import { addComment, assignToMe } from '../../actions'
 import { TicketActions, TicketField, TicketTesterField } from '@/components/ticket-controls'
 import { TicketAttach } from './attach'
 import { RemoveShot } from './remove-shot'
+import { FocusStar, FocusToggle } from '@/components/focus'
 import { attachmentAddedBy } from '@/lib/ticket-files'
 
 const CASE_TESTER_NOTE = 'Retests it. This is the test case’s tester, so changing it changes the case too.'
@@ -79,7 +80,8 @@ export default async function TicketPage({
   return (
     <>
       <TicketNav current={t.key} fallback={fallback.includes(t.key) ? fallback : [t.key, ...fallback]} />
-      <PageHeader title={t.title} sub={<><span className="mono">{t.key}</span>{t.legacy_key && <span className="text-[var(--faint)]"> (was <span className="mono">{t.legacy_key}</span>)</span>}{t.tc_id && <> · <CaseLink tcId={t.tc_id} /></>}{t.zone && ` · ${t.zone} · ${t.page}`}</>}>
+      <PageHeader title={t.title} sub={<>{t.focus && <><FocusStar /> Focus · </>}<span className="mono">{t.key}</span>{t.legacy_key && <span className="text-[var(--faint)]"> (was <span className="mono">{t.legacy_key}</span>)</span>}{t.tc_id && <> · <CaseLink tcId={t.tc_id} /></>}{t.zone && ` · ${t.zone} · ${t.page}`}</>}>
+        {me.role === 'lead' && !resolved && <FocusToggle ticketId={t.id} focus={!!t.focus} />}
         {t.owner_id !== me.id && !resolved && (
           <form action={assignToMe}>
             <input type="hidden" name="ticket_id" value={t.id} />

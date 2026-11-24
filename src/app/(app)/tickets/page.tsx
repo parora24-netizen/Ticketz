@@ -25,7 +25,7 @@ export default async function TicketsPage({ searchParams }: { searchParams: Prom
   const unowned = tickets.filter((t) => OPEN_STATES.includes(t.state) && !t.owner_id).length
   const rows = tickets.map((t) => ({
     id: t.id, key: t.key, title: t.title, severity: t.severity, state: t.state, owner_id: t.owner_id, owner_name: t.owner_name,
-    tc_id: t.tc_id, case_id: t.case_id, zone: t.zone, page: t.page, updated_at: t.updated_at, kind: t.kind, logged_on: t.logged_on, sprint_id: t.current_sprint_id, tester_name: t.case_id ? testerName.get(t.case_id) ?? null : personName.get(ticketTesters.get(t.id) ?? '') ?? null,
+    focus: !!t.focus, tc_id: t.tc_id, case_id: t.case_id, zone: t.zone, page: t.page, updated_at: t.updated_at, kind: t.kind, logged_on: t.logged_on, sprint_id: t.current_sprint_id, tester_name: t.case_id ? testerName.get(t.case_id) ?? null : personName.get(ticketTesters.get(t.id) ?? '') ?? null,
     // The runner raises tickets for the e2e suite; it reads as such rather than as a person.
     raised_by: t.created_by ? personName.get(t.created_by) ?? null : null,
   }))

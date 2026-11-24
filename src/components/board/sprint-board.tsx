@@ -14,6 +14,7 @@ import type { StandupCard } from '@/lib/standup'
 import { StandupPersonCard } from '@/app/(app)/standup/standup-deck'
 import { CaseDrawer } from './case-drawer'
 import { ClosureSummary } from './closure-summary'
+import { FocusStar } from '@/components/focus'
 import { PersonFilter } from './person-filter'
 import { useRemembered } from '@/components/remember'
 import { SearchInput } from '@/components/search-input'
@@ -39,7 +40,7 @@ export type SprintCard = {
   needs_ticket: boolean
   /** A fix sprint's ticket with no test case: the card opens the ticket's page. */
   caseless?: boolean
-  ticket: { id: string; key: string; state: TicketState; owner_id: string | null; owner_name: string | null; kind?: 'defect' | 'test_mismatch' | 'task'; blocked_reason?: string | null } | null
+  ticket: { id: string; key: string; state: TicketState; owner_id: string | null; owner_name: string | null; kind?: 'defect' | 'test_mismatch' | 'task'; blocked_reason?: string | null; focus?: boolean } | null
 }
 
 const RESULT: Record<string, [string, string]> = {
@@ -101,6 +102,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
   // Filters are remembered per sprint for this person until they clear them; the search box starts empty.
   const [q, setQ] = useState('')
   const [onlyHigh, setOnlyHigh] = useRemembered(`sprint-board:${sprintId}:high`, false)
+  const [onlyFocus, setOnlyFocus] = useRemembered(`sprint-board:${sprintId}:focus`, false)
   const [area, setArea] = useRemembered(`sprint-board:${sprintId}:area`, '')
   const [owner, setOwner] = useRemembered(`sprint-board:${sprintId}:owner`, '') // '' everyone, else person ids (or '__none' for nobody), comma-joined
   const owners = owner ? owner.split(',') : []
@@ -129,11 +131,14 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
     // Only cards that are these people's move now (the dev while it is being fixed, the tester to
     // test or retest), so the board matches the count beside their names.
   }
-  const shown = cards.filter((c) => (!onlyHigh || c.priority === 'Critical' || c.priority === 'High') && (!area || areaOf(c) === area)
+  const shown = cards.filter((c) => (!onlyHigh || c.priority === 'Critical' || c.priority === 'High') && (!onlyFocus || !!c.ticket?.focus) && (!area || areaOf(c) === area)
     && matchesOwner(c) && (!q || `${c.tc_id} ${c.title} ${c.ticket?.key ?? ''}`.toLowerCase().includes(q.toLowerCase())))
   // Fix sprints: a ticket whose case passes again can be closed in one click (lead and QA).
   const closable = (c: SprintCard) => mode === 'fix' && !!c.ticket && passesNow(c) && !isDone(stageOf(c)) && !('error' in moveOf(c, 'done'))
   const passing = shown.filter(closable)
+  // Focus: the tickets a lead marked as what the team works on first.
+  const focusCards = cards.filter((c) => c.ticket?.focus)
+  const focusOpen = focusCards.filter((c) => !isDone(stageOf(c)))
   // Skipped cases held up by an open ask, counted by ask so "8 on Inder" reads apart from "8 skipped".
   const waitingCards = shown.filter((c) => c.waiting?.length && !isDone(stageOf(c)))
   const waitingAsksList = [...waitingCards.flatMap((c) => c.waiting ?? []).reduce((m, a) => m.set(a.key, { ...a, n: (m.get(a.key)?.n ?? 0) + 1 }), new Map<string, { key: string; title: string; owner: string | null; n: number }>()).values()]
@@ -277,7 +282,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
         className={`cursor-pointer border bg-white p-2 outline-none hover:border-[var(--navy)] focus-visible:border-[var(--navy)] ${open === c.id ? 'border-[var(--navy)]' : 'border-[var(--line)]'} ${
           c.priority === 'Critical' ? 'shadow-[inset_3px_0_0_var(--crit)]' : c.priority === 'High' ? 'shadow-[inset_3px_0_0_var(--warn)]' : ''}`}>
         <div className="flex items-center justify-between gap-2">
-          <span className="mono truncate text-[11.5px] font-medium text-[var(--accent)]">{nameOf(c)}</span>
+          <span className="mono truncate text-[11.5px] font-medium text-[var(--accent)]">{c.ticket?.focus && <FocusStar className="mr-1" />}{nameOf(c)}</span>
           <span className="flex shrink-0 items-center gap-1">
             {s === 'test' && <span className="chip px-1.5 text-[10.5px]">{c.test_by === 'auto' ? 'Auto' : 'Manual'}</span>}
             <PriorityChip p={c.priority} />
@@ -379,6 +384,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
         {cards.length > 0 && <>
         <SearchInput value={q} onChange={setQ} placeholder="Search cases or tickets" label="Search the board" />
         <button type="button" onClick={() => setOnlyHigh((v) => !v)} className={`btn ${onlyHigh ? 'btn-primary' : ''}`}>Critical &amp; High</button>
+        {focusCards.length > 0 && <button type="button" onClick={() => setOnlyFocus((v) => !v)} aria-pressed={onlyFocus} className={`btn ${onlyFocus ? 'btn-primary' : ''}`}>★ Focus · {focusOpen.length}</button>}
         </>}
         {areas.length > 1 && (
           <>
@@ -420,6 +426,12 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
           cards={cards.map((c) => { const s = stageOf(c); const o = ownerOf(c, s); return { id: c.id, stage: s, priority: c.priority, owner: { id: o.id, name: o.name }, waiting: (c.waiting ?? []).map((w) => ({ key: w.key, owner: w.owner })), closable: closable(c) } })} />
       )}
 
+      {focusOpen.length > 0 && (
+        <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 border border-[var(--warn-line)] bg-[var(--warn-soft)] px-3 py-2 text-[12.5px]">
+          <span><FocusStar /> <b className="font-semibold">Focus:</b> {Object.entries(focusOpen.reduce<Record<string, number>>((m, c) => { const l = LABEL[stageOf(c)] ?? stageOf(c); return { ...m, [l]: (m[l] ?? 0) + 1 } }, {})).map(([l, n]) => `${n} ${l.toLowerCase()}`).join(' · ')}</span>
+          <button type="button" onClick={() => setOnlyFocus((v) => !v)} className="text-[var(--accent)] hover:underline">{onlyFocus ? 'Show every card' : 'Show only these'}</button>
+        </div>
+      )}
       {waitingCards.length > 0 && (
         <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 border border-[var(--warn-line)] bg-[var(--warn-soft)] px-3 py-2 text-[12.5px]">
           <span><b className="font-semibold">{waitingCards.length}</b> {waitingCards.length === 1 ? 'case is' : 'cases are'} waiting on an ask, not skipped:</span>

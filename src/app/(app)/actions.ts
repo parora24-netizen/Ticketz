@@ -697,6 +697,18 @@ export async function removeHoliday(formData: FormData) {
 }
 
 /** Flag a ticket blocked (with what is blocking it), or clear the flag. Anyone on the team. */
+/** Mark tickets as a focus (what the team works on first), or take the mark off. Leads only. */
+export async function setTicketFocus(ticketIds: string[], focus: boolean): Promise<{ error?: string }> {
+  const me = await getMe()
+  if (me.role !== 'lead') return { error: 'Only a lead sets the focus' }
+  const ids = z.array(z.uuid()).min(1).max(2000).safeParse(ticketIds)
+  if (!ids.success) return { error: 'No tickets given' }
+  const { error } = await (await createClient()).from('tickets').update({ focus }).in('id', ids.data)
+  if (error) return { error: error.message }
+  revalidatePath('/', 'layout')
+  return {}
+}
+
 export async function setTicketBlocked(ticketId: string, reason: string | null): Promise<{ error?: string }> {
   await getMe()
   const v = z.object({ id: z.uuid(), reason: z.string().trim().min(3).max(2000).nullable() }).safeParse({ id: ticketId, reason })

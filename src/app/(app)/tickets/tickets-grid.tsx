@@ -6,10 +6,11 @@ import { DataGrid, type Column } from '@/components/grid/data-grid'
 import { PriorityChip, StateChip } from '@/components/ui'
 import { OPEN_STATES, STATE_LABEL } from '@/lib/workflow/ticket-machine'
 import type { BoardTicket } from '@/components/board/ticket-board'
-import { deleteRows, setTicketTesters, updateTickets } from '../actions'
+import { deleteRows, setTicketFocus, setTicketTesters, updateTickets } from '../actions'
+import { FocusStar } from '@/components/focus'
 import { rememberTicketList } from '@/components/ticket-nav'
 
-type Row = BoardTicket & { kind: 'defect' | 'test_mismatch' | 'task'; logged_on: string; sprint_id: string | null; tester_name: string | null; raised_by: string | null }
+type Row = BoardTicket & { kind: 'defect' | 'test_mismatch' | 'task'; logged_on: string; sprint_id: string | null; tester_name: string | null; raised_by: string | null; focus?: boolean }
 const SEVERITY = ['Critical', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: p }))
 
 export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, state, severity, owner, tester, raisedBy, remember = true }: { rows: Row[]; people: { value: string; label: string }[]; sprints?: { value: string; label: string }[]; canTriage: boolean; isLead?: boolean; state?: string; severity?: string; owner?: string; tester?: string; raisedBy?: string; remember?: boolean }) {
@@ -19,7 +20,8 @@ export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, sta
   const sprintName = new Map(sprints.map((s) => [s.value, s.label]))
   const columns: Column<Row>[] = [
     { key: 'key', header: 'Ticket', width: 170, mono: true, value: (r) => r.key,
-      render: (r) => <Link href={`/tickets/${encodeURIComponent(r.key)}`} className="font-medium text-[var(--accent)] hover:underline">{r.key}</Link> },
+      render: (r) => <>{r.focus && <FocusStar className="mr-1" />}<Link href={`/tickets/${encodeURIComponent(r.key)}`} className="font-medium text-[var(--accent)] hover:underline">{r.key}</Link></> },
+    { key: 'focus', header: 'Focus', width: 80, value: (r) => (r.focus ? 'Focus' : 'Not focus'), render: (r) => (r.focus ? <FocusStar /> : null) },
     { key: 'title', header: 'Title', width: 360, value: (r) => r.title, edit: canTriage ? { field: 'title', kind: 'text' } : undefined },
     { key: 'severity', header: 'Severity', width: 110, sortValue: (r) => ['Critical', 'High', 'Medium', 'Low'].indexOf(r.severity), value: (r) => r.severity, render: (r) => <PriorityChip p={r.severity} />,
       edit: canTriage ? { field: 'severity', kind: 'select', options: SEVERITY } : undefined },
@@ -49,6 +51,7 @@ export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, sta
         { key: 'raised_by', title: 'By who raised it' },
         { key: 'sprint', title: 'By sprint' },
         { key: 'area', title: 'By area' },
+        { key: 'focus', title: 'Focus', order: ['Focus', 'Not focus'] },
       ]}
       defaultFilters={linkFilters(state, severity, owner, tester, raisedBy)}
       defaultSort={[{ key: 'severity', dir: 1 }]}
@@ -67,7 +70,11 @@ export function TicketsGrid({ rows, people, sprints = [], canTriage, isLead, sta
         { field: 'current_sprint_id', label: 'Move to sprint', options: sprintOptions },
         { field: 'tester_id', label: 'Assign tester', options: owners.map((o) => (o.value === '__none' ? { value: '__none', label: 'No tester' } : o)) },
       ] : []}
-      bulkActions={isLead ? [{ label: 'Delete', run: (ids) => deleteRows('tickets', ids), confirm: 'Delete {n} tickets for good, with their history and comments? This cannot be undone.' }] : []}
+      bulkActions={isLead ? [
+        { label: '★ Mark as focus', run: (ids) => setTicketFocus(ids, true).then((r) => { if (!r.error) router.refresh(); return r }) },
+        { label: 'Take focus off', run: (ids) => setTicketFocus(ids, false).then((r) => { if (!r.error) router.refresh(); return r }) },
+        { label: 'Delete', run: (ids) => deleteRows('tickets', ids), confirm: 'Delete {n} tickets for good, with their history and comments? This cannot be undone.' },
+      ] : []}
     />
   )
 }

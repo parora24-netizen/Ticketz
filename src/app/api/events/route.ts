@@ -7,8 +7,8 @@ const TABLES = ['test_cases', 'tickets', 'asks', 'automation_prs', 'areas']
 /**
  * GET /api/events?since=<cursor>&limit=: what changed since the cursor, oldest first, for a runner
  * that cannot take incoming calls: case.text_changed, case.automation_changed, case.block_changed,
- * case.created, ticket.created, ticket.state_changed, need.provided, question.answered,
- * decision.decided (and .created, .declined, .reopened), pr.opened, pr.merged, pr.closed,
+ * case.created, ticket.created, ticket.state_changed, need|question|decision.created, .closed (with
+ * its outcome), .suite_change (with need) and .reopened, pr.opened, pr.merged, pr.closed,
  * screen.hold_changed. Poll with the returned cursor; since=0 starts from the beginning.
  */
 export async function GET(request: NextRequest) {

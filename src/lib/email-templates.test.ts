@@ -13,8 +13,8 @@ describe('emails', () => {
     expect(m.html).toContain('Which approver &lt;account&gt;?') // escaped
   })
   it('tells whoever raised it that it was answered, with the answer', () => {
-    const m = askEmail({ ...ask, kind: 'need', state: 'done', store: '/e2e/mssql', answer: 'Server is up' }, 'answered', 'Niten', 'Juan', 'https://lp.test')
-    expect(m.subject).toBe('ASK-3 provided: Which approver <account>?')
+    const m = askEmail({ ...ask, kind: 'need', state: 'done', outcome: 'access', store: '/e2e/mssql', answer: 'Server is up' }, 'answered', 'Niten', 'Juan', 'https://lp.test')
+    expect(m.subject).toBe('ASK-3 closed, access given: Which approver <account>?')
     expect(m.text).toContain('Stored in /e2e/mssql')
   })
   it('lists everything waiting, overdue counted, links made absolute', () => {

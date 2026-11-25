@@ -15,9 +15,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 /**
- * PATCH /api/asks/{key}: answer it, mark a need provided (with store: where the secret was put),
- * decide (outcome: retire, rewrite, restore or other), change its owner or due date, or add and
- * remove cases. A decision's outcome takes effect when it is marked decided.
+ * PATCH /api/asks/{key}: close it with one outcome (state: edited, deferred, retired, manual, access,
+ * answered or duplicate with duplicate_of; answer says why; store is where a secret was put), hand it
+ * to the suite's owner (suite: what the suite cannot do yet), reopen it (state: open), change its
+ * owner or due date, or add and remove cases. deferred, retired, manual and duplicate act on the cases.
  */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ key: string }> }) {
   const caller = await authenticate(request)

@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { getMe } from '@/lib/auth'
 import { AskCreate, AskPatch } from '@/lib/automation-loop'
-import { createAsk, patchAsk, ticketId } from '@/lib/asks-server'
+import { commentOnAsk, createAsk, patchAsk, ticketId } from '@/lib/asks-server'
 import { createClient } from '@/lib/supabase/server'
 
 const list = (v: FormDataEntryValue | null) => String(v ?? '').split(/[\s,]+/).map((x) => x.trim()).filter(Boolean)
@@ -37,6 +37,17 @@ export async function changeAsk(key: string, patch: z.input<typeof AskPatch>): P
   if ('error' in res) return { error: res.error }
   revalidatePath('/', 'layout')
   return { effect: res.effect }
+}
+
+/** A comment on an ask: @Name tags someone (they are told and emailed); hand gives it to the first one tagged until they reply. */
+export async function commentAsk(key: string, body: string, hand: boolean): Promise<{ error?: string; effect?: string }> {
+  const me = await getMe()
+  const v = z.string().trim().min(1, 'Write something first').max(5000).safeParse(body)
+  if (!v.success) return { error: v.error.issues[0]?.message ?? 'Write something first' }
+  const res = await commentOnAsk(await createClient(), key, v.data, hand, { personId: me.id })
+  if (res.error) return res
+  revalidatePath('/', 'layout')
+  return res
 }
 
 /** The lead approves or turns down the runner's "not automatable" proposals. */

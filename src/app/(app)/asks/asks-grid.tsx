@@ -8,7 +8,7 @@ import { Chip } from '@/components/ui'
 import { KIND_LABEL, askDisplay, type AskKind, type AskState } from '@/lib/automation-loop'
 import { changeAsk } from './actions'
 
-type Row = { key: string; kind: AskKind; outcome?: string | null; title: string; zone: string; sprint?: string | null; owner: string | null; due_on: string | null; state: string; status: string; cases_waiting: number; created_by: string | null; need_key: string | null }
+type Row = { key: string; kind: AskKind; outcome?: string | null; suite_need?: string | null; handed_from?: string | null; title: string; zone: string; sprint?: string | null; owner: string | null; due_on: string | null; state: string; status: string; cases_waiting: number; created_by: string | null; need_key: string | null }
 
 const today = () => new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10)
 
@@ -22,12 +22,13 @@ export function AsksGrid({ rows, people }: { rows: Row[]; people: string[] }) {
     { key: 'title', header: 'Title', width: 380, value: (r) => r.title },
     { key: 'zone', header: 'Zone', width: 130, value: (r) => r.zone || 'No zone' },
     { key: 'sprint', header: 'Sprint', width: 90, value: (r) => r.sprint || 'No sprint' },
-    { key: 'owner', header: 'Owner', width: 130, value: (r) => r.owner ?? 'No owner', edit: { field: 'owner', kind: 'select', options: owners } },
+    { key: 'owner', header: 'Owner', width: 130, value: (r) => r.owner ?? 'No owner', edit: { field: 'owner', kind: 'select', options: owners },
+      render: (r) => <span title={r.handed_from ? `Handed over by ${r.handed_from} until ${r.owner} replies` : undefined}>{r.owner ?? <span className="text-[var(--faint)]">No owner</span>}{r.handed_from && <span className="text-[var(--muted)]"> ← {r.handed_from}</span>}</span> },
     // Open or Closed; how a closed ask was settled is its Outcome.
     { key: 'state', header: 'State', width: 90, value: (r) => askDisplay(r.kind, r.state as AskState).state,
       render: (r) => <Chip tone={r.state === 'open' ? 'accent' : 'muted'}>{askDisplay(r.kind, r.state as AskState).state}</Chip> },
-    { key: 'outcome', header: 'Outcome', width: 140, value: (r) => askDisplay(r.kind, r.state as AskState, r.outcome).outcome || 'Not yet',
-      render: (r) => { const o = askDisplay(r.kind, r.state as AskState, r.outcome).outcome; return o ? <span className={o === 'Not needed' ? 'text-[var(--muted)]' : ''}>{o}</span> : <span className="text-[var(--faint)]">—</span> } },
+    { key: 'outcome', header: 'Outcome', width: 140, value: (r) => askDisplay(r.kind, r.state as AskState, r.outcome, r.suite_need).outcome || 'Not yet',
+      render: (r) => { const o = askDisplay(r.kind, r.state as AskState, r.outcome, r.suite_need).outcome; return o ? <span className={o === 'Suite change' ? 'font-medium text-[var(--warn)]' : ''} title={r.suite_need ?? undefined}>{o}</span> : <span className="text-[var(--faint)]">Not yet</span> } },
     { key: 'due', header: 'Due', width: 110, mono: true, value: (r) => r.due_on ?? '', edit: { field: 'due_on', kind: 'date' },
       render: (r) => r.due_on ? <span className={r.state === 'open' && r.due_on < today() ? 'font-semibold text-[var(--crit)]' : ''}>{r.due_on}</span> : <span className="text-[var(--faint)]">—</span> },
     { key: 'kind', header: 'Kind', width: 100, value: (r) => KIND_LABEL[r.kind] },

@@ -12,7 +12,7 @@ export function GET() {
       ticket_kind: ['defect', 'test_mismatch', 'task'], ticket_state: TICKET_STATES, severity: ['Critical', 'High', 'Medium', 'Low'],
       transitions: TRANSITIONS, automation_status: ['not_automated', 'in_progress', 'automated', 'blocked'],
       automation_block: ['needs_write', 'needs_server', 'needs_account', 'needs_mailbox', 'needs_text', 'control_gone', 'screen_hold', 'other'],
-      ask_kind: ['need', 'question', 'decision'], ask_state: ['open (requested)', 'done (provided, answered, decided)', 'declined'],
+      ask_kind: ['need', 'question', 'decision'], ask_state: ['open (requested; suite when it waits on a suite change)', 'done'], ask_outcome: ['edited', 'deferred', 'retired', 'manual', 'access', 'answered', 'duplicate'],
     },
     limits: { comment_body: 5000, ticket_description: 10000, title: 300, bulk_tickets: 200, bulk_cases: 500, results_per_post: 5000 },
     notes: [

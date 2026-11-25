@@ -10,12 +10,17 @@ export const ASK_KINDS = ['need', 'question', 'decision'] as const
 export type AskKind = (typeof ASK_KINDS)[number]
 export const ASK_STATES = ['open', 'done', 'declined'] as const
 export type AskState = (typeof ASK_STATES)[number]
-export const OUTCOMES = ['retire', 'rewrite', 'restore', 'other'] as const
+/** How a closed ask was settled, whatever its kind. */
+export const OUTCOMES = ['edited', 'deferred', 'retired', 'manual', 'access', 'answered', 'duplicate'] as const
 export type Outcome = (typeof OUTCOMES)[number]
+export const OUTCOME_LABEL: Record<Outcome, string> = {
+  edited: 'Cases edited', deferred: 'Cases deferred', retired: 'Cases retired', manual: 'Manual only',
+  access: 'Access given', answered: 'Answered', duplicate: 'Duplicate',
+}
+/** The words the API took before outcomes covered every kind, and what each became. */
+const LEGACY_OUTCOME: Record<string, Outcome> = { retire: 'manual', rewrite: 'edited', restore: 'answered', other: 'answered' }
 export const BLOCK_CODES = ['needs_write', 'needs_server', 'needs_account', 'needs_mailbox', 'needs_text', 'control_gone', 'screen_hold', 'other'] as const
 
-/** Each kind's word for done: a need is provided, a question answered, a decision made. */
-export const DONE_WORD: Record<AskKind, string> = { need: 'provided', question: 'answered', decision: 'decided' }
 export const KIND_LABEL: Record<AskKind, string> = { need: 'Need', question: 'Question', decision: 'Decision' }
 export const BLOCK_LABEL: Record<(typeof BLOCK_CODES)[number], string> = {
   needs_write: 'Needs write access', needs_server: 'Needs a server', needs_account: 'Needs an account', needs_mailbox: 'Needs a mailbox',
@@ -23,23 +28,37 @@ export const BLOCK_LABEL: Record<(typeof BLOCK_CODES)[number], string> = {
 }
 
 /**
- * How people see an ask: Open or Closed, and for a closed one, how it was settled. A need is
- * Provided, a question Answered, a decision Decided (with what was decided); one closed without
- * action is Not needed. The API keeps its own words (askStatus) for the runner.
+ * How people see an ask: Open or Closed, and how it was settled. An open ask waiting on the test
+ * suite reads Suite change. The API keeps its own words (askStatus) for the runner.
  */
-export function askDisplay(kind: AskKind, state: AskState, outcome?: string | null): { state: 'Open' | 'Closed'; outcome: string } {
-  if (state === 'open') return { state: 'Open', outcome: '' }
-  if (state === 'declined') return { state: 'Closed', outcome: 'Not needed' }
-  if (kind === 'decision') return { state: 'Closed', outcome: outcome ? `Decided: ${outcome[0].toUpperCase()}${outcome.slice(1)}` : 'Decided' }
-  return { state: 'Closed', outcome: kind === 'need' ? 'Provided' : 'Answered' }
+export function askDisplay(_kind: AskKind, state: AskState, outcome?: string | null, suiteNeed?: string | null): { state: 'Open' | 'Closed'; outcome: string } {
+  if (state === 'open') return { state: 'Open', outcome: suiteNeed ? 'Suite change' : '' }
+  return { state: 'Closed', outcome: OUTCOME_LABEL[(outcome ?? 'answered') as Outcome] ?? 'Answered' }
 }
 
-/** The state as the API shows it: requested, provided, answered, decided or declined. */
-export const askStatus = (kind: AskKind, state: AskState) => (state === 'open' ? (kind === 'need' ? 'requested' : 'open') : state === 'declined' ? 'declined' : DONE_WORD[kind])
+/** The status as the API shows it: requested (a need) or open, suite (waiting on a suite change), or the outcome. */
+export const askStatus = (kind: AskKind, state: AskState, outcome?: string | null, suiteNeed?: string | null) =>
+  state === 'open' ? (suiteNeed ? 'suite' : kind === 'need' ? 'requested' : 'open') : (outcome ?? 'answered')
 
-/** Any of the API's words for a state, as stored. */
-const StateWord = z.enum(['open', 'requested', 'done', 'provided', 'answered', 'decided', 'declined'])
-  .transform((s): AskState => (s === 'open' || s === 'requested' ? 'open' : s === 'declined' ? 'declined' : 'done'))
+/** Any of the API's words for a state: open, requested, done, an outcome, or the older provided, answered, decided and declined. */
+const STATE_WORDS = ['open', 'requested', 'done', 'provided', 'decided', 'declined', ...OUTCOMES] as const
+const StateWord = z.enum(STATE_WORDS)
+const OutcomeWord = z.enum([...OUTCOMES, 'retire', 'rewrite', 'restore', 'other'])
+
+/**
+ * What a state word and an outcome come to: open, or closed with one outcome. A closed ask needs
+ * its outcome, given as the state (state: "edited") or alongside it (state: "done", outcome: "edited").
+ */
+export function closeWith(state?: string | null, outcome?: string | null): { state?: AskState; outcome?: Outcome | null; error?: string } {
+  if (!state && !outcome) return {}
+  if (state === 'open' || state === 'requested') return { state: 'open', outcome: null }
+  let o = outcome ? (LEGACY_OUTCOME[outcome] ?? outcome) as Outcome : undefined
+  if (state && (OUTCOMES as readonly string[]).includes(state)) o = state as Outcome
+  if (state === 'provided') o ??= 'access'
+  if (state === 'declined') o ??= 'answered'
+  if (!o) return { error: `Say how it was settled: ${OUTCOMES.join(', ')}` }
+  return { state: 'done', outcome: o }
+}
 
 const TcId = z.string().trim().min(1).max(40).transform((s) => s.toUpperCase())
 const day = z.iso.date()
@@ -64,7 +83,11 @@ export const AskPatch = z.strictObject({
   detail: z.string().trim().max(5000).nullable().optional(),
   state: StateWord.optional(),
   answer: z.string().trim().max(5000).nullable().optional(),
-  outcome: z.enum(OUTCOMES).nullable().optional(),
+  outcome: OutcomeWord.nullable().optional(),
+  /** What the test suite cannot do yet; the ask then waits on a suite change, with the suite's owner. null clears it. */
+  suite: z.string().trim().min(3).max(2000).nullable().optional(),
+  /** Closing as a duplicate: the ask that covers it (its cases move there). */
+  duplicate_of: z.string().trim().regex(/^ASK-\d+$/i, 'An ask key, e.g. ASK-6').transform((s) => s.toUpperCase()).optional(),
   store: z.string().trim().max(200).nullable().optional(),
   owner: z.string().trim().min(1).max(100).nullable().optional(),
   due_on: day.nullable().optional(),
@@ -171,8 +194,9 @@ export function feedEvents(rows: ChangeRow[], asks: Map<string, { key: string; k
       if (r.action === 'insert') e(`${kind}.created`, { key })
       else if (pair('state')) {
         const to = pair('state')![1] as AskState
-        e(to === 'open' ? `${kind}.reopened` : `${kind}.${to === 'declined' ? 'declined' : DONE_WORD[kind]}`, { key })
+        e(to === 'open' ? `${kind}.reopened` : `${kind}.closed`, to === 'open' ? { key } : { key, outcome: after('outcome') ?? 'answered' })
       }
+      if (pair('suite_need')?.[1]) e(`${kind}.suite_change`, { key, need: pair('suite_need')![1] })
     } else if (r.table_name === 'automation_prs') {
       if (r.action === 'insert') e('pr.opened', { key: r.label })
       else if (pair('state')) e(`pr.${pair('state')![1]}`, { key: r.label })

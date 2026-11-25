@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { authenticate } from '@/lib/ci-api'
-import { AskCreate, ASK_KINDS } from '@/lib/automation-loop'
+import { AskCreate, ASK_KINDS, OUTCOMES } from '@/lib/automation-loop'
 import { askJson, createAsk, personByName, type AskRow } from '@/lib/asks-server'
 import { audit, isDryRun } from '@/lib/automation-server'
 import { casesByAnyId } from '@/lib/ids'
@@ -8,7 +8,7 @@ import { casesByAnyId } from '@/lib/ids'
 /**
  * GET /api/asks: what someone has to do for automation to go on: needs (a server, an account, a
  * mailbox), questions and decisions. Filters: kind, state (open, done, declined, or the kind's word:
- * requested, provided, answered, decided), owner, need_key, case (a tc_id), limit (max 500).
+ * requested, suite, or an outcome: edited, deferred, retired, manual, access, answered, duplicate), owner, need_key, case (a tc_id), limit (max 500).
  */
 export async function GET(request: NextRequest) {
   const caller = await authenticate(request)
@@ -21,7 +21,9 @@ export async function GET(request: NextRequest) {
     query = query.eq('kind', kind)
   }
   const state = q.get('state')
-  if (state) query = query.eq('state', ['requested', 'open'].includes(state) ? 'open' : state === 'declined' ? 'declined' : 'done')
+  if (state === 'suite') query = query.eq('state', 'open').not('suite_need', 'is', null)
+  else if ((OUTCOMES as readonly string[]).includes(state ?? '')) query = query.eq('state', 'done').eq('outcome', state!)
+  else if (state) query = query.eq('state', ['requested', 'open'].includes(state) ? 'open' : 'done')
   if (q.get('need_key')) query = query.eq('need_key', q.get('need_key')!)
   if (q.get('owner')) {
     const p = await personByName(caller.db, q.get('owner')!)

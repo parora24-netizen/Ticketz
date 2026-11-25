@@ -1,4 +1,4 @@
-import { DONE_WORD, KIND_LABEL, type AskKind } from '@/lib/automation-loop'
+import { KIND_LABEL, OUTCOME_LABEL, type AskKind, type Outcome } from '@/lib/automation-loop'
 
 /** The emails' words and markup, kept pure so they can be tested and previewed. */
 export type Mail = { subject: string; html: string; text: string }
@@ -41,15 +41,29 @@ ${cases ? `<p style="margin:0;font-size:12.5px;color:#5b6475">${esc(cases)}</p>`
 ${button(url, a.kind === 'question' ? 'Answer it' : a.kind === 'need' ? 'Open the need' : 'Decide')}`, base, `You get this because ${a.key} is yours.`),
     }
   }
-  const word = a.state === 'declined' ? 'declined' : DONE_WORD[a.kind]
+  const outcome = OUTCOME_LABEL[(a.outcome ?? 'answered') as Outcome] ?? 'Answered'
+  const word = `closed, ${outcome[0].toLowerCase()}${outcome.slice(1)}`
   const subject = `${a.key} ${word}: ${a.title}`
-  const what = [a.outcome && `Outcome: ${a.outcome}`, a.store && `Stored in ${a.store}`, a.answer].filter(Boolean) as string[]
+  const what = [a.store && `Stored in ${a.store}`, a.answer].filter(Boolean) as string[]
   return {
     subject,
     text: [`Hi ${toName},`, `${actor ?? 'Someone'} ${word} your ${kind}: ${a.title}`, ...what, url].join('\n\n'),
     html: layout(`${esc(a.title)}`, `<p style="margin:0 0 10px;font-size:13.5px">Hi ${esc(toName)}, ${esc(actor ?? 'someone')} ${word} your ${kind}.</p>
 ${what.map((w) => `<p style="margin:0 0 8px;font-size:13.5px;white-space:pre-wrap">${esc(w)}</p>`).join('')}
 ${button(url, `Open ${a.key}`)}`, base, `You get this because you raised ${a.key}.`),
+  }
+}
+
+/** To someone tagged in a comment on an ask, to whoever it is handed to, or to the owner it comes back to. */
+export function askCommentEmail(a: { key: string; title: string }, body: string, actor: string, toName: string, why: 'tagged' | 'handed' | 'back', base: string): Mail {
+  const url = `${base}/asks/${a.key}`
+  const lead = why === 'handed' ? `${actor} has handed you ${a.key} until you reply.` : why === 'back' ? `${actor} replied on ${a.key}, and it is back with you.` : `${actor} tagged you on ${a.key}.`
+  return {
+    subject: `${why === 'tagged' ? `${actor} tagged you` : why === 'handed' ? `${actor} handed you` : `${actor} replied`}: ${a.key} ${a.title}`,
+    text: [`Hi ${toName},`, lead, a.title, body, url].join('\n\n'),
+    html: layout(esc(a.title), `<p style="margin:0 0 10px;font-size:13.5px">Hi ${esc(toName)}, ${esc(lead)}</p>
+<blockquote style="margin:0 0 10px;padding:8px 12px;border-left:3px solid #c9d2e3;font-size:13.5px;white-space:pre-wrap">${esc(body)}</blockquote>
+${button(url, why === 'tagged' ? 'Reply' : `Open ${a.key}`)}`, base, why === 'tagged' ? `You get this because ${actor} tagged you.` : `You get this because ${a.key} is yours.`),
   }
 }
 

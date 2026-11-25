@@ -51,10 +51,10 @@ export default async function CasePage({
   const history = await caseHistory(supabase, c.id)
   // What this case waits on: asks, a blocking defect, a proposal for the lead. Empty until the asks migration runs.
   const [{ data: askLinks }, { data: blocker }] = await Promise.all([
-    supabase.from('ask_cases').select('asks(key, kind, title, state)').eq('case_id', c.id),
+    supabase.from('ask_cases').select('asks(key, kind, title, state, outcome, suite_need)').eq('case_id', c.id),
     c.automation_block_ticket_id ? supabase.from('tickets').select('key, state').eq('id', c.automation_block_ticket_id).maybeSingle() : Promise.resolve({ data: null }),
   ])
-  type LinkedAsk = { key: string; kind: AskKind; title: string; state: AskState }
+  type LinkedAsk = { key: string; kind: AskKind; title: string; state: AskState; outcome: string | null; suite_need: string | null }
   const asks = ((askLinks ?? []) as unknown as { asks: LinkedAsk | LinkedAsk[] | null }[]).map((l) => (Array.isArray(l.asks) ? l.asks[0] : l.asks)).filter((a): a is LinkedAsk => !!a)
   const { data: ticketEvents } = tickets?.length
     ? await supabase.from('ticket_events').select('id, ticket_id, from_state, to_state, note, at, people(name)').in('ticket_id', tickets.map((t) => t.id))
@@ -183,7 +183,7 @@ export default async function CasePage({
               </dd></div>
               {asks.length > 0 && (
                 <div className="px-4 py-2.5"><dt className="label mb-1">Waiting on</dt><dd className="space-y-1">
-                  {asks.map((a) => <p key={a.key} className="text-[12.5px]"><Link href={`/asks/${a.key}`} className="mono font-medium text-[var(--accent)] hover:underline">{a.key}</Link> {KIND_LABEL[a.kind]}: {a.title} <span className="text-[var(--muted)]">({[askDisplay(a.kind, a.state).state, askDisplay(a.kind, a.state).outcome].filter(Boolean).join(' · ')})</span></p>)}
+                  {asks.map((a) => <p key={a.key} className="text-[12.5px]"><Link href={`/asks/${a.key}`} className="mono font-medium text-[var(--accent)] hover:underline">{a.key}</Link> {KIND_LABEL[a.kind]}: {a.title} <span className="text-[var(--muted)]">({Object.values(askDisplay(a.kind, a.state, a.outcome, a.suite_need)).filter(Boolean).join(' · ')})</span></p>)}
                 </dd></div>
               )}
             </dl>

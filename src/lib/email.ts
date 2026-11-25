@@ -2,7 +2,7 @@ import 'server-only'
 import { serverEnv } from '@/lib/env'
 import { loadInbox, type InboxItem } from '@/lib/asks-server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { askEmail, digestEmail, type Mail } from '@/lib/email-templates'
+import { askCommentEmail, askEmail, digestEmail, type Mail } from '@/lib/email-templates'
 
 /**
  * Email through Microsoft 365: Launchpad's app in Vulqan's tenant sends from one mailbox with Graph
@@ -48,7 +48,7 @@ async function person(id: string): Promise<Person | null> {
 }
 
 /** Sends one email and records it. */
-async function send(to: Person, kind: 'ask' | 'ask_answered' | 'digest' | 'test', ref: string | null, mail: Mail): Promise<{ error?: string }> {
+async function send(to: Person, kind: 'ask' | 'ask_answered' | 'ask_mention' | 'digest' | 'test', ref: string | null, mail: Mail): Promise<{ error?: string }> {
   if (!emailConfigured()) return { error: 'The Microsoft 365 app is not set up (M365_TENANT_ID, M365_CLIENT_ID, M365_CLIENT_SECRET)' }
   if (!to.email) return { error: `${to.name} has no email address` }
   let providerId: string | null = null
@@ -94,6 +94,24 @@ export async function emailAboutAsk(askKey: string, event: 'assigned' | 'answere
     await send(to, event === 'assigned' ? 'ask' : 'ask_answered', a.key, askEmail({ ...a, cases, kind: a.kind }, event, actor, to.name, appUrl()))
   } catch {
     // An email that cannot go out must not undo the change that caused it.
+  }
+}
+
+/** A comment on an ask, to the people tagged, the one it was handed to, or the owner it went back to. */
+export async function emailAboutAskComment(askKey: string, body: string, actorId: string | null, to: { id: string; why: 'tagged' | 'handed' | 'back' }[]): Promise<void> {
+  try {
+    if (!to.length || !emailConfigured() || !(await emailLive())) return
+    const { data: a } = await db().from('asks').select('key, title').eq('key', askKey).maybeSingle()
+    if (!a) return
+    const actor = actorId ? (await person(actorId))?.name ?? 'Someone' : 'Someone'
+    for (const t of to) {
+      if (t.id === actorId) continue
+      const p = await person(t.id)
+      if (!p?.active || !p.email_notify) continue
+      await send(p, 'ask_mention', a.key, askCommentEmail(a, body, actor, p.name, t.why, appUrl()))
+    }
+  } catch {
+    // An email that cannot go out must not undo the comment.
   }
 }
 

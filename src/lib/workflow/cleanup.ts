@@ -4,11 +4,14 @@
  * before anything does.
  *
  * 1. Passes both ways (by hand and in automation): close it.
+ * 1b. Passes in automation and was never tested by hand: close it too.
  * 2. A bug whose case passes by hand but fails in automation, with an open test-issue ticket on the
  *    same case: mark the bug a duplicate of that ticket.
  * 3. Passes by hand, fails in automation: the automation owner fixes their test.
  * 4. Fails by hand, passes in automation: the case's tester takes a look.
  * 5. A ticket's case has nobody to test it: give it the chosen tester.
+ *
+ * Each rule is a category the lead can leave out (CATEGORIES).
  */
 
 export type CleanTicket = { id: string; key: string; kind: string; owner_id: string | null; case_id: string | null }
@@ -17,11 +20,16 @@ export type Step = { ticket_id: string; key: string; tc_id: string; note: string
 
 export type CleanupPlan = {
   close: Step[]
+  closeAuto: Step[]
   duplicate: (Step & { of_id: string; of_key: string })[]
   toAutomation: Step[]
   toTester: (Step & { tester_id: string })[]
   tester: { case_id: string; tc_id: string; keys: string[] }[]
 }
+
+/** The clean-ups, in the order they are shown; each can be left out. */
+export const CATEGORIES = ['close', 'closeAuto', 'duplicate', 'toAutomation', 'toTester', 'tester'] as const
+export type Category = (typeof CATEGORIES)[number]
 
 const FAILING = ['failed', 'known_defect']
 const day = (iso: string | null) => (iso ? iso.slice(0, 10) : '?')
@@ -34,7 +42,7 @@ export function planCleanup(input: {
   automationOwner: string | null
   tester: string | null
 }): CleanupPlan {
-  const plan: CleanupPlan = { close: [], duplicate: [], toAutomation: [], toTester: [], tester: [] }
+  const plan: CleanupPlan = { close: [], closeAuto: [], duplicate: [], toAutomation: [], toTester: [], tester: [] }
   const needTester = new Map<string, { case_id: string; tc_id: string; keys: string[] }>()
   for (const t of input.tickets) {
     const c = t.case_id ? input.cases.get(t.case_id) : undefined
@@ -49,6 +57,10 @@ export function planCleanup(input: {
     }
     if (passedByHand && autoPasses) {
       plan.close.push({ ticket_id: t.id, key: t.key, tc_id: c.tc_id, note: `Closed: ${c.tc_id} passes in automation (${day(c.auto_at)}) and by hand (${day(c.manual_at)}).` })
+      continue
+    }
+    if (!c.manual_result && autoPasses) {
+      plan.closeAuto.push({ ticket_id: t.id, key: t.key, tc_id: c.tc_id, note: `Closed: ${c.tc_id} passes in automation (${day(c.auto_at)}) and has not been tested by hand, so there is nothing left to fix.` })
       continue
     }
     if (passedByHand && autoFails) {
@@ -73,5 +85,5 @@ export function planCleanup(input: {
   return plan
 }
 
-/** How many changes a plan makes. */
-export const planSize = (p: CleanupPlan) => p.close.length + p.duplicate.length + p.toAutomation.length + p.toTester.length + p.tester.length
+/** How many changes a plan makes, counting only the categories given (all by default). */
+export const planSize = (p: CleanupPlan, only: readonly Category[] = CATEGORIES) => only.reduce((n, k) => n + p[k].length, 0)

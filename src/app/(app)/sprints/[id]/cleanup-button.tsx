@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState, useTransition } from 'react'
 import { Dialog } from '@/components/dialog'
 import { toast } from '@/components/toast'
-import { planSize, type CleanupPlan } from '@/lib/workflow/cleanup'
+import { CATEGORIES, planSize, type Category, type CleanupPlan } from '@/lib/workflow/cleanup'
 import { applyCleanup, previewCleanup } from './cleanup-actions'
 
 const NONE = '__none'
@@ -16,6 +16,10 @@ export function CleanupButton({ sprintId, sprintName, people }: { sprintId: stri
   const [owner, setOwner] = useState<string | undefined>(undefined) // undefined: the suggested person
   const [tester, setTester] = useState<string | undefined>(undefined)
   const [plan, setPlan] = useState<CleanupPlan | null>(null)
+  // Every clean-up is ticked; untick one to leave it out.
+  const [skip, setSkip] = useState<Set<Category>>(new Set())
+  const only = CATEGORIES.filter((k) => !skip.has(k))
+  const toggle = (k: Category) => setSkip((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n })
   const [loading, startLoad] = useTransition()
   const [applying, startApply] = useTransition()
   const nameOf = (id: string | null | undefined) => people.find((p) => p.id === id)?.name ?? 'nobody'
@@ -32,17 +36,18 @@ export function CleanupButton({ sprintId, sprintName, people }: { sprintId: stri
     })
   }, [open, owner, tester, sprintId])
 
-  const sections: { title: string; why: string; keys: string[] }[] = plan ? [
-    { title: 'Close', why: 'Passes by hand and in automation', keys: plan.close.map((s) => s.key) },
-    { title: 'Mark duplicate', why: 'A bug that passes by hand, with an open test issue on the same case', keys: plan.duplicate.map((s) => `${s.key} → ${s.of_key}`) },
-    { title: `Give to ${nameOf(asChoice(owner))}`, why: 'Passes by hand, fails in automation: automation fixes their side', keys: plan.toAutomation.map((s) => s.key) },
-    { title: 'Give to the tester', why: 'Fails by hand, passes in automation: the tester takes a look', keys: plan.toTester.map((s) => `${s.key} (${nameOf(s.tester_id)})`) },
-    { title: `Make ${nameOf(asChoice(tester))} the tester`, why: 'Test cases with nobody to test them', keys: plan.tester.map((t) => t.tc_id) },
+  const sections: { id: Category; title: string; why: string; keys: string[] }[] = plan ? [
+    { id: 'close', title: 'Close', why: 'Passes by hand and in automation', keys: plan.close.map((s) => s.key) },
+    { id: 'closeAuto', title: 'Close', why: 'Passes in automation, never tested by hand', keys: plan.closeAuto.map((s) => s.key) },
+    { id: 'duplicate', title: 'Mark duplicate', why: 'A bug that passes by hand, with an open test issue on the same case', keys: plan.duplicate.map((s) => `${s.key} → ${s.of_key}`) },
+    { id: 'toAutomation', title: `Give to ${nameOf(asChoice(owner))}`, why: 'Passes by hand, fails in automation: automation fixes their side', keys: plan.toAutomation.map((s) => s.key) },
+    { id: 'toTester', title: 'Give to the tester', why: 'Fails by hand, passes in automation: the tester takes a look', keys: plan.toTester.map((s) => `${s.key} (${nameOf(s.tester_id)})`) },
+    { id: 'tester', title: `Make ${nameOf(asChoice(tester))} the tester`, why: 'Test cases with nobody to test them', keys: plan.tester.map((t) => t.tc_id) },
   ] : []
 
   return (
     <>
-      <button type="button" className="btn" onClick={() => { setPlan(null); setOwner(undefined); setTester(undefined); setOpen(true) }}>Clean up</button>
+      <button type="button" className="btn" onClick={() => { setPlan(null); setOwner(undefined); setTester(undefined); setSkip(new Set()); setOpen(true) }}>Clean up</button>
       <Dialog open={open} onClose={() => setOpen(false)} title={`Clean up ${sprintName}`} wide>
         <div className="space-y-4 text-[13px]">
           <p className="text-[var(--muted)]">Applies the team&apos;s rules to this sprint&apos;s open tickets, using each test case&apos;s latest manual and automated results. Every change gets a comment from you.</p>
@@ -64,25 +69,28 @@ export function CleanupButton({ sprintId, sprintName, people }: { sprintId: stri
             <>
               <ul className="space-y-3">
                 {sections.map((s) => (
-                  <li key={s.title} className="border border-[var(--line)] p-3">
-                    <div className="flex flex-wrap items-baseline justify-between gap-2">
-                      <b className="text-[var(--navy-ink)]">{s.title}</b>
+                  <li key={s.id} className={`border p-3 ${skip.has(s.id) ? 'border-[var(--line-soft)] opacity-60' : 'border-[var(--line)]'}`}>
+                    <label className="flex cursor-pointer flex-wrap items-baseline justify-between gap-2">
+                      <span className="flex items-baseline gap-2">
+                        <input type="checkbox" checked={!skip.has(s.id)} onChange={() => toggle(s.id)} disabled={!s.keys.length} className="translate-y-[1px]" />
+                        <b className="text-[var(--navy-ink)]">{s.title}</b>
+                        <span className="text-[12px] text-[var(--muted)]">{s.why}</span>
+                      </span>
                       <span className="mono text-[12px] text-[var(--muted)]">{s.keys.length}</span>
-                    </div>
-                    <p className="text-[12px] text-[var(--muted)]">{s.why}</p>
-                    {s.keys.length > 0 && <p className="mono mt-1.5 text-[11.5px] break-words text-[var(--ink-2)]">{s.keys.join(', ')}</p>}
+                    </label>
+                    {s.keys.length > 0 && <p className="mono mt-1.5 pl-6 text-[11.5px] break-words text-[var(--ink-2)]">{s.keys.join(', ')}</p>}
                   </li>
                 ))}
               </ul>
               <div className="flex items-center justify-end gap-2">
                 <button type="button" className="btn" onClick={() => setOpen(false)}>Cancel</button>
-                <button type="button" className="btn btn-primary" disabled={applying || loading || planSize(plan) === 0}
+                <button type="button" className="btn btn-primary" disabled={applying || loading || planSize(plan, only) === 0}
                   onClick={() => startApply(async () => {
-                    const res = await applyCleanup({ sprint_id: sprintId, automation_owner: asChoice(owner) ?? null, tester: asChoice(tester) ?? null })
+                    const res = await applyCleanup({ sprint_id: sprintId, automation_owner: asChoice(owner) ?? null, tester: asChoice(tester) ?? null, only })
                     if (res.error) toast(res.error, 'error')
                     else { toast(res.summary ?? 'Cleaned up'); setOpen(false); router.refresh() }
                   })}>
-                  {applying ? 'Applying…' : planSize(plan) === 0 ? 'Nothing to clean up' : `Apply ${planSize(plan)} change${planSize(plan) === 1 ? '' : 's'}`}
+                  {applying ? 'Applying…' : planSize(plan, only) === 0 ? 'Nothing ticked to clean up' : `Apply ${planSize(plan, only)} change${planSize(plan, only) === 1 ? '' : 's'}`}
                 </button>
               </div>
             </>

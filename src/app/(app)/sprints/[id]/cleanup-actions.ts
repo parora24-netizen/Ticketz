@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { getMe } from '@/lib/auth'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { planCleanup, type CleanCase, type CleanTicket, type CleanupPlan } from '@/lib/workflow/cleanup'
+import { CATEGORIES, planCleanup, type CleanCase, type CleanTicket, type CleanupPlan } from '@/lib/workflow/cleanup'
 
 const OPEN = '(closed,deferred,duplicate)'
 const mostCommon = (ids: (string | null)[]) => {
@@ -32,7 +32,9 @@ async function plan(sprintId: string, choice: { automationOwner?: string | null;
   return { automationOwner, tester, plan: planCleanup({ tickets: (tickets ?? []) as CleanTicket[], cases: caseMap, openMismatch, automationOwner, tester }) }
 }
 
-const Choice = z.object({ sprint_id: z.uuid(), automation_owner: z.uuid().nullable().optional(), tester: z.uuid().nullable().optional() })
+const Choice = z.object({ sprint_id: z.uuid(), automation_owner: z.uuid().nullable().optional(), tester: z.uuid().nullable().optional(),
+  /** The clean-ups to apply; all of them unless some are left out. */
+  only: z.array(z.enum(CATEGORIES)).optional() })
 
 /** What the clean-up would do, for the lead to check first. */
 export async function previewCleanup(input: z.input<typeof Choice>): Promise<{ error?: string; automationOwner?: string | null; tester?: string | null; plan?: CleanupPlan }> {
@@ -49,12 +51,16 @@ export async function applyCleanup(input: z.input<typeof Choice>): Promise<{ err
   if (me.role !== 'lead') return { error: 'Only the lead cleans up a sprint' }
   const v = Choice.safeParse(input)
   if (!v.success) return { error: 'No such sprint' }
-  const { automationOwner, tester, plan: p } = await plan(v.data.sprint_id, { automationOwner: v.data.automation_owner ?? null, tester: v.data.tester ?? null })
+  const { automationOwner, tester, plan: full } = await plan(v.data.sprint_id, { automationOwner: v.data.automation_owner ?? null, tester: v.data.tester ?? null })
+  const only = new Set(v.data.only ?? CATEGORIES)
+  if (!only.size) return { error: 'Tick at least one clean-up' }
+  // What is left out stays as it is.
+  const p = Object.fromEntries(CATEGORIES.map((k) => [k, only.has(k) ? full[k] : []])) as CleanupPlan
   // Moves a lead could not make one by one (e.g. Reopened to Duplicate) go through the server key, as this person.
   const db = createServiceClient(me.id)
   const comment = (ticket_id: string, body: string) => db.from('ticket_comments').insert({ ticket_id, author_id: me.id, body })
   let done = 0
-  for (const s of p.close) { const { error } = await db.from('tickets').update({ state: 'closed' }).eq('id', s.ticket_id); if (!error) { await comment(s.ticket_id, s.note); done++ } }
+  for (const s of [...p.close, ...p.closeAuto]) { const { error } = await db.from('tickets').update({ state: 'closed' }).eq('id', s.ticket_id); if (!error) { await comment(s.ticket_id, s.note); done++ } }
   for (const s of p.duplicate) { const { error } = await db.from('tickets').update({ state: 'duplicate', duplicate_of: s.of_id }).eq('id', s.ticket_id); if (!error) { await comment(s.ticket_id, s.note); done++ } }
   if (automationOwner) for (const s of p.toAutomation) { const { error } = await db.from('tickets').update({ owner_id: automationOwner }).eq('id', s.ticket_id); if (!error) { await comment(s.ticket_id, s.note); done++ } }
   for (const s of p.toTester) { const { error } = await db.from('tickets').update({ owner_id: s.tester_id }).eq('id', s.ticket_id); if (!error) { await comment(s.ticket_id, s.note); done++ } }
@@ -63,5 +69,5 @@ export async function applyCleanup(input: z.input<typeof Choice>): Promise<{ err
     if (!error) done += p.tester.length
   }
   revalidatePath('/', 'layout')
-  return { summary: `${done} change${done === 1 ? '' : 's'} made: ${p.close.length} closed, ${p.duplicate.length} duplicates, ${p.toAutomation.length} to automation, ${p.toTester.length} to the tester, ${p.tester.length} cases given a tester` }
+  return { summary: `${done} change${done === 1 ? '' : 's'} made: ${p.close.length + p.closeAuto.length} closed, ${p.duplicate.length} duplicates, ${p.toAutomation.length} to automation, ${p.toTester.length} to the tester, ${p.tester.length} cases given a tester` }
 }

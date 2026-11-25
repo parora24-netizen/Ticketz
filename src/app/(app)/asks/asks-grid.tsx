@@ -26,7 +26,7 @@ export function AsksGrid({ rows, people }: { rows: Row[]; people: string[] }) {
     // Open or Closed; how a closed ask was settled is its Outcome.
     { key: 'state', header: 'State', width: 90, value: (r) => askDisplay(r.kind, r.state as AskState).state,
       render: (r) => <Chip tone={r.state === 'open' ? 'accent' : 'muted'}>{askDisplay(r.kind, r.state as AskState).state}</Chip> },
-    { key: 'outcome', header: 'Outcome', width: 140, value: (r) => askDisplay(r.kind, r.state as AskState, r.outcome).outcome,
+    { key: 'outcome', header: 'Outcome', width: 140, value: (r) => askDisplay(r.kind, r.state as AskState, r.outcome).outcome || 'Not yet',
       render: (r) => { const o = askDisplay(r.kind, r.state as AskState, r.outcome).outcome; return o ? <span className={o === 'Not needed' ? 'text-[var(--muted)]' : ''}>{o}</span> : <span className="text-[var(--faint)]">—</span> } },
     { key: 'due', header: 'Due', width: 110, mono: true, value: (r) => r.due_on ?? '', edit: { field: 'due_on', kind: 'date' },
       render: (r) => r.due_on ? <span className={r.state === 'open' && r.due_on < today() ? 'font-semibold text-[var(--crit)]' : ''}>{r.due_on}</span> : <span className="text-[var(--faint)]">—</span> },

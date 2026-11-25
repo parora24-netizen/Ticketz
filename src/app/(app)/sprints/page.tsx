@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/link'
 import { workingDaysBetween } from '@/lib/schedule'
 import { Flash } from '@/components/flash'
 import { SprintsGrid } from '@/components/grid/list-grids'

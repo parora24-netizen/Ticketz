@@ -13,7 +13,7 @@ import { RUNNER_EMAIL } from '@/lib/ci-api'
 import { readyTimes, retestOwner } from '@/lib/workflow/retest'
 import { createClient } from '@/lib/supabase/server'
 import {
-  runningSprints, daysLeft, daysUntil, fmtDate, loadActivity, loadAreas, loadHolidays, loadCases, loadPeople, loadRelease, loadSprintAreas, loadSprintRunTimes, loadSprintRuns,
+  runningSprints, daysLeft, daysUntil, fmtDate, loadActivity, loadAreas, loadHolidays, loadCases, loadCasesById, loadPeople, loadRelease, loadSprintAreas, loadSprintRunTimes, loadSprintRuns,
   loadSprints, loadTasks, loadTicketTesters, loadTickets, loadWaitingAsks, toStageInput, waitingOn, type CaseRow, type TicketRow,
 } from '@/lib/data'
 import { buildStandup, lastWorkingDayStart } from '@/lib/standup'
@@ -41,9 +41,13 @@ export default async function SprintPage({
   const areaIds = sprintAreas.filter((x) => x.sprint_id === id).map((x) => x.area_id)
   const now = new Date()
   // Fix sprints have no areas: their board is the cases behind their tickets.
-  const [loaded, runs, allTickets, runTimes, tasks, activity] = await Promise.all([
-    sprint.kind === 'fix' ? loadCases() : loadCases(areaIds), loadSprintRuns(id), loadTickets(), loadSprintRunTimes(id), loadTasks(), loadActivity(lastWorkingDayStart(now)),
+  const [runs, allTickets, runTimes, tasks, activity] = await Promise.all([
+    loadSprintRuns(id), loadTickets(), loadSprintRunTimes(id), loadTasks(), loadActivity(lastWorkingDayStart(now)),
   ])
+  // A fix sprint needs only the cases its tickets point to, not every case in the release.
+  const loaded = sprint.kind === 'fix'
+    ? await loadCasesById([...new Set(allTickets.filter((t) => t.current_sprint_id === id && t.case_id).map((t) => t.case_id as string))])
+    : await loadCases(areaIds)
   // The sprint's own tickets: fix sprints are made of them; test sprints raise them for later.
   const tickets = allTickets.filter((t) => t.current_sprint_id === id)
   const ticketTesters = await loadTicketTesters()

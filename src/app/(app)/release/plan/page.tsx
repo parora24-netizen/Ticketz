@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/link'
 import { ReleaseDateButton } from '@/components/release-controls'
 import { ScheduleLog } from '@/components/schedule-log'
 import { RELEASE_TABS, Tabs } from '@/components/tabs'

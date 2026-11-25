@@ -1,5 +1,5 @@
 import { sprintHref } from '@/lib/links'
-import Link from 'next/link'
+import Link from '@/components/link'
 import { CaseLink, PriorityChip, Stat, TicketLink } from '@/components/ui'
 import { SubmitButton } from '@/components/submit-button'
 import { startSprint } from './actions'

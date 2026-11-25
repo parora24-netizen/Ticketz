@@ -1,5 +1,5 @@
 import { sprintHref } from '@/lib/links'
-import Link from 'next/link'
+import Link from '@/components/link'
 
 /** Page-level tabs: views of one place, rather than separate screens. */
 export function Tabs({ items, active }: { items: { href: string; label: string; key: string }[]; active: string }) {

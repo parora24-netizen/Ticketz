@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/link'
 import { notFound } from 'next/navigation'
 import { Flash } from '@/components/flash'
 import { CaseLink, Chip, PageHeader, TicketLink } from '@/components/ui'

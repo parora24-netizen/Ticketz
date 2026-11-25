@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/link'
 import { ASKS_TABS, Tabs } from '@/components/tabs'
 import { PageHeader } from '@/components/ui'
 import { Flash } from '@/components/flash'

@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import Link from '@/components/link'
 import { useRouter } from 'next/navigation'
 import { DataGrid, type Column } from '@/components/grid/data-grid'
 import { PriorityChip, StateChip } from '@/components/ui'

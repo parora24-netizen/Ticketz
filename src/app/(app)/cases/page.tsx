@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/link'
 import { PageHeader } from '@/components/ui'
 import { CASES_TABS, Tabs } from '@/components/tabs'
 import { getMe } from '@/lib/auth'

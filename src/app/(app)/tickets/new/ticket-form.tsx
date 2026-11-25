@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import Link from '@/components/link'
 import { useState } from 'react'
 import { EvidenceField, useEvidence } from '@/components/evidence'
 import { SubmitButton } from '@/components/submit-button'

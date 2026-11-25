@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import Link from '@/components/link'
 import { DataGrid, type BulkField, type Column } from '@/components/grid/data-grid'
 import { STATUS_TONE as TONE } from '@/components/grid/filter-cards'
 import { Chip } from '@/components/ui'

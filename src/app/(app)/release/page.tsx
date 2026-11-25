@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/link'
 import { LineChart } from '@/components/charts/line-chart'
 import { RELEASE_TABS, Tabs } from '@/components/tabs'
 import { HEALTH_LABEL, summarizeArea } from '@/lib/areas'

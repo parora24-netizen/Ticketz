@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/link'
 import { redirect } from 'next/navigation'
 import { TempPasswordPanel } from '@/components/account-controls'
 import { PayloadExample, TicketsApiExample, TokenCell } from '@/components/ci-controls'

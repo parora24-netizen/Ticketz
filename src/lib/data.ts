@@ -156,6 +156,19 @@ export async function loadCases(areaIds?: string[]): Promise<CaseRow[]> {
   return rows.sort((a, b) => a.area_sort - b.area_sort || a.tc_id.localeCompare(b.tc_id, undefined, { numeric: true }))
 }
 
+/** Just these test cases, by id: for boards made of tickets, which need only their tickets' cases. */
+export async function loadCasesById(ids: string[]): Promise<CaseRow[]> {
+  if (!ids.length) return []
+  const supabase = await createClient()
+  const out: CaseRow[] = []
+  for (let i = 0; i < ids.length; i += 300) {
+    const { data, error } = await supabase.from('case_latest').select('*').in('id', ids.slice(i, i + 300))
+    if (error) throw new Error(error.message)
+    out.push(...((data ?? []) as CaseRow[]))
+  }
+  return out.sort((a, b) => a.area_sort - b.area_sort || a.tc_id.localeCompare(b.tc_id, undefined, { numeric: true }))
+}
+
 export const loadTickets = cache(async function loadTickets(): Promise<TicketRow[]> {
   const supabase = await createClient()
   return fetchAll<TicketRow>((from, to) =>

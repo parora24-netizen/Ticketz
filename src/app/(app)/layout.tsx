@@ -1,5 +1,5 @@
 import Image from 'next/image'
-import Link from 'next/link'
+import Link from '@/components/link'
 import { SearchIcon } from '@/components/icons'
 import { DensityInit, PageTitle, ProfileMenu, Shortcuts } from '@/components/shell'
 import { AssistantButton } from '@/components/assistant'

@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import Link from '@/components/link'
 import { DataGrid, type Column } from '@/components/grid/data-grid'
 import { rememberList } from '@/components/list-nav'
 import { Chip } from '@/components/ui'

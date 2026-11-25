@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/link'
 import { secs, when } from '@/lib/runs-format'
 
 type Point = { run_id: string | null; result: string; duration_ms: number | null; recorded_at: string; error_head: string | null; note: string | null }

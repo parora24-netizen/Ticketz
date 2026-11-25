@@ -1,7 +1,7 @@
 'use client'
 
 import type { Automation } from '@/lib/workflow/case-stage'
-import Link from 'next/link'
+import Link from '@/components/link'
 import { DataGrid, type Column } from '@/components/grid/data-grid'
 import { PriorityChip, ResultChip } from '@/components/ui'
 import { AutoResult, autoLabel, type Waiting } from '@/components/auto-result'

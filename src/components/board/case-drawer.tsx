@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import Link from '@/components/link'
 import { useCallback, useEffect, useState, useTransition } from 'react'
 import { CaseAutomationField, CaseResultActions, CaseTesterField } from '@/components/case-controls'
 import { TicketActions, TicketBlock, TicketField } from '@/components/ticket-controls'

@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/link'
 import type { Priority, RunResult } from '@/lib/workflow/case-stage'
 import { STATE_LABEL, type TicketState } from '@/lib/workflow/ticket-machine'
 

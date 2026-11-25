@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import Link from '@/components/link'
 import { useActionState, useState } from 'react'
 import { SubmitButton } from '@/components/submit-button'
 import { WORKBOOK_COLUMNS } from '@/lib/import-cases'

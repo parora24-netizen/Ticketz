@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/link'
 import { CASES_TABS, Tabs } from '@/components/tabs'
 import { Chip, PageHeader } from '@/components/ui'
 import { listRuns } from '@/lib/runs-server'

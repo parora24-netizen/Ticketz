@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/link'
 import { redirect } from 'next/navigation'
 import { CaseLink, Chip, PageHeader, PriorityChip, StateChip, TicketLink } from '@/components/ui'
 import { casesByAnyId, currentTicketKey } from '@/lib/ids'

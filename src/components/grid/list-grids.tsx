@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import Link from '@/components/link'
 import { DataGrid, type Column } from '@/components/grid/data-grid'
 import { Chip } from '@/components/ui'
 import { sprintHref } from '@/lib/links'

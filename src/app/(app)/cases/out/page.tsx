@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/link'
 import { CASES_TABS, Tabs } from '@/components/tabs'
 import { Chip, PageHeader, PriorityChip } from '@/components/ui'
 import { createClient } from '@/lib/supabase/server'

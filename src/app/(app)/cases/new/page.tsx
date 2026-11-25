@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/link'
 import { redirect } from 'next/navigation'
 import { Flash } from '@/components/flash'
 import { SubmitButton } from '@/components/submit-button'

@@ -1,6 +1,6 @@
 'use client'
 
-import Link from 'next/link'
+import Link from '@/components/link'
 import { DataGrid, type Column } from '@/components/grid/data-grid'
 import type { ChartData } from '@/components/grid/grid-charts'
 import { FilterCard, MiniBar, STATUS_TONE as TONE } from '@/components/grid/filter-cards'

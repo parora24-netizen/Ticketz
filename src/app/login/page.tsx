@@ -1,5 +1,5 @@
 import Image from 'next/image'
-import Link from 'next/link'
+import Link from '@/components/link'
 import { SubmitButton } from '@/components/submit-button'
 import { serverEnv } from '@/lib/env'
 import { sendCode, setPasswordWithCode, signInWithPassword } from './actions'

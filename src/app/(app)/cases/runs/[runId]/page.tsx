@@ -1,4 +1,4 @@
-import Link from 'next/link'
+import Link from '@/components/link'
 import { notFound } from 'next/navigation'
 import { CASES_TABS, Tabs } from '@/components/tabs'
 import { CaseLink, Chip, PageHeader, TicketLink } from '@/components/ui'

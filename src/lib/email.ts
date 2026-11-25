@@ -2,7 +2,8 @@ import 'server-only'
 import { serverEnv } from '@/lib/env'
 import { loadInbox, type InboxItem } from '@/lib/asks-server'
 import { createServiceClient } from '@/lib/supabase/server'
-import { askCommentEmail, askEmail, digestEmail, type Mail } from '@/lib/email-templates'
+import { OUTCOME_LABEL, type Outcome } from '@/lib/automation-loop'
+import { askCommentEmail, digestEmail, type DigestAsks, type Mail } from '@/lib/email-templates'
 
 /**
  * Email through Microsoft 365: Launchpad's app in Vulqan's tenant sends from one mailbox with Graph
@@ -75,28 +76,6 @@ async function send(to: Person, kind: 'ask' | 'ask_answered' | 'ask_mention' | '
   return error ? { error } : {}
 }
 
-/**
- * The email that goes with an ask's notification: to its new owner when it is given to them, or to
- * whoever raised it when it is answered. Only while email is on, and never to the person who acted.
- */
-export async function emailAboutAsk(askKey: string, event: 'assigned' | 'answered', actorId: string | null): Promise<void> {
-  try {
-    if (!emailConfigured() || !(await emailLive())) return
-    const { data: a } = await db().from('asks').select('key, kind, title, detail, owner_id, created_by, due_on, state, answer, outcome, store, ask_cases(test_cases(tc_id))').eq('key', askKey).maybeSingle()
-    if (!a) return
-    const toId = event === 'assigned' ? a.owner_id : a.created_by
-    if (!toId || toId === actorId) return
-    const to = await person(toId)
-    if (!to?.active || !to.email_notify) return
-    const actor = actorId ? (await person(actorId))?.name ?? null : null
-    const cases = ((a.ask_cases ?? []) as unknown as { test_cases: { tc_id: string } | { tc_id: string }[] | null }[])
-      .map((l) => (Array.isArray(l.test_cases) ? l.test_cases[0] : l.test_cases)?.tc_id).filter((x): x is string => !!x)
-    await send(to, event === 'assigned' ? 'ask' : 'ask_answered', a.key, askEmail({ ...a, cases, kind: a.kind }, event, actor, to.name, appUrl()))
-  } catch {
-    // An email that cannot go out must not undo the change that caused it.
-  }
-}
-
 /** A comment on an ask, to the people tagged, the one it was handed to, or the owner it went back to. */
 export async function emailAboutAskComment(askKey: string, body: string, actorId: string | null, to: { id: string; why: 'tagged' | 'handed' | 'back' }[]): Promise<void> {
   try {
@@ -115,7 +94,45 @@ export async function emailAboutAskComment(askKey: string, body: string, actorId
   }
 }
 
-/** Each active person's digest of what waits on them, once a weekday; nothing to someone with nothing waiting. */
+/** One person's asks for the digest: open ones they own, new or overdue among them, and closed ones they raised, since a moment. */
+async function digestAsks(personId: string, since: string): Promise<DigestAsks> {
+  const today = new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10)
+  const zoneOf = (rows: unknown) => {
+    const zones = new Set(((rows ?? []) as { test_cases: unknown }[]).map((l) => {
+      const c = (Array.isArray(l.test_cases) ? l.test_cases[0] : l.test_cases) as { areas?: unknown } | null
+      const a = (Array.isArray(c?.areas) ? c?.areas[0] : c?.areas) as { zone?: string } | null | undefined
+      return a?.zone
+    }).filter(Boolean))
+    return [...zones].join(', ') || undefined
+  }
+  const [{ data: open }, { data: closed }] = await Promise.all([
+    db().from('asks').select('key, title, due_on, created_at, ask_cases(test_cases(areas(zone)))').eq('state', 'open').eq('owner_id', personId).order('created_at', { ascending: false }),
+    db().from('asks').select('key, title, outcome, resolved_at').eq('created_by', personId).neq('state', 'open').gt('resolved_at', since).order('resolved_at', { ascending: false }),
+  ])
+  const mine = (open ?? []).map((a) => ({ key: a.key as string, title: a.title as string, due_on: a.due_on as string | null, created_at: a.created_at as string, zone: zoneOf(a.ask_cases) }))
+  return {
+    open: mine.length, since,
+    fresh: mine.filter((a) => a.created_at > since),
+    overdue: mine.filter((a) => a.due_on && a.due_on < today).sort((x, y) => (x.due_on ?? '').localeCompare(y.due_on ?? '')),
+    closed: (closed ?? []).map((a) => ({ key: a.key as string, title: a.title as string, outcome: OUTCOME_LABEL[(a.outcome ?? 'answered') as Outcome] })),
+  }
+}
+
+/** When this person's last digest went out (else a day ago): "new" means since then. */
+async function lastDigestAt(personId: string): Promise<string> {
+  const { data } = await db().from('email_log').select('at').eq('person_id', personId).eq('kind', 'digest').eq('status', 'sent').order('at', { ascending: false }).limit(1).maybeSingle()
+  return (data?.at as string | undefined) ?? new Date(Date.now() - 864e5).toISOString()
+}
+
+/** One person's digest, or null when nothing waits on them and nothing they raised was closed. */
+async function buildDigest(p: { id: string; name: string; role: string }): Promise<Mail | null> {
+  const [items, asks] = await Promise.all([loadInbox(db(), p), lastDigestAt(p.id).then((since) => digestAsks(p.id, since))])
+  const others = items.filter((i) => !['need', 'question', 'decision'].includes(i.type))
+  if (!others.length && !asks.open && !asks.closed.length) return null
+  return digestEmail(p.name, items, appUrl(), asks)
+}
+
+/** Each active person's digest, once a weekday at 10:00; nothing to someone with nothing to say. */
 export async function sendDigests(opts: { onlyPersonId?: string; force?: boolean } = {}): Promise<{ sent: number; skipped: number; failed: string[] }> {
   const live = await emailLive()
   if (!opts.force && !live) return { sent: 0, skipped: 0, failed: ['Email is off for the team'] }
@@ -129,9 +146,9 @@ export async function sendDigests(opts: { onlyPersonId?: string; force?: boolean
   const failed: string[] = []
   for (const p of (people ?? []) as Person[]) {
     if (!opts.force && (!p.email_digest || already.has(p.id))) { skipped++; continue }
-    const items: InboxItem[] = await loadInbox(db(), p)
-    if (!items.length) { skipped++; continue }
-    const res = await send(p, 'digest', opts.force ? null : today, digestEmail(p.name, items, appUrl()))
+    const mail = await buildDigest(p)
+    if (!mail) { skipped++; continue }
+    const res = await send(p, 'digest', opts.force ? null : today, mail)
     if (res.error) failed.push(`${p.name}: ${res.error}`)
     else sent++
   }
@@ -153,9 +170,8 @@ export async function sendTestEmail(personId: string): Promise<{ error?: string 
 export async function sendDigestPreview(forPersonId: string, toPersonId: string): Promise<{ error?: string; note?: string }> {
   const [of, to] = await Promise.all([person(forPersonId), person(toPersonId)])
   if (!of || !to) return { error: 'Unknown person' }
-  const items = await loadInbox(db(), of)
-  if (!items.length) return { note: `Nothing waits on ${of.name}, so they would get no digest` }
-  const mail = digestEmail(of.name, items, appUrl())
+  const mail = await buildDigest(of)
+  if (!mail) return { note: `Nothing waits on ${of.name}, so they would get no digest` }
   const res = await send(to, 'test', null, { ...mail, subject: `Preview for ${of.name}: ${mail.subject}` })
-  return res.error ? res : { note: `${of.name}'s digest (${items.length} item${items.length === 1 ? '' : 's'}) sent to you` }
+  return res.error ? res : { note: `${of.name}'s digest sent to you` }
 }

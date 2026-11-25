@@ -168,8 +168,8 @@ function EmailPrefs({ initial }: { initial: { notify: boolean; digest: boolean }
   return (
     <div className="border-b border-[var(--line-soft)] px-4 py-3 text-[12.5px]">
       <div className="label">Email me</div>
-      <label className="mt-1.5 flex items-center gap-2"><input type="checkbox" checked={prefs.notify} onChange={(e) => set('notify', e.target.checked)} /> When I'm given an ask, or mine is answered</label>
-      <label className="mt-1 flex items-center gap-2"><input type="checkbox" checked={prefs.digest} onChange={(e) => set('digest', e.target.checked)} /> A weekday 9:00 digest of what waits on me</label>
+      <label className="mt-1.5 flex items-center gap-2"><input type="checkbox" checked={prefs.notify} onChange={(e) => set('notify', e.target.checked)} /> When I'm tagged or handed an ask in its discussion</label>
+      <label className="mt-1 flex items-center gap-2"><input type="checkbox" checked={prefs.digest} onChange={(e) => set('digest', e.target.checked)} /> A weekday 10:00 digest: my asks and what waits on me</label>
     </div>
   )
 }

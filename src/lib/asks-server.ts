@@ -3,7 +3,8 @@ import { askZone } from './ask-zone'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { OUTCOME_LABEL, askStatus, closeWith, holdActive, type AskKind, type AskState, type Outcome } from '@/lib/automation-loop'
 import { casesByAnyId, currentTicketKey } from '@/lib/ids'
-import { emailAboutAsk, emailAboutAskComment } from '@/lib/email'
+// Asks reach their owners in the 10:00 digest; only a discussion (a tag, a hand-over) emails as it happens.
+import { emailAboutAskComment } from '@/lib/email'
 import { createServiceClient } from '@/lib/supabase/server'
 
 /**
@@ -77,7 +78,6 @@ export async function createAsk(db: Db, input: CreateInput, actor: Actor, dryRun
     const { error } = await db.from('ask_cases').upsert(ids.map((case_id) => ({ ask_id: ask!.id, case_id })), { ignoreDuplicates: true })
     if (error) return { error: error.message, status: 500 }
   }
-  if (!open && owner && 'id' in owner) await emailAboutAsk(ask.key, 'assigned', actor.personId)
   return { key: ask.key, created: !open, cases_linked: ids.length, unmatched }
 }
 
@@ -143,8 +143,6 @@ export async function patchAsk(db: Db, key: string, p: PatchInput, actor: Actor,
   if (add.ids.length) await db.from('ask_cases').upsert(add.ids.map((case_id) => ({ ask_id: a.id, case_id })), { ignoreDuplicates: true })
   if (remove.ids.length) await db.from('ask_cases').delete().eq('ask_id', a.id).in('case_id', remove.ids)
   const effect = closing ? await applyOutcome(db, { ...a, ...fields } as AskRow, actor, dup) : undefined
-  if (fields.owner_id && fields.owner_id !== a.owner_id) await emailAboutAsk(a.key, 'assigned', actor.personId)
-  if (closing) await emailAboutAsk(a.key, 'answered', actor.personId)
   return { key: a.key, effect }
 }
 

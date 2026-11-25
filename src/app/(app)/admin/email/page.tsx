@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { EmailControls, OversightPicker } from './email-controls'
 import { oversightIds } from '@/lib/asks-server'
 
-const KIND: Record<string, string> = { ask: 'Ask given', ask_answered: 'Ask answered', digest: 'Digest', test: 'Test' }
+const KIND: Record<string, string> = { ask: 'Ask given', ask_answered: 'Ask answered', ask_mention: 'Discussion', digest: 'Digest', test: 'Test' }
 
 /** Admin > Email: whether email is set up and on, a test to yourself, and what has gone out. */
 export default async function EmailAdminPage() {
@@ -28,7 +28,7 @@ export default async function EmailAdminPage() {
   return (
     <>
       <Tabs items={ADMIN_TABS} active="email" />
-      <PageHeader sub="Emails from Launchpad: an ask given to you, an answer to an ask you raised, and a weekday 9:00 digest of what waits on you." />
+      <PageHeader sub="Emails from Launchpad: a weekday 10:00 digest (your asks: open, new, overdue, and the ones you raised that were closed; then what else waits on you), and tags or hand-overs in an ask's discussion as they happen." />
       <section className="card mb-4">
         <dl className="divide-y divide-[var(--row)] text-[13px]">
           <div className="flex items-center justify-between gap-3 px-4 py-2.5"><dt>Microsoft 365 app (M365_TENANT_ID, M365_CLIENT_ID, M365_CLIENT_SECRET)</dt><dd><Chip tone={configured ? 'good' : 'crit'}>{configured ? 'Set' : 'Missing'}</Chip></dd></div>

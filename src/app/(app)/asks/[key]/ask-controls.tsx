@@ -41,7 +41,7 @@ export function AskAnswer({ askKey, kind, state, options }: { askKey: string; ki
         </label>
       )}
       {kind === 'need' && (
-        <label className="block"><span className="label">Where it is stored</span>
+        <label className="block"><span className="label">Where it is stored (only for a login or secret)</span>
           <input value={store} onChange={(e) => setStore(e.target.value)} className="input mt-1 w-full mono" placeholder="e.g. /e2e/mssql/password (the parameter's name, never the secret)" />
         </label>
       )}
@@ -50,7 +50,7 @@ export function AskAnswer({ askKey, kind, state, options }: { askKey: string; ki
       </label>
       <div className="flex gap-2">
         <button disabled={pending} className="btn btn-primary">{pending ? 'Saving…' : VERB[kind]}</button>
-        <button type="button" disabled={pending} onClick={() => { if (window.confirm('Decline this ask?')) run({ state: 'declined', answer: answer || undefined }, 'Declined') }} className="btn">Decline</button>
+        <button type="button" disabled={pending} onClick={() => { if (window.confirm('Close this ask as not needed? Say why in the note.')) run({ state: 'declined', answer: answer || undefined }, 'Closed as not needed') }} className="btn">Not needed</button>
       </div>
     </form>
   )

@@ -21,8 +21,9 @@ export const ticketsFollowing = <T extends { current_sprint_id: string | null; a
 
 /**
  * Where a page's tickets are fixed: the open triage or fix sprint the plan gives the page (S0 takes
- * pages whose fixes start early, then S1–S5), else the fix sprint after the open test sprint that
- * tests it (the older T/F plan).
+ * pages whose fixes start early, then S1–S5); else the fix sprint after the open test sprint that
+ * tests it (the older T/F plan); else, once a page's fixing is done, the open regression sprint
+ * that covers it, since a bug found then is a regression.
  */
 export function fixSprintForArea<T extends S>(areaId: string | null | undefined, sprints: T[], sprintAreas: { sprint_id: string; area_id: string }[]): T | null {
   if (!areaId) return null
@@ -34,5 +35,10 @@ export function fixSprintForArea<T extends S>(areaId: string | null | undefined,
   const test = sprintAreas.filter((x) => x.area_id === areaId)
     .map((x) => sprints.find((s) => s.id === x.sprint_id))
     .find((s) => s?.kind === 'test' && s.status !== 'closed')
-  return fixSprintAfter(test, sprints)
+  const after = fixSprintAfter(test, sprints)
+  if (after) return after
+  const regression = sprintAreas.filter((x) => x.area_id === areaId)
+    .map((x) => sprints.find((s) => s.id === x.sprint_id))
+    .find((s): s is T => !!s && s.kind === 'regression' && s.status !== 'closed')
+  return regression ?? null
 }

@@ -30,7 +30,7 @@ describe('fix sprint after a test sprint', () => {
   it("follows a page's open test sprint", () => {
     const sa = [{ sprint_id: 'T1', area_id: 'a' }, { sprint_id: 'R1', area_id: 'a' }, { sprint_id: 'R1', area_id: 'b' }]
     expect(fixSprintForArea('a', sprints, sa)?.name).toBe('F2')
-    expect(fixSprintForArea('b', sprints, sa)).toBeNull()
+    expect(fixSprintForArea('b', sprints, sa)?.name).toBe('R1') // only regression left
     expect(fixSprintForArea(null, sprints, sa)).toBeNull()
   })
 
@@ -38,7 +38,9 @@ describe('fix sprint after a test sprint', () => {
     const plan = [s('S0', 'triage', 'active'), s('S1', 'fix'), s('S2', 'fix'), s('S6', 'regression')]
     const sa = [{ sprint_id: 'S2', area_id: 'a' }, { sprint_id: 'S6', area_id: 'a' }]
     expect(fixSprintForArea('a', plan, sa)?.name).toBe('S2')
-    expect(fixSprintForArea('a', [s('S2', 'fix', 'closed'), s('S6', 'regression')], sa)).toBeNull()
+    // Once the page's fix sprint has closed, a new bug there goes to the regression sprint.
+    expect(fixSprintForArea('a', [s('S2', 'fix', 'closed'), s('S6', 'regression')], sa)?.name).toBe('S6')
+    expect(fixSprintForArea('a', [s('S2', 'fix', 'closed'), s('S6', 'regression', 'closed')], sa)).toBeNull()
     // Fixes that start early, in S0, go there until S0 closes.
     const early = [...sa, { sprint_id: 'S0', area_id: 'a' }]
     expect(fixSprintForArea('a', plan, early)?.name).toBe('S0')

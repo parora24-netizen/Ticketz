@@ -11,11 +11,13 @@ const MISMATCH_LABEL = { '1': 'Mismatches', type_i: 'Automation failed, manual p
 
 export default async function CasesPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams
+  // Without a sprint to scope by, the cases and the asks they wait on load alongside everything else.
+  const unscoped = sp.sprint ? null : loadCases()
+  const openAsks = loadWaitingAsks()
   const [me, areas, sprints, sprintAreas, people] = await Promise.all([getMe(), loadAreas(), loadSprints(), loadSprintAreas(), loadPeople()])
   const sprint = sp.sprint ? sprints.find((s) => s.id === sp.sprint) : undefined
   const scope = sprint ? sprintAreas.filter((x) => x.sprint_id === sprint.id).map((x) => x.area_id) : undefined
-  const [all, runs] = await Promise.all([loadCases(scope), sprint ? loadSprintRuns(sprint.id) : Promise.resolve(undefined)])
-  const asks = await loadWaitingAsks(all)
+  const [all, runs, asks] = await Promise.all([unscoped ?? loadCases(scope), sprint ? loadSprintRuns(sprint.id) : Promise.resolve(undefined), openAsks])
   // The writer of a case is its page's writer.
   const writerOf = new Map(areas.map((a) => [a.id, people.find((p) => p.id === a.owner_id)?.name ?? null]))
   // Each page's fix sprint (the first it is planned in), so cases can be filtered by sprint.

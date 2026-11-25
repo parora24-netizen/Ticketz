@@ -83,14 +83,19 @@ export type Person = { id: string; name: string; email: string | null; role: 'le
 
 type Page<T> = (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
 
-/** Reads every row past PostgREST's 1,000-row page limit. */
+/**
+ * Reads every row past PostgREST's 1,000-row page limit, three pages at a time: the pages go out
+ * together, so a table of up to 3,000 rows is one wait instead of three.
+ */
 export async function fetchAll<T>(page: Page<T>): Promise<T[]> {
   const out: T[] = []
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await page(from, from + 999)
-    if (error) throw new Error(error.message)
-    out.push(...(data ?? []))
-    if (!data || data.length < 1000) return out
+  for (let from = 0; ; from += 3000) {
+    const pages = await Promise.all([0, 1000, 2000].map((o) => page(from + o, from + o + 999)))
+    for (const { data, error } of pages) {
+      if (error) throw new Error(error.message)
+      out.push(...(data ?? []))
+      if (!data || data.length < 1000) return out
+    }
   }
 }
 
@@ -120,11 +125,13 @@ export const loadSprintAreas = cache(async function loadSprintAreas(): Promise<{
 export type WaitingAsk = { key: string; title: string; owner: string | null }
 
 /** The open asks behind these cases' waiting_asks, by key. */
-export async function loadWaitingAsks(cases: { waiting_asks?: string[] | null }[]): Promise<Map<string, WaitingAsk>> {
-  const keys = [...new Set(cases.flatMap((c) => c.waiting_asks ?? []))]
-  if (!keys.length) return new Map()
+/** The asks cases can wait on: given cases, theirs; given none, every open ask (it need not wait for the cases). */
+export async function loadWaitingAsks(cases?: { waiting_asks?: string[] | null }[]): Promise<Map<string, WaitingAsk>> {
+  const keys = cases ? [...new Set(cases.flatMap((c) => c.waiting_asks ?? []))] : null
+  if (keys && !keys.length) return new Map()
   const supabase = await createClient()
-  const { data } = await supabase.from('asks').select('key, title, owner:people!asks_owner_id_fkey(name)').in('key', keys)
+  const q = supabase.from('asks').select('key, title, owner:people!asks_owner_id_fkey(name)')
+  const { data } = await (keys ? q.in('key', keys) : q.eq('state', 'open').limit(5000))
   return new Map((data ?? []).map((a) => [a.key as string, { key: a.key as string, title: a.title as string, owner: (a.owner as unknown as { name: string } | null)?.name ?? null }]))
 }
 

@@ -62,6 +62,7 @@ export default async function Home() {
   const [sprints, sprintAreas, release] = await Promise.all([loadSprints(), loadSprintAreas(), loadRelease()])
   const sprint = currentSprint(sprints)
   const areaIds = sprint ? sprintAreas.filter((x) => x.sprint_id === sprint.id).map((x) => x.area_id) : []
+  const testersOfTickets = loadTicketTesters()
   const [tickets, activity, cases, runs] = await Promise.all([
     loadTickets(), loadActivity(since, 300),
     sprint ? loadCases(areaIds) : Promise.resolve([]),
@@ -93,7 +94,7 @@ export default async function Home() {
   const nameOfPerson = new Map((team ?? []).map((p) => [p.id as string, p.name as string]))
   // Whose retest it is: the case's tester, or once they have passed it by hand since the fix, the
   // owner waiting on the automated run (see retestOwner).
-  const ticketTesters = await loadTicketTesters()
+  const ticketTesters = await testersOfTickets
   const runnerIds = new Set((team ?? []).filter((p) => p.email === RUNNER_EMAIL).map((p) => p.id as string))
   const testerIdOf = (t: { id: string; case_id: string | null; owner_id: string | null; created_by?: string | null }) => {
     // No test case: the ticket's own tester, else whoever raised it (not the runner).

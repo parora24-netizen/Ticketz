@@ -29,7 +29,7 @@ export default async function CasePage({
   const sp = await searchParams
   const me = await getMe()
   const supabase = await createClient()
-  const { data: c } = await supabase.from('test_cases').select('*, areas(zone, page)').eq('tc_id', decodeURIComponent(tcId)).maybeSingle()
+  const { data: c } = await supabase.from('test_cases').select('*, areas(zone, page, writer:people!areas_owner_id_fkey(name))').eq('tc_id', decodeURIComponent(tcId)).maybeSingle()
   if (!c) {
     // An ID from before the renumbering goes to the case's page.
     const asked = decodeURIComponent(tcId).toUpperCase()
@@ -162,6 +162,7 @@ export default async function CasePage({
               {c.scenario_id && <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Scenario</dt><dd className="mono">{c.scenario_id}</dd></div>}
               {c.requirement_id && <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Requirement</dt><dd className="mono">{c.requirement_id}</dd></div>}
               {c.test_type && <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Type</dt><dd>{c.test_type}</dd></div>}
+              <div className="flex items-center justify-between px-4 py-2.5"><dt className="label">Writer</dt><dd title="The page's writer: who writes and rewords this case">{(c.areas as unknown as { writer: { name: string } | null } | null)?.writer?.name ?? <span className="text-[var(--muted)]">No writer</span>}</dd></div>
               <div className="px-4 py-2.5"><dt className="label mb-1">Tester</dt><dd><CaseTesterField caseId={c.id} value={c.tester_id} people={people.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name }))} disabled={!canTest} /></dd></div>
               <div className="px-4 py-2.5"><dt className="label mb-1">Automation</dt><dd><CaseAutomationField caseId={c.id} value={c.automation} disabled={!canTest} />
                 {(c.automation_note || c.automation_owner || c.automation_ref) && (

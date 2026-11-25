@@ -29,6 +29,8 @@ export type CaseGridRow = {
   stage: string
   open_tickets: number
   tester_name: string | null
+  /** The page's writer: who writes and rewords this case. */
+  writer?: string | null
 }
 
 const AUTOMATION = [
@@ -54,6 +56,7 @@ export function CasesGrid({ rows, areas, people, canEdit, isLead, inSprint, reme
     { key: 'zone', header: 'Zone', width: 130, value: (r) => r.area.split(' · ')[0] },
     { key: 'sprint', header: 'Sprint', width: 90, value: (r) => r.sprint ?? 'Not planned' },
     { key: 'area', header: 'Area', width: 220, value: (r) => r.area, edit: canEdit ? { field: 'area_id', kind: 'select', options: areas } : undefined },
+    { key: 'writer', header: 'Writer', width: 110, value: (r) => r.writer ?? 'No writer' },
     { key: 'tester', header: 'Tester', width: 140, value: (r) => r.tester_name ?? 'No tester',
       edit: canEdit ? { field: 'tester_id', kind: 'select', options: testers } : undefined },
     { key: 'scenario_id', header: 'Scenario', width: 110, mono: true, filter: 'text', value: (r) => r.scenario_id ?? '' },

@@ -48,6 +48,14 @@ export async function createAsk(db: Db, input: CreateInput, actor: Actor, dryRun
   const owner = input.owner ? await personByName(db, input.owner) : null
   if (owner && 'error' in owner) return { error: owner.error, status: 400 }
   const { ids, unmatched } = await caseIds(db, input.cases ?? [])
+  // No owner given: the writer of its cases' pages (the one most of them share), who writes and rewords them.
+  let ownerId = owner && 'id' in owner ? owner.id : null
+  if (!ownerId && ids.length) {
+    const { data: rows } = await db.from('test_cases').select('areas(owner_id)').in('id', ids)
+    const n = new Map<string, number>()
+    for (const r of rows ?? []) { const a = (Array.isArray(r.areas) ? r.areas[0] : r.areas) as { owner_id: string | null } | null; if (a?.owner_id) n.set(a.owner_id, (n.get(a.owner_id) ?? 0) + 1) }
+    ownerId = [...n.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+  }
   const ticket = input.ticket ? await ticketId(db, input.ticket) : null
   if (input.ticket && !ticket) return { error: `No ticket ${input.ticket}`, status: 404 }
   const { data: open } = input.kind === 'need' && input.need_key
@@ -58,7 +66,7 @@ export async function createAsk(db: Db, input: CreateInput, actor: Actor, dryRun
   if (!ask) {
     const { data, error } = await db.from('asks').insert({
       kind: input.kind, title: input.title, detail: input.detail ?? null, need_key: input.need_key ?? null, store: input.store ?? null,
-      options: input.options ?? null, owner_id: owner?.id ?? null, due_on: input.due_on ?? null, ticket_id: ticket,
+      options: input.options ?? null, owner_id: ownerId, due_on: input.due_on ?? null, ticket_id: ticket,
       created_by: actor.personId, created_via: actor.tokenId ?? null,
     }).select('id, key').single()
     if (error) return { error: error.message, status: 500 }

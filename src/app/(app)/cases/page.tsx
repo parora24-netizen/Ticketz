@@ -16,6 +16,8 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
   const scope = sprint ? sprintAreas.filter((x) => x.sprint_id === sprint.id).map((x) => x.area_id) : undefined
   const [all, runs] = await Promise.all([loadCases(scope), sprint ? loadSprintRuns(sprint.id) : Promise.resolve(undefined)])
   const asks = await loadWaitingAsks(all)
+  // The writer of a case is its page's writer.
+  const writerOf = new Map(areas.map((a) => [a.id, people.find((p) => p.id === a.owner_id)?.name ?? null]))
   // Each page's fix sprint (the first it is planned in), so cases can be filtered by sprint.
   const fixSprints = sprints.filter((s) => s.kind === 'fix').sort((a, b) => a.starts_on.localeCompare(b.starts_on))
   const sprintOfArea = new Map<string, string>()
@@ -47,6 +49,7 @@ export default async function CasesPage({ searchParams }: { searchParams: Promis
       stage: STAGE_LABEL[caseStage(toStageInput(c, runs))],
       open_tickets: c.open_fix + c.awaiting_retest,
       tester_name: c.tester_name,
+      writer: writerOf.get(c.area_id) ?? null,
       sprint: sprintOfArea.get(c.area_id) ?? 'Not planned',
     }))
   const area = sp.area ? areas.find((a) => a.id === sp.area) : undefined

@@ -24,9 +24,9 @@ export function AsksGrid({ rows, people }: { rows: Row[]; people: string[] }) {
     { key: 'sprint', header: 'Sprint', width: 90, value: (r) => r.sprint || 'No sprint' },
     { key: 'owner', header: 'Owner', width: 130, value: (r) => r.owner ?? 'No owner', edit: { field: 'owner', kind: 'select', options: owners },
       render: (r) => <span title={r.handed_from ? `Handed over by ${r.handed_from} until ${r.owner} replies` : undefined}>{r.owner ?? <span className="text-[var(--faint)]">No owner</span>}{r.handed_from && <span className="text-[var(--muted)]"> ← {r.handed_from}</span>}</span> },
-    // Open or Closed; how a closed ask was settled is its Outcome.
+    // Open (the owner's move), Answered (the raiser's: close or send back), Closed; how it was answered is its Outcome.
     { key: 'state', header: 'State', width: 90, value: (r) => askDisplay(r.kind, r.state as AskState).state,
-      render: (r) => <Chip tone={r.state === 'open' ? 'accent' : 'muted'}>{askDisplay(r.kind, r.state as AskState).state}</Chip> },
+      render: (r) => <Chip tone={r.state === 'open' ? 'accent' : r.state === 'answered' ? 'good' : 'muted'}>{askDisplay(r.kind, r.state as AskState).state}</Chip> },
     { key: 'outcome', header: 'Outcome', width: 140, value: (r) => askDisplay(r.kind, r.state as AskState, r.outcome, r.suite_need).outcome || 'Not yet',
       render: (r) => { const o = askDisplay(r.kind, r.state as AskState, r.outcome, r.suite_need).outcome; return o ? <span className={o === 'Suite change' ? 'font-medium text-[var(--warn)]' : ''} title={r.suite_need ?? undefined}>{o}</span> : <span className="text-[var(--faint)]">Not yet</span> } },
     { key: 'due', header: 'Due', width: 110, mono: true, value: (r) => r.due_on ?? '', edit: { field: 'due_on', kind: 'date' },
@@ -40,7 +40,7 @@ export function AsksGrid({ rows, people }: { rows: Row[]; people: string[] }) {
     <DataGrid rows={rows.map((r) => ({ ...r, id: r.key }))} columns={cols} csvName="asks" selectable searchPlaceholder="Search asks"
       defaultSort={[{ key: 'cases', dir: -1 }]} initialFilters={{ state: ['Open'] }}
       onView={(shown) => rememberList('asks', shown.map((r) => r.key), shown.length === rows.length ? 'all asks' : 'your filtered asks')}
-      charts={[{ key: 'state', title: 'By state', order: ['Open', 'Closed'] }, { key: 'outcome', title: 'By outcome' }, { key: 'owner', title: 'By owner' }, { key: 'zone', title: 'By zone' }, { key: 'sprint', title: 'By sprint' }, { key: 'kind', title: 'By kind' }]}
+      charts={[{ key: 'state', title: 'By state', order: ['Open', 'Answered', 'Closed'] }, { key: 'outcome', title: 'By outcome' }, { key: 'owner', title: 'By owner' }, { key: 'zone', title: 'By zone' }, { key: 'sprint', title: 'By sprint' }, { key: 'kind', title: 'By kind' }]}
       onSave={async (ids, patch) => {
         // Owner and due date, one ask at a time through the same change the ask page makes.
         const p: { owner?: string | null; due_on?: string | null } = {}

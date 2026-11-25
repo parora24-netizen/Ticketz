@@ -1,7 +1,7 @@
 import 'server-only'
 import { askZone } from './ask-zone'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { OUTCOME_LABEL, askStatus, closeWith, holdActive, type AskKind, type AskState, type Outcome } from '@/lib/automation-loop'
+import { OUTCOME_LABEL, askStatus, settleWith, holdActive, type AskKind, type AskState, type Outcome } from '@/lib/automation-loop'
 import { casesByAnyId, currentTicketKey } from '@/lib/ids'
 // Asks reach their owners in the 10:00 digest; only a discussion (a tag, a hand-over) emails as it happens.
 import { emailAboutAskComment } from '@/lib/email'
@@ -17,7 +17,7 @@ export type AskRow = {
   id: string; key: string; kind: AskKind; title: string; detail: string | null; need_key: string | null; store: string | null
   options: string[] | null; owner_id: string | null; due_on: string | null; state: AskState; answer: string | null; outcome: Outcome | null
   ticket_id: string | null; created_by: string | null; created_via: string | null; resolved_by: string | null; resolved_at: string | null; created_at: string; updated_at: string
-  suite_need?: string | null; handed_from_id?: string | null; duplicate_of?: string | null
+  suite_need?: string | null; handed_from_id?: string | null; duplicate_of?: string | null; closed_at?: string | null; closed_by?: string | null
 }
 
 /** An active person by name (exact first, else the one name containing it). */
@@ -83,7 +83,7 @@ export async function createAsk(db: Db, input: CreateInput, actor: Actor, dryRun
 
 type PatchInput = {
   title?: string; detail?: string | null; state?: string; answer?: string | null; outcome?: string | null; store?: string | null
-  owner?: string | null; due_on?: string | null; add_cases?: string[]; remove_cases?: string[]; suite?: string | null; duplicate_of?: string
+  owner?: string | null; due_on?: string | null; add_cases?: string[]; remove_cases?: string[]; suite?: string | null; duplicate_of?: string; comment?: string
 }
 
 /** Who owns the asks waiting on a suite change (Admin setting suite_owner): the person who keeps the e2e suite. */
@@ -93,10 +93,11 @@ export async function suiteOwnerId(db: Db): Promise<string | null> {
 }
 
 /**
- * Change an ask. Closing it takes one outcome (closeWith), and the outcome does its work on the
- * cases: deferred and retired take them (and their open tickets) out, manual keeps them for testing
- * by hand, duplicate moves them to the ask that covers it. suite hands an open ask to the suite's
- * owner until the suite can do what it needs.
+ * Change an ask. Its owner answers it with one outcome (settleWith), which does its work on the
+ * cases at once: deferred and retired take them (and their open tickets) out, manual keeps them for
+ * testing by hand, duplicate moves them to the ask that covers it (and closes it). Whoever raised it
+ * (or the lead) then closes it, or sends it back with a comment saying why. suite hands an open ask
+ * to the suite's owner until the suite can do what it needs.
  */
 export async function patchAsk(db: Db, key: string, p: PatchInput, actor: Actor, dryRun = false) {
   const { data: ask } = await db.from('asks').select('*').eq('key', key.toUpperCase()).maybeSingle()
@@ -104,15 +105,23 @@ export async function patchAsk(db: Db, key: string, p: PatchInput, actor: Actor,
   const a = ask as AskRow
   const owner = p.owner ? await personByName(db, p.owner) : null
   if (owner && 'error' in owner) return { error: owner.error, status: 400 }
-  const close = closeWith(p.state, p.outcome)
-  if (close.error) return { error: close.error, status: 400 }
-  const closing = close.state === 'done' && a.state === 'open'
-  const reopening = close.state === 'open' && a.state !== 'open'
+  const move = settleWith(p.state, p.outcome)
+  if (move.error) return { error: move.error, status: 400 }
+  const answering = a.state === 'open' && !!move.state && move.state !== 'open'
+  const closing = move.state === 'closed' && a.state !== 'closed'
+  const reopening = move.state === 'open' && a.state !== 'open'
+  if (closing && a.state === 'open' && !move.outcome) return { error: 'Answer it first: say how (an outcome), then it can be closed', status: 400 }
+  if ((closing && !answering) || reopening) {
+    // Closing an answered ask, or sending one back, is for whoever raised it, or the lead.
+    const { data: who } = actor.personId ? await db.from('people').select('role').eq('id', actor.personId).maybeSingle() : { data: null }
+    if (actor.personId !== a.created_by && who?.role !== 'lead') return { error: `Only whoever raised ${a.key}, or the lead, can ${closing ? 'close it' : 'send it back'}`, status: 403 }
+    if (reopening && !p.comment?.trim()) return { error: 'Say why it goes back', status: 400 }
+  }
   const reason = (p.answer ?? '').trim()
-  if (closing && close.outcome === 'answered' && !reason && !a.answer) return { error: 'Write the answer', status: 400 }
-  if (closing && (close.outcome === 'deferred' || close.outcome === 'retired') && !reason) return { error: `Say why the cases are ${close.outcome}`, status: 400 }
+  if (answering && move.outcome === 'replied' && !reason && !a.answer) return { error: 'Write the reply', status: 400 }
+  if (answering && (move.outcome === 'deferred' || move.outcome === 'retired') && !reason) return { error: `Say why the cases are ${move.outcome}`, status: 400 }
   let dup: { id: string; key: string } | null = null
-  if (closing && close.outcome === 'duplicate') {
+  if (answering && move.outcome === 'duplicate') {
     if (!p.duplicate_of) return { error: 'Say which ask covers it', status: 400 }
     const { data: d } = await db.from('asks').select('id, key').eq('key', p.duplicate_of.toUpperCase()).maybeSingle()
     if (!d) return { error: `No ask ${p.duplicate_of}`, status: 404 }
@@ -127,12 +136,12 @@ export async function patchAsk(db: Db, key: string, p: PatchInput, actor: Actor,
   const ownerId = p.owner !== undefined ? (owner && 'id' in owner ? owner.id : null) : p.suite && suiteOwner ? suiteOwner : undefined
   const fields = Object.fromEntries(Object.entries({
     title: p.title, detail: p.detail, answer: p.answer, store: p.store, due_on: p.due_on,
-    state: close.state, outcome: close.state ? close.outcome : undefined,
+    state: move.state, outcome: move.outcome,
     owner_id: ownerId,
     suite_need: p.suite !== undefined ? p.suite : reopening ? null : undefined,
-    // A hand-off ends when the ask closes, reopens, or someone gives it to a person.
-    handed_from_id: closing || reopening || ownerId !== undefined ? null : undefined,
-    duplicate_of: closing ? dup?.id ?? null : reopening ? null : undefined,
+    // A hand-off ends when the ask is answered, goes back, or someone gives it to a person.
+    handed_from_id: answering || reopening || ownerId !== undefined ? null : undefined,
+    duplicate_of: answering ? dup?.id ?? null : reopening ? null : undefined,
   }).filter(([, v]) => v !== undefined))
   const add = await caseIds(db, p.add_cases ?? []), remove = await caseIds(db, p.remove_cases ?? [])
   if (dryRun) return { key: a.key, changes: fields, add_cases: add.ids.length, remove_cases: remove.ids.length, unmatched: [...add.unmatched, ...remove.unmatched], dry_run: true }
@@ -142,7 +151,9 @@ export async function patchAsk(db: Db, key: string, p: PatchInput, actor: Actor,
   }
   if (add.ids.length) await db.from('ask_cases').upsert(add.ids.map((case_id) => ({ ask_id: a.id, case_id })), { ignoreDuplicates: true })
   if (remove.ids.length) await db.from('ask_cases').delete().eq('ask_id', a.id).in('case_id', remove.ids)
-  const effect = closing ? await applyOutcome(db, { ...a, ...fields } as AskRow, actor, dup) : undefined
+  const effect = answering ? await applyOutcome(db, { ...a, ...fields } as AskRow, actor, dup) : undefined
+  // Why it went back (or any note sent with the change) goes in its discussion.
+  if (p.comment?.trim()) await commentOnAsk(db, a.key, p.comment, false, actor)
   return { key: a.key, effect }
 }
 
@@ -262,7 +273,8 @@ export async function askJson(db: Db, rows: AskRow[]) {
     key: r.key, kind: r.kind, title: r.title, zone: askZone(zones.get(r.id), r.title),
     sprint: [...(askSprints.get(r.id) ?? new Map<string, string>())].sort((a, b) => a[1].localeCompare(b[1])).map(([n]) => n).join(', ') || null, detail: r.detail, need_key: r.need_key, store: r.store, options: r.options,
     owner: r.owner_id ? name.get(r.owner_id) ?? null : null, due_on: r.due_on, state: r.state, status: askStatus(r.kind, r.state, r.outcome, r.suite_need),
-    answer: r.answer, outcome: r.outcome, outcome_label: r.state === 'open' ? null : OUTCOME_LABEL[r.outcome ?? 'answered'],
+    answer: r.answer, outcome: r.outcome, outcome_label: r.state === 'open' ? null : OUTCOME_LABEL[r.outcome ?? 'replied'] ?? null,
+    closed_by: r.closed_by ? name.get(r.closed_by) ?? null : null, closed_at: r.closed_at ?? null,
     suite_need: r.state === 'open' ? r.suite_need ?? null : null, handed_from: r.handed_from_id ? name.get(r.handed_from_id) ?? null : null,
     duplicate_of: r.duplicate_of ? dupKey.get(r.duplicate_of) ?? null : null, ticket: r.ticket_id ? key.get(r.ticket_id) ?? null : null,
     cases: (cases.get(r.id) ?? []).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), cases_waiting: r.state === 'open' ? cases.get(r.id)?.length ?? 0 : 0,
@@ -299,6 +311,10 @@ export async function loadInbox(db: Db, person: { id: string; role: string }): P
   ])
   const name = new Map((people ?? []).map((p) => [p.id, p.name]))
   const items: InboxItem[] = []
+  // Asks this person raised that their owners answered: check, then close or send back.
+  const { data: answered } = await db.from('asks').select('key, title, outcome, resolved_by').eq('state', 'answered').eq('created_by', person.id).order('resolved_at')
+  for (const a of answered ?? []) items.push({ type: 'close', title: `Check and close ${a.key}: ${a.title}`, href: `/asks/${a.key}`,
+    detail: `${OUTCOME_LABEL[a.outcome as keyof typeof OUTCOME_LABEL] ?? 'Answered'}${a.resolved_by ? ` by ${name.get(a.resolved_by) ?? 'someone'}` : ''}` })
   for (const a of asks ?? []) {
     const overdue = !!a.due_on && a.due_on < now
     const mine = a.owner_id === person.id

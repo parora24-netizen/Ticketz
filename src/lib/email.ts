@@ -94,7 +94,7 @@ export async function emailAboutAskComment(askKey: string, body: string, actorId
   }
 }
 
-/** One person's asks for the digest: open ones they own, new or overdue among them, and closed ones they raised, since a moment. */
+/** One person's asks for the digest: open ones they own (new since a moment, overdue), and answered ones they raised, to close. */
 async function digestAsks(personId: string, since: string): Promise<DigestAsks> {
   const today = new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 10)
   const zoneOf = (rows: unknown) => {
@@ -107,14 +107,14 @@ async function digestAsks(personId: string, since: string): Promise<DigestAsks> 
   }
   const [{ data: open }, { data: closed }] = await Promise.all([
     db().from('asks').select('key, title, due_on, created_at, ask_cases(test_cases(areas(zone)))').eq('state', 'open').eq('owner_id', personId).order('created_at', { ascending: false }),
-    db().from('asks').select('key, title, outcome, resolved_at').eq('created_by', personId).neq('state', 'open').gt('resolved_at', since).order('resolved_at', { ascending: false }),
+    db().from('asks').select('key, title, outcome, resolved_at').eq('created_by', personId).eq('state', 'answered').order('resolved_at'),
   ])
   const mine = (open ?? []).map((a) => ({ key: a.key as string, title: a.title as string, due_on: a.due_on as string | null, created_at: a.created_at as string, zone: zoneOf(a.ask_cases) }))
   return {
     open: mine.length, since,
     fresh: mine.filter((a) => a.created_at > since),
     overdue: mine.filter((a) => a.due_on && a.due_on < today).sort((x, y) => (x.due_on ?? '').localeCompare(y.due_on ?? '')),
-    closed: (closed ?? []).map((a) => ({ key: a.key as string, title: a.title as string, outcome: OUTCOME_LABEL[(a.outcome ?? 'answered') as Outcome] })),
+    toClose: (closed ?? []).map((a) => ({ key: a.key as string, title: a.title as string, outcome: OUTCOME_LABEL[(a.outcome ?? 'replied') as Outcome], fresh: (a.resolved_at as string) > since })),
   }
 }
 
@@ -127,8 +127,8 @@ async function lastDigestAt(personId: string): Promise<string> {
 /** One person's digest, or null when nothing waits on them and nothing they raised was closed. */
 async function buildDigest(p: { id: string; name: string; role: string }): Promise<Mail | null> {
   const [items, asks] = await Promise.all([loadInbox(db(), p), lastDigestAt(p.id).then((since) => digestAsks(p.id, since))])
-  const others = items.filter((i) => !['need', 'question', 'decision'].includes(i.type))
-  if (!others.length && !asks.open && !asks.closed.length) return null
+  const others = items.filter((i) => !['need', 'question', 'decision', 'close'].includes(i.type))
+  if (!others.length && !asks.open && !asks.toClose.length) return null
   return digestEmail(p.name, items, appUrl(), asks)
 }
 

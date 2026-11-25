@@ -8,7 +8,7 @@ import { KIND_LABEL, askDisplay, type AskState } from '@/lib/automation-loop'
 import { loadPeople } from '@/lib/data'
 import { createClient } from '@/lib/supabase/server'
 import { ListNav } from '@/components/list-nav'
-import { AskActions, AskDiscussion, AskOwnerDue, AskReopen, SuiteDone, type AskCase } from './ask-controls'
+import { AskActions, AskDiscussion, AskOwnerDue, AskVerdict, SuiteDone, type AskCase } from './ask-controls'
 
 const when = (at: string) => new Date(at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' })
 
@@ -44,7 +44,7 @@ export default async function AskPage({ params, searchParams }: { params: Promis
     <>
       <ListNav name="asks" current={a.key} fallback={fallback.includes(a.key) ? fallback : [a.key, ...fallback]} fallbackFrom="open asks" base="/asks" noun="ask" />
       <PageHeader title={a.title} sub={<><span className="mono">{a.key}</span> · {KIND_LABEL[a.kind]}{a.created_by ? ` · asked by ${a.created_by}` : ''} · {new Date(a.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })}</>}>
-        <Chip tone={isOpen ? 'accent' : 'muted'}>{shown.state}</Chip>
+        <Chip tone={isOpen ? 'accent' : a.state === 'answered' ? 'good' : 'muted'}>{shown.state}</Chip>
         {shown.outcome && <Chip tone={isOpen ? 'warn' : 'muted'}>{shown.outcome}</Chip>}
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
@@ -55,14 +55,17 @@ export default async function AskPage({ params, searchParams }: { params: Promis
               {a.detail && <p className="whitespace-pre-wrap text-[var(--ink-2)]">{a.detail}</p>}
               {a.options?.length ? <div><h3 className="label">Options</h3><ul className="mt-1 list-disc pl-5">{a.options.map((o) => <li key={o}>{o}</li>)}</ul></div> : null}
               {!isOpen && (
-                <div className="flex items-start justify-between gap-3 border border-[var(--line-soft)] bg-[var(--surface-3)] p-3">
-                  <div className="min-w-0">
-                    <h3 className="label">Closed · {shown.outcome}{a.resolved_by ? ` by ${a.resolved_by}` : ''}{a.resolved_at ? `, ${when(a.resolved_at)}` : ''}</h3>
-                    {a.duplicate_of && <p className="mt-1">Covered by <Link href={`/asks/${a.duplicate_of}`} className="mono text-[var(--accent)] hover:underline">{a.duplicate_of}</Link></p>}
-                    {a.store && <p className="mt-1">Stored in <span className="mono">{a.store}</span></p>}
-                    {a.answer && <p className="mt-1 whitespace-pre-wrap">{a.answer}</p>}
-                  </div>
-                  <AskReopen askKey={a.key} />
+                <div className={`border p-3 ${a.state === 'answered' ? 'border-[var(--good-line)] bg-[var(--good-soft)]' : 'border-[var(--line-soft)] bg-[var(--surface-3)]'}`}>
+                  <h3 className="label">Answered · {shown.outcome}{a.resolved_by ? ` by ${a.resolved_by}` : ''}{a.resolved_at ? `, ${when(a.resolved_at)}` : ''}</h3>
+                  {a.duplicate_of && <p className="mt-1">Covered by <Link href={`/asks/${a.duplicate_of}`} className="mono text-[var(--accent)] hover:underline">{a.duplicate_of}</Link></p>}
+                  {a.store && <p className="mt-1">Stored in <span className="mono">{a.store}</span></p>}
+                  {a.answer && <p className="mt-1 whitespace-pre-wrap">{a.answer}</p>}
+                  <p className="mt-2 text-[12px] text-[var(--muted)]">
+                    {a.state === 'closed'
+                      ? `Closed${a.closed_by ? ` by ${a.closed_by}` : ''}${a.closed_at ? `, ${when(a.closed_at)}` : ''}.`
+                      : `Waiting for ${a.created_by === me.name ? 'you' : a.created_by ?? 'whoever raised it'} to check it: close it, or send it back to ${a.owner ?? 'its owner'} saying why.`}
+                  </p>
+                  {(a.created_by === me.name || me.role === 'lead') && <AskVerdict askKey={a.key} state={a.state as 'answered' | 'closed'} owner={a.owner} />}
                 </div>
               )}
             </section>

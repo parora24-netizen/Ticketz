@@ -7,7 +7,7 @@ import { Chip } from '@/components/ui'
 
 export type InboxRow = { type: string; title: string; href: string; zone?: string; detail?: string; due_on?: string | null; overdue?: boolean; count?: number }
 
-const TYPE: Record<string, string> = { need: 'Need', question: 'Question', decision: 'Decision', ticket: 'Ticket', run: 'Run', retest: 'Retest', pr: 'Review', detail: 'Complete text', rewrite: 'Rewrite', approve: 'Approve', runner: 'Runner' }
+const TYPE: Record<string, string> = { need: 'Need', question: 'Question', decision: 'Decision', ticket: 'Ticket', run: 'Run', retest: 'Retest', pr: 'Review', detail: 'Complete text', close: 'Check and close', approve: 'Approve', runner: 'Runner' }
 
 /** Everything waiting on one person, overdue first, filterable by type and zone like the other grids. */
 export function InboxGrid({ rows }: { rows: InboxRow[] }) {

@@ -25,9 +25,9 @@ function useSave(askKey: string) {
 }
 
 /**
- * What the owner can do with an open ask. Most asks end with the cases edited; the rest defer,
+ * How the owner answers an open ask. Most are answered by editing the cases; the rest defer,
  * retire or keep the cases for testing by hand, hand the ask to the suite's owner, record access
- * given, answer in words, or point to the ask that covers it.
+ * given, reply in words, or point to the ask that covers it. Whoever raised it then closes it.
  */
 export function AskActions({ askKey, kind, cases, suiteOwner, suiteNeed }: { askKey: string; kind: AskKind; cases: AskCase[]; suiteOwner: string | null; suiteNeed: string | null }) {
   const { pending, save } = useSave(askKey)
@@ -45,13 +45,13 @@ export function AskActions({ askKey, kind, cases, suiteOwner, suiteNeed }: { ask
     { id: 'manual', label: 'Manual only', hint: 'Keep them, tested by hand and never by the runner.' },
     ...(!suiteNeed ? [{ id: 'suite' as const, label: 'The suite can’t do this', hint: `Hand it to ${suiteOwner ?? 'the suite’s owner'} to add what the suite is missing.` }] : []),
     { id: 'access', label: 'Access given', hint: 'A login, server or mailbox is now set up.' },
-    { id: 'answered', label: 'Answer', hint: 'Reply in words; nothing else changes.' },
+    { id: 'replied', label: 'Reply', hint: 'Answer in words; nothing else changes.' },
     { id: 'duplicate', label: 'Duplicate', hint: 'Another ask already covers it.' },
   ]
   // A need is usually settled by access.
   if (kind === 'need') CHOICES.unshift(...CHOICES.splice(CHOICES.findIndex((c) => c.id === 'access'), 1))
   const pick = (c: Choice) => { setChoice(choice === c ? null : c); setText('') }
-  const close = (state: Outcome, extra: Patch = {}) => save({ state, answer: text.trim() || undefined, ...extra }, `Closed: ${OUTCOME_LABEL[state]}`, () => setChoice(null))
+  const close = (state: Outcome, extra: Patch = {}) => save({ state, answer: text.trim() || undefined, ...extra }, state === 'duplicate' ? 'Closed as a duplicate' : `Answered: ${OUTCOME_LABEL[state]}`, () => setChoice(null))
   const note = (label: string, required: boolean, placeholder?: string) => (
     <label className="block"><span className="label">{label}{required ? '' : ' (optional)'}</span>
       <textarea required={required} value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={5000} placeholder={placeholder} className="input mt-1 w-full" />
@@ -74,20 +74,20 @@ export function AskActions({ askKey, kind, cases, suiteOwner, suiteNeed }: { ask
         <form className="mt-4 space-y-3 border-t border-[var(--line)] pt-4 text-[13px]" onSubmit={(e) => {
           e.preventDefault()
           if (choice === 'edited') {
-            if (!edited && !window.confirm('None of its cases has been edited since this ask was raised. Close it as edited anyway?')) return
+            if (!edited && !window.confirm('None of its cases has been edited since this ask was raised. Answer it as edited anyway?')) return
             close('edited')
           } else if (choice === 'retired') {
             if (window.confirm(`Retire ${n(live.length)}? They leave the suite and their open tickets are deferred.`)) close('retired')
           } else if (choice === 'deferred') close('deferred')
           else if (choice === 'manual') close('manual')
           else if (choice === 'access') close('access', store.trim() ? { store: store.trim() } : {})
-          else if (choice === 'answered') close('answered')
+          else if (choice === 'replied') close('replied')
           else if (choice === 'duplicate') close('duplicate', { duplicate_of: dup.trim() })
           else if (choice === 'suite') save({ suite: text.trim() }, `Handed to ${suiteOwner ?? 'the suite’s owner'} for a suite change`, () => setChoice(null))
         }}>
           {choice === 'edited' && (
             <>
-              <p className="text-[var(--muted)]">Open each case, fix what it says and save. When every case is edited this ask closes by itself; close it here if only some needed a change.</p>
+              <p className="text-[var(--muted)]">Open each case, fix what it says and save. When every case is edited this ask is answered by itself; answer it here if only some needed a change.</p>
               {live.length > 0 ? (
                 <ul className="divide-y divide-[var(--row)] border border-[var(--line-soft)]">
                   {live.map((c) => (
@@ -129,18 +129,18 @@ export function AskActions({ askKey, kind, cases, suiteOwner, suiteNeed }: { ask
               {note('What was set up', false, 'e.g. server, port and database name; never a password')}
             </>
           )}
-          {choice === 'answered' && note('Answer', true)}
+          {choice === 'replied' && note('Reply', true)}
           {choice === 'duplicate' && (
             <>
               <label className="block"><span className="label">The ask that covers it</span>
                 <input required value={dup} onChange={(e) => setDup(e.target.value)} pattern="[Aa][Ss][Kk]-\d+" className="input mono mt-1 w-40" placeholder="ASK-12" />
               </label>
-              <p className="text-[12px] text-[var(--muted)]">{n(cases.length)} move onto that ask.</p>
+              <p className="text-[12px] text-[var(--muted)]">{n(cases.length)} move onto that ask, and this one closes.</p>
             </>
           )}
           <div className="flex gap-2">
             <button disabled={pending} className="btn btn-primary">
-              {pending ? 'Saving…' : choice === 'suite' ? `Hand to ${suiteOwner ?? 'the suite’s owner'}` : `Close: ${OUTCOME_LABEL[choice]}`}
+              {pending ? 'Saving…' : choice === 'suite' ? `Hand to ${suiteOwner ?? 'the suite’s owner'}` : choice === 'duplicate' ? 'Close as a duplicate' : `Answer: ${OUTCOME_LABEL[choice]}`}
             </button>
             <button type="button" disabled={pending} onClick={() => setChoice(null)} className="btn">Cancel</button>
           </div>
@@ -150,20 +150,44 @@ export function AskActions({ askKey, kind, cases, suiteOwner, suiteNeed }: { ask
   )
 }
 
-/** The suite's owner closes an ask once the suite can do what it needed. */
+/** The suite's owner answers an ask once the suite can do what it needed; whoever raised it then retries and closes it. */
 export function SuiteDone({ askKey, need }: { askKey: string; need: string }) {
   const { pending, save } = useSave(askKey)
   return (
     <button type="button" disabled={pending} className="btn btn-sm"
-      onClick={() => { if (window.confirm('Close it: the suite can do this now, so the runner tries its cases again?')) save({ state: 'answered', answer: `The suite can now: ${need}` }, 'Closed: the suite can do it') }}>
+      onClick={() => { if (window.confirm('Answer it: the suite can do this now, so its cases can be tried again?')) save({ state: 'replied', answer: `The suite can now: ${need}` }, 'Answered: the suite can do it') }}>
       The suite can do it now
     </button>
   )
 }
 
-export function AskReopen({ askKey }: { askKey: string }) {
+/**
+ * Whoever raised an answered ask (or the lead) closes it, or sends it back to its owner saying why.
+ * A closed one can be reopened the same way.
+ */
+export function AskVerdict({ askKey, state, owner }: { askKey: string; state: 'answered' | 'closed'; owner: string | null }) {
   const { pending, save } = useSave(askKey)
-  return <button type="button" disabled={pending} onClick={() => save({ state: 'open' }, 'Reopened')} className="btn btn-sm">Reopen</button>
+  const [back, setBack] = useState(false)
+  const [why, setWhy] = useState('')
+  if (back) {
+    return (
+      <form className="mt-3 space-y-2" onSubmit={(e) => { e.preventDefault(); save({ state: 'open', comment: why.trim() }, state === 'answered' ? `Sent back to ${owner ?? 'its owner'}` : 'Reopened', () => { setBack(false); setWhy('') }) }}>
+        <label className="block"><span className="label">{state === 'answered' ? `Why it goes back to ${owner ?? 'its owner'}` : 'Why it is reopened'}</span>
+          <textarea required autoFocus value={why} onChange={(e) => setWhy(e.target.value)} rows={3} maxLength={5000} className="input mt-1 w-full" placeholder="e.g. TC_1248 still fails on step 3: Apply stays enabled" />
+        </label>
+        <div className="flex gap-2">
+          <button disabled={pending} className="btn btn-primary btn-sm">{pending ? 'Saving…' : state === 'answered' ? 'Send back' : 'Reopen'}</button>
+          <button type="button" disabled={pending} onClick={() => setBack(false)} className="btn btn-sm">Cancel</button>
+        </div>
+      </form>
+    )
+  }
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {state === 'answered' && <button type="button" disabled={pending} onClick={() => save({ state: 'closed' }, 'Closed')} className="btn btn-primary btn-sm">Close it</button>}
+      <button type="button" disabled={pending} onClick={() => setBack(true)} className="btn btn-sm">{state === 'answered' ? 'Send back' : 'Reopen'}</button>
+    </div>
+  )
 }
 
 /** Owner and due date, changed in place while the ask is open. */

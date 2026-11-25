@@ -8,7 +8,7 @@ import { casesByAnyId } from '@/lib/ids'
 /**
  * GET /api/asks: what someone has to do for automation to go on: needs (a server, an account, a
  * mailbox), questions and decisions. Filters: kind, state (open, done, declined, or the kind's word:
- * requested, suite, or an outcome: edited, deferred, retired, manual, access, answered, duplicate), owner, need_key, case (a tc_id), limit (max 500).
+ * requested, suite, answered, closed, or an outcome: edited, deferred, retired, manual, access, replied, duplicate), owner, need_key, case (a tc_id), limit (max 500).
  */
 export async function GET(request: NextRequest) {
   const caller = await authenticate(request)
@@ -22,8 +22,10 @@ export async function GET(request: NextRequest) {
   }
   const state = q.get('state')
   if (state === 'suite') query = query.eq('state', 'open').not('suite_need', 'is', null)
-  else if ((OUTCOMES as readonly string[]).includes(state ?? '')) query = query.eq('state', 'done').eq('outcome', state!)
-  else if (state) query = query.eq('state', ['requested', 'open'].includes(state) ? 'open' : 'done')
+  else if ((OUTCOMES as readonly string[]).includes(state ?? '')) query = query.neq('state', 'open').eq('outcome', state!)
+  else if (state === 'answered' || state === 'closed') query = query.eq('state', state)
+  else if (state === 'done') query = query.neq('state', 'open')
+  else if (state) query = query.eq('state', 'open')
   if (q.get('need_key')) query = query.eq('need_key', q.get('need_key')!)
   if (q.get('owner')) {
     const p = await personByName(caller.db, q.get('owner')!)

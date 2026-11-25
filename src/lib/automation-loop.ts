@@ -8,17 +8,19 @@ import { z } from 'zod'
 
 export const ASK_KINDS = ['need', 'question', 'decision'] as const
 export type AskKind = (typeof ASK_KINDS)[number]
-export const ASK_STATES = ['open', 'done', 'declined'] as const
+/** Open: the owner's move. Answered: the owner picked an outcome; whoever raised it checks. Closed: they are satisfied. */
+export const ASK_STATES = ['open', 'answered', 'closed'] as const
 export type AskState = (typeof ASK_STATES)[number]
-/** How a closed ask was settled, whatever its kind. */
-export const OUTCOMES = ['edited', 'deferred', 'retired', 'manual', 'access', 'answered', 'duplicate'] as const
+export const STATE_LABEL: Record<AskState, string> = { open: 'Open', answered: 'Answered', closed: 'Closed' }
+/** How the owner answered an ask, whatever its kind. */
+export const OUTCOMES = ['edited', 'deferred', 'retired', 'manual', 'access', 'replied', 'duplicate'] as const
 export type Outcome = (typeof OUTCOMES)[number]
 export const OUTCOME_LABEL: Record<Outcome, string> = {
   edited: 'Cases edited', deferred: 'Cases deferred', retired: 'Cases retired', manual: 'Manual only',
-  access: 'Access given', answered: 'Answered', duplicate: 'Duplicate',
+  access: 'Access given', replied: 'Replied', duplicate: 'Duplicate',
 }
-/** The words the API took before outcomes covered every kind, and what each became. */
-const LEGACY_OUTCOME: Record<string, Outcome> = { retire: 'manual', rewrite: 'edited', restore: 'answered', other: 'answered' }
+/** Words the API took before, and the outcome each became. */
+const LEGACY_OUTCOME: Record<string, Outcome> = { retire: 'manual', rewrite: 'edited', restore: 'replied', other: 'replied', answered: 'replied' }
 export const BLOCK_CODES = ['needs_write', 'needs_server', 'needs_account', 'needs_mailbox', 'needs_text', 'control_gone', 'screen_hold', 'other'] as const
 
 export const KIND_LABEL: Record<AskKind, string> = { need: 'Need', question: 'Question', decision: 'Decision' }
@@ -28,36 +30,39 @@ export const BLOCK_LABEL: Record<(typeof BLOCK_CODES)[number], string> = {
 }
 
 /**
- * How people see an ask: Open or Closed, and how it was settled. An open ask waiting on the test
- * suite reads Suite change. The API keeps its own words (askStatus) for the runner.
+ * How people see an ask: Open, Answered or Closed, and its outcome once answered. An open ask
+ * waiting on the test suite reads Suite change. The API keeps its own words (askStatus).
  */
-export function askDisplay(_kind: AskKind, state: AskState, outcome?: string | null, suiteNeed?: string | null): { state: 'Open' | 'Closed'; outcome: string } {
+export function askDisplay(_kind: AskKind, state: AskState, outcome?: string | null, suiteNeed?: string | null): { state: string; outcome: string } {
   if (state === 'open') return { state: 'Open', outcome: suiteNeed ? 'Suite change' : '' }
-  return { state: 'Closed', outcome: OUTCOME_LABEL[(outcome ?? 'answered') as Outcome] ?? 'Answered' }
+  return { state: STATE_LABEL[state] ?? 'Closed', outcome: OUTCOME_LABEL[(LEGACY_OUTCOME[outcome ?? ''] ?? outcome ?? 'replied') as Outcome] ?? 'Replied' }
 }
 
-/** The status as the API shows it: requested (a need) or open, suite (waiting on a suite change), or the outcome. */
-export const askStatus = (kind: AskKind, state: AskState, outcome?: string | null, suiteNeed?: string | null) =>
-  state === 'open' ? (suiteNeed ? 'suite' : kind === 'need' ? 'requested' : 'open') : (outcome ?? 'answered')
+/** The status as the API shows it: requested (a need) or open, suite (waiting on a suite change), answered or closed. */
+export const askStatus = (kind: AskKind, state: AskState, _outcome?: string | null, suiteNeed?: string | null) =>
+  state === 'open' ? (suiteNeed ? 'suite' : kind === 'need' ? 'requested' : 'open') : state
 
-/** Any of the API's words for a state: open, requested, done, an outcome, or the older provided, answered, decided and declined. */
-const STATE_WORDS = ['open', 'requested', 'done', 'provided', 'decided', 'declined', ...OUTCOMES] as const
+/** Every word the API takes for state: the states, an outcome (answers with it), and the older done, provided, decided and declined. */
+const STATE_WORDS = ['open', 'requested', 'answered', 'closed', 'done', 'provided', 'decided', 'declined', ...OUTCOMES] as const
 const StateWord = z.enum(STATE_WORDS)
-const OutcomeWord = z.enum([...OUTCOMES, 'retire', 'rewrite', 'restore', 'other'])
+const OutcomeWord = z.enum([...OUTCOMES, 'retire', 'rewrite', 'restore', 'other', 'answered'])
 
 /**
- * What a state word and an outcome come to: open, or closed with one outcome. A closed ask needs
- * its outcome, given as the state (state: "edited") or alongside it (state: "done", outcome: "edited").
+ * Where a state word and an outcome move an ask. An outcome answers it (state: "edited", or
+ * state: "answered" with outcome: "edited"); a duplicate closes at once. "closed" closes an answered
+ * ask, or with an outcome answers and closes in one go. "open" sends it back. "answered" alone is a
+ * reply, as the API's older "answered" meant.
  */
-export function closeWith(state?: string | null, outcome?: string | null): { state?: AskState; outcome?: Outcome | null; error?: string } {
+export function settleWith(state?: string | null, outcome?: string | null): { state?: AskState; outcome?: Outcome | null; error?: string } {
   if (!state && !outcome) return {}
   if (state === 'open' || state === 'requested') return { state: 'open', outcome: null }
   let o = outcome ? (LEGACY_OUTCOME[outcome] ?? outcome) as Outcome : undefined
   if (state && (OUTCOMES as readonly string[]).includes(state)) o = state as Outcome
+  if (state === 'closed') return o ? { state: 'closed', outcome: o } : { state: 'closed' }
   if (state === 'provided') o ??= 'access'
-  if (state === 'declined') o ??= 'answered'
-  if (!o) return { error: `Say how it was settled: ${OUTCOMES.join(', ')}` }
-  return { state: 'done', outcome: o }
+  if (state === 'declined' || state === 'answered') o ??= 'replied'
+  if (!o) return { error: `Say how it was answered: ${OUTCOMES.join(', ')}` }
+  return { state: o === 'duplicate' ? 'closed' : 'answered', outcome: o }
 }
 
 const TcId = z.string().trim().min(1).max(40).transform((s) => s.toUpperCase())
@@ -86,6 +91,8 @@ export const AskPatch = z.strictObject({
   outcome: OutcomeWord.nullable().optional(),
   /** What the test suite cannot do yet; the ask then waits on a suite change, with the suite's owner. null clears it. */
   suite: z.string().trim().min(3).max(2000).nullable().optional(),
+  /** Sending an answered ask back (state: open) needs this: why. It goes in the ask's discussion. */
+  comment: z.string().trim().min(1).max(5000).optional(),
   /** Closing as a duplicate: the ask that covers it (its cases move there). */
   duplicate_of: z.string().trim().regex(/^ASK-\d+$/i, 'An ask key, e.g. ASK-6').transform((s) => s.toUpperCase()).optional(),
   store: z.string().trim().max(200).nullable().optional(),
@@ -170,7 +177,7 @@ export type ChangeRow = { id: number; table_name: string; row_id: string; label:
 export type FeedEvent = { cursor: number; type: string; at: string; [k: string]: unknown }
 
 /** Change log rows as the events a runner acts on; rows that matter to no one give none. */
-export function feedEvents(rows: ChangeRow[], asks: Map<string, { key: string; kind: AskKind }>, areas: Map<string, { zone: string; page: string }>): FeedEvent[] {
+export function feedEvents(rows: ChangeRow[], asks: Map<string, { key: string; kind: AskKind; outcome?: string | null }>, areas: Map<string, { zone: string; page: string }>): FeedEvent[] {
   const out: FeedEvent[] = []
   for (const r of rows) {
     const e = (type: string, extra: Record<string, unknown> = {}) => out.push({ cursor: r.id, type, at: r.at, ...extra })
@@ -194,7 +201,7 @@ export function feedEvents(rows: ChangeRow[], asks: Map<string, { key: string; k
       if (r.action === 'insert') e(`${kind}.created`, { key })
       else if (pair('state')) {
         const to = pair('state')![1] as AskState
-        e(to === 'open' ? `${kind}.reopened` : `${kind}.closed`, to === 'open' ? { key } : { key, outcome: after('outcome') ?? 'answered' })
+        e(`${kind}.${to === 'open' ? 'reopened' : to}`, to === 'open' ? { key } : { key, outcome: after('outcome') ?? ask?.outcome ?? null })
       }
       if (pair('suite_need')?.[1]) e(`${kind}.suite_change`, { key, need: pair('suite_need')![1] })
     } else if (r.table_name === 'automation_prs') {

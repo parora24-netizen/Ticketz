@@ -71,7 +71,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                 <Link href={`/asks/${a.key}`} className="mono text-[12px] font-medium text-[var(--accent)] hover:underline">{a.key}</Link>
                 <span className="flex-1 truncate text-[12.5px]">{a.title}</span>
                 <span className="text-[11.5px] text-[var(--muted)]">{(a.owner as unknown as { name: string } | null)?.name ?? 'No owner'}</span>
-                <Chip tone={a.state === 'open' ? 'accent' : a.state === 'done' ? 'good' : 'muted'}>{a.state === 'open' ? 'Open' : a.state === 'done' ? 'Done' : 'Declined'}</Chip>
+                <Chip tone={a.state === 'open' ? 'accent' : a.state === 'answered' ? 'good' : 'muted'}>{a.state === 'open' ? 'Open' : a.state === 'answered' ? 'Answered' : 'Closed'}</Chip>
               </li>
             ))}
             {!asks?.length && <li className="px-4 py-3 text-[12.5px] text-[var(--muted)]">No asks match.</li>}

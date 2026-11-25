@@ -135,7 +135,7 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
     },
     {
       title: 'Asks: needs, questions and decisions',
-      what: 'What a person must do before the runner can go on. File a need once per need_key (e.g. server.mssql) with the cases waiting on it; asking again adds cases to the open one. store is where the secret was put, never the secret. New asks go to the writer of their cases\' pages unless an owner is given; owners are notified and see it under Asks. A closed ask has one outcome: edited (the case text was fixed), deferred, retired, manual (tested by hand only), access (a login, server or mailbox was set up), answered or duplicate; status says suite while it waits on a change to the suite. The change feed says when one closes and how. GET /api/asks filters by kind, state, owner, need_key and case; PATCH /api/asks/{key} answers or changes one.',
+      what: 'What a person must do before the runner can go on. File a need once per need_key (e.g. server.mssql) with the cases waiting on it; asking again adds cases to the open one. store is where the secret was put, never the secret. New asks go to the writer of their cases\' pages unless an owner is given; owners are notified and see it under Asks. An ask is open (the owner’s move), answered (the owner picked an outcome: edited, the case text was fixed; deferred; retired; manual, tested by hand only; access, a login, server or mailbox was set up; replied; or duplicate, which closes it at once), or closed. Whoever raised it closes an answered ask (state: closed) once satisfied, or sends it back (state: open, with comment saying why). status says suite while it waits on a change to the suite. The change feed says when one is answered, closed or sent back. GET /api/asks filters by kind, state, owner, need_key and case; PATCH /api/asks/{key} answers or changes one.',
       curl: `curl -X POST "${appUrl}/api/asks" \\
   ${auth} \\
   -H "Content-Type: application/json" \\
@@ -143,7 +143,7 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
     },
     {
       title: 'Change feed',
-      what: 'For a runner that takes no incoming calls: poll with the cursor from the last call. Events: case.text_changed, case.automation_changed, case.block_changed, case.created, ticket.created, ticket.state_changed, need.closed, question.closed, decision.closed (each with its outcome; and .created, .suite_change, .reopened), pr.opened, pr.merged, pr.closed, screen.hold_changed.',
+      what: 'For a runner that takes no incoming calls: poll with the cursor from the last call. Events: case.text_changed, case.automation_changed, case.block_changed, case.created, ticket.created, ticket.state_changed, need|question|decision.answered (with its outcome), .closed, .reopened (sent back), .created and .suite_change, pr.opened, pr.merged, pr.closed, screen.hold_changed.',
       curl: `curl "${appUrl}/api/events?since=0&limit=500" \\
   ${auth}`,
     },

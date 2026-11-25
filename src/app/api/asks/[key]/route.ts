@@ -15,10 +15,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 /**
- * PATCH /api/asks/{key}: close it with one outcome (state: edited, deferred, retired, manual, access,
- * answered or duplicate with duplicate_of; answer says why; store is where a secret was put), hand it
- * to the suite's owner (suite: what the suite cannot do yet), reopen it (state: open), change its
- * owner or due date, or add and remove cases. deferred, retired, manual and duplicate act on the cases.
+ * PATCH /api/asks/{key}: answer it with one outcome (state: edited, deferred, retired, manual, access,
+ * replied, or duplicate with duplicate_of, which also closes it; answer says why; store is where a
+ * secret was put); close an answered ask (state: closed) or send it back (state: open, with comment:
+ * why), both for whoever raised it or the lead; hand it to the suite's owner (suite: what the suite
+ * cannot do yet); change its owner or due date; add and remove cases. deferred, retired, manual and
+ * duplicate act on the cases when it is answered.
  */
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ key: string }> }) {
   const caller = await authenticate(request)

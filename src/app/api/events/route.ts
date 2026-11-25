@@ -7,8 +7,8 @@ const TABLES = ['test_cases', 'tickets', 'asks', 'automation_prs', 'areas']
 /**
  * GET /api/events?since=<cursor>&limit=: what changed since the cursor, oldest first, for a runner
  * that cannot take incoming calls: case.text_changed, case.automation_changed, case.block_changed,
- * case.created, ticket.created, ticket.state_changed, need|question|decision.created, .closed (with
- * its outcome), .suite_change (with need) and .reopened, pr.opened, pr.merged, pr.closed,
+ * case.created, ticket.created, ticket.state_changed, need|question|decision.created, .answered
+ * (with its outcome), .closed, .suite_change (with need) and .reopened (sent back), pr.opened, pr.merged, pr.closed,
  * screen.hold_changed. Poll with the returned cursor; since=0 starts from the beginning.
  */
 export async function GET(request: NextRequest) {
@@ -36,11 +36,11 @@ export async function GET(request: NextRequest) {
   const askIds = [...new Set(rows.filter((r) => r.table_name === 'asks').map((r) => r.row_id))]
   const areaIds = [...new Set(rows.filter((r) => r.table_name === 'areas').map((r) => r.row_id))]
   const [{ data: asks }, { data: areas }] = await Promise.all([
-    askIds.length ? caller.db.from('asks').select('id, key, kind').in('id', askIds) : Promise.resolve({ data: [] }),
+    askIds.length ? caller.db.from('asks').select('id, key, kind, outcome').in('id', askIds) : Promise.resolve({ data: [] }),
     areaIds.length ? caller.db.from('areas').select('id, zone, page').in('id', areaIds) : Promise.resolve({ data: [] }),
   ])
   const events = feedEvents(rows,
-    new Map((asks ?? []).map((a) => [a.id as string, { key: a.key as string, kind: a.kind as AskKind }])),
+    new Map((asks ?? []).map((a) => [a.id as string, { key: a.key as string, kind: a.kind as AskKind, outcome: a.outcome as string | null }])),
     new Map((areas ?? []).map((a) => [a.id as string, { zone: a.zone as string, page: a.page as string }])))
   // The cursor moves past every row read, including those that made no event: always poll from it.
   return NextResponse.json({ events, cursor, more })

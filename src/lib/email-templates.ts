@@ -34,15 +34,15 @@ ${button(url, why === 'tagged' ? 'Reply' : `Open ${a.key}`)}`, base, why === 'ta
   }
 }
 
-export type DigestAsk = { key: string; title: string; zone?: string; due_on?: string | null; outcome?: string }
-/** One person's asks for the morning: how many are open, which are new or overdue, and which they raised were closed. */
-export type DigestAsks = { open: number; overdue: DigestAsk[]; fresh: DigestAsk[]; closed: DigestAsk[]; since: string }
+export type DigestAsk = { key: string; title: string; zone?: string; due_on?: string | null; outcome?: string; fresh?: boolean }
+/** One person's asks for the morning: how many are open, which are new or overdue, and which they raised were answered, to close. */
+export type DigestAsks = { open: number; overdue: DigestAsk[]; fresh: DigestAsk[]; toClose: DigestAsk[]; since: string }
 
-const ASK_TYPES = new Set(['need', 'question', 'decision'])
+const ASK_TYPES = new Set(['need', 'question', 'decision', 'close'])
 
 /**
  * The weekday morning digest: the person's asks first (open, new since the last digest, overdue,
- * and the ones they raised that were closed), then everything else waiting on them.
+ * and answered ones they raised, to check and close), then everything else waiting on them.
  */
 export function digestEmail(name: string, items: InboxItem[], base: string, asks?: DigestAsks): Mail {
   const rest = asks ? items.filter((i) => !ASK_TYPES.has(i.type)) : items
@@ -50,7 +50,7 @@ export function digestEmail(name: string, items: InboxItem[], base: string, asks
   const n = (k: number, one: string, many = `${one}s`) => `${k} ${k === 1 ? one : many}`
   const sinceDay = asks ? new Date(asks.since).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'Asia/Kolkata' }) : ''
   const subject = asks
-    ? [`${n(asks.open, 'open ask')}${asks.fresh.length ? ` (${asks.fresh.length} new)` : ''}`, asks.overdue.length && `${asks.overdue.length} overdue`, rest.length && n(rest.length, 'other thing')].filter(Boolean).join(', ') + ' · Launchpad'
+    ? [`${n(asks.open, 'open ask')}${asks.fresh.length ? ` (${asks.fresh.length} new)` : ''}`, asks.overdue.length && `${asks.overdue.length} overdue`, asks.toClose.length && `${asks.toClose.length} to close`, rest.length && n(rest.length, 'other thing')].filter(Boolean).join(', ') + ' · Launchpad'
     : `${n(items.length, 'thing')} waiting on you in Launchpad${overdue ? ` (${overdue} overdue)` : ''}`
   const askHref = (k: string) => `${base}/asks/${k}`
   const askRow = (x: DigestAsk, extra?: string) => `<tr><td style="padding:6px 0;border-top:1px solid #eef1f5;font-size:13px">
@@ -69,7 +69,7 @@ ${stat(asks.open, 'open asks')}${stat(asks.fresh.length, `new since ${sinceDay}`
 </tr></table>
 ${list(`New since ${sinceDay}`, asks.fresh, (x) => x.due_on ? `due ${day(x.due_on)}` : undefined)}
 ${list('Overdue', asks.overdue, (x) => x.due_on ? `was due ${day(x.due_on)}` : undefined, 10)}
-${list('Asks you raised that were closed', asks.closed, (x) => x.outcome)}` : ''
+${list('Answered: check and close (or send back)', asks.toClose, (x) => [x.outcome, x.fresh && 'new'].filter(Boolean).join(' · '))}` : ''
   const rows = rest.map((i) => `<tr><td style="padding:8px 0;border-top:1px solid #eef1f5;font-size:13px">
 ${i.overdue ? '<span style="color:#c0392b;font-weight:600">Overdue</span> · ' : ''}<a href="${link(base, i.href)}" style="color:#2b57c4;text-decoration:none;font-weight:600">${esc(i.title)}</a>
 ${i.detail || i.due_on ? `<div style="color:#7a8396;font-size:12px;margin-top:2px">${esc([i.detail, i.due_on && `due ${day(i.due_on)}`].filter(Boolean).join(' · '))}</div>` : ''}
@@ -79,7 +79,7 @@ ${i.detail || i.due_on ? `<div style="color:#7a8396;font-size:12px;margin-top:2p
     `Asks: ${asks.open} open, ${asks.fresh.length} new since ${sinceDay}, ${asks.overdue.length} overdue. ${base}/asks`,
     ...asks.fresh.slice(0, 20).map((x) => `- New: ${x.key} ${x.title}\n  ${askHref(x.key)}`),
     ...asks.overdue.slice(0, 10).map((x) => `- Overdue: ${x.key} ${x.title}\n  ${askHref(x.key)}`),
-    ...asks.closed.slice(0, 20).map((x) => `- Closed (${x.outcome}): ${x.key} ${x.title}\n  ${askHref(x.key)}`),
+    ...asks.toClose.slice(0, 20).map((x) => `- Answered (${x.outcome}), to close: ${x.key} ${x.title}\n  ${askHref(x.key)}`),
   ] : []
   return {
     subject,

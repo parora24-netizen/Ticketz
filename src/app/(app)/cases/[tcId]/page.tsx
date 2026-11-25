@@ -15,7 +15,7 @@ import { mismatch } from '@/lib/workflow/case-stage'
 import { addCaseComment, raiseTicket, updateCaseText } from '../../actions'
 import { CaseAutomationField, CaseResultActions, RetireCaseButton, CaseTesterField, UndoResultButton } from '@/components/case-controls'
 import { ProposalButtons } from '@/app/(app)/cases/automation/automation-controls'
-import { BLOCK_LABEL, KIND_LABEL, askStatus, type AskKind, type AskState } from '@/lib/automation-loop'
+import { BLOCK_LABEL, KIND_LABEL, askDisplay, type AskKind, type AskState } from '@/lib/automation-loop'
 import Link from '@/components/link'
 import { RunHistory } from '@/components/run-history'
 import { caseHistory } from '@/lib/runs-server'
@@ -182,7 +182,7 @@ export default async function CasePage({
               </dd></div>
               {asks.length > 0 && (
                 <div className="px-4 py-2.5"><dt className="label mb-1">Waiting on</dt><dd className="space-y-1">
-                  {asks.map((a) => <p key={a.key} className="text-[12.5px]"><Link href={`/asks/${a.key}`} className="mono font-medium text-[var(--accent)] hover:underline">{a.key}</Link> {KIND_LABEL[a.kind]}: {a.title} <span className="text-[var(--muted)]">({askStatus(a.kind, a.state)})</span></p>)}
+                  {asks.map((a) => <p key={a.key} className="text-[12.5px]"><Link href={`/asks/${a.key}`} className="mono font-medium text-[var(--accent)] hover:underline">{a.key}</Link> {KIND_LABEL[a.kind]}: {a.title} <span className="text-[var(--muted)]">({[askDisplay(a.kind, a.state).state, askDisplay(a.kind, a.state).outcome].filter(Boolean).join(' · ')})</span></p>)}
                 </dd></div>
               )}
             </dl>

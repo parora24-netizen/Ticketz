@@ -22,6 +22,18 @@ export const BLOCK_LABEL: Record<(typeof BLOCK_CODES)[number], string> = {
   needs_text: 'Needs case text', control_gone: 'Control no longer exists', screen_hold: 'Screen on hold', other: 'Other',
 }
 
+/**
+ * How people see an ask: Open or Closed, and for a closed one, how it was settled. A need is
+ * Provided, a question Answered, a decision Decided (with what was decided); one closed without
+ * action is Not needed. The API keeps its own words (askStatus) for the runner.
+ */
+export function askDisplay(kind: AskKind, state: AskState, outcome?: string | null): { state: 'Open' | 'Closed'; outcome: string } {
+  if (state === 'open') return { state: 'Open', outcome: '' }
+  if (state === 'declined') return { state: 'Closed', outcome: 'Not needed' }
+  if (kind === 'decision') return { state: 'Closed', outcome: outcome ? `Decided: ${outcome[0].toUpperCase()}${outcome.slice(1)}` : 'Decided' }
+  return { state: 'Closed', outcome: kind === 'need' ? 'Provided' : 'Answered' }
+}
+
 /** The state as the API shows it: requested, provided, answered, decided or declined. */
 export const askStatus = (kind: AskKind, state: AskState) => (state === 'open' ? (kind === 'need' ? 'requested' : 'open') : state === 'declined' ? 'declined' : DONE_WORD[kind])
 

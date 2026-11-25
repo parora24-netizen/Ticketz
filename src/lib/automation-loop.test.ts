@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { AskPatch, CaseAutomation, askStatus, feedEvents, holdActive, retestPasses, type ChangeRow } from './automation-loop'
+import { AskPatch, CaseAutomation, askDisplay, askStatus, feedEvents, holdActive, retestPasses, type ChangeRow } from './automation-loop'
 
 const row = (x: Partial<ChangeRow>): ChangeRow => ({ id: 1, table_name: 'test_cases', row_id: 'r', label: 'TC_1', action: 'update', changes: {}, at: '2026-11-10T00:00:00Z', ...x })
 
@@ -49,6 +49,10 @@ describe('asks and holds', () => {
     expect(askStatus('need', 'open')).toBe('requested')
     expect(askStatus('need', 'done')).toBe('provided')
     expect(askStatus('decision', 'done')).toBe('decided')
+    expect(askDisplay('need', 'open')).toEqual({ state: 'Open', outcome: '' })
+    expect(askDisplay('need', 'done')).toEqual({ state: 'Closed', outcome: 'Provided' })
+    expect(askDisplay('question', 'declined')).toEqual({ state: 'Closed', outcome: 'Not needed' })
+    expect(askDisplay('decision', 'done', 'retire')).toEqual({ state: 'Closed', outcome: 'Decided: Retire' })
     expect(AskPatch.parse({ state: 'provided' }).state).toBe('done')
     expect(AskPatch.parse({ state: 'requested' }).state).toBe('open')
   })

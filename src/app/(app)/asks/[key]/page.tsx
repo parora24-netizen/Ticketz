@@ -4,7 +4,7 @@ import { Flash } from '@/components/flash'
 import { CaseLink, Chip, PageHeader, TicketLink } from '@/components/ui'
 import { getMe } from '@/lib/auth'
 import { askJson, type AskRow } from '@/lib/asks-server'
-import { KIND_LABEL } from '@/lib/automation-loop'
+import { KIND_LABEL, askDisplay, type AskState } from '@/lib/automation-loop'
 import { loadPeople } from '@/lib/data'
 import { createClient } from '@/lib/supabase/server'
 import { ListNav } from '@/components/list-nav'
@@ -27,7 +27,7 @@ export default async function AskPage({ params, searchParams }: { params: Promis
     <>
       <ListNav name="asks" current={a.key} fallback={fallback.includes(a.key) ? fallback : [a.key, ...fallback]} fallbackFrom="open asks" base="/asks" noun="ask" />
       <PageHeader title={a.title} sub={<><span className="mono">{a.key}</span> · {KIND_LABEL[a.kind]}{a.created_by ? ` · asked by ${a.created_by}` : ''} · {new Date(a.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })}</>}>
-        <Chip tone={a.state === 'open' ? 'accent' : a.state === 'done' ? 'good' : 'muted'}>{a.status}</Chip>
+        <Chip tone={a.state === 'open' ? 'accent' : 'muted'}>{askDisplay(a.kind, a.state as AskState).state}</Chip>
       </PageHeader>
       <Flash error={sp.error} ok={sp.ok} />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -36,8 +36,7 @@ export default async function AskPage({ params, searchParams }: { params: Promis
           {a.options?.length ? <div><h3 className="label">Options</h3><ul className="mt-1 list-disc pl-5">{a.options.map((o) => <li key={o}>{o}</li>)}</ul></div> : null}
           {a.state !== 'open' && (
             <div className="border border-[var(--line-soft)] bg-[var(--surface-3)] p-3">
-              <h3 className="label">{a.status[0].toUpperCase() + a.status.slice(1)}{a.resolved_by ? ` by ${a.resolved_by}` : ''}</h3>
-              {a.outcome && <p className="mt-1 font-semibold">Outcome: {a.outcome}</p>}
+              <h3 className="label">Closed · {askDisplay(a.kind, a.state as AskState, a.outcome).outcome}{a.resolved_by ? ` by ${a.resolved_by}` : ''}</h3>
               {a.store && <p className="mt-1">Stored in <span className="mono">{a.store}</span></p>}
               {a.answer && <p className="mt-1 whitespace-pre-wrap">{a.answer}</p>}
             </div>

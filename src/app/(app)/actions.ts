@@ -846,22 +846,29 @@ ${v.data.note}` : ''}` })
 
 export type CaseDetail = {
   case: { id: string; tc_id: string; title: string; priority: string; automation: string; tester_id: string | null; preconditions: string | null; steps: string | null; test_data: string | null; expected: string | null; zone: string; page: string }
-  ticket: { id: string; key: string; title: string; state: string; severity: string; owner_id: string | null; current_sprint_id: string | null; fixed_in_build: string | null; blocked_reason: string | null; description?: string | null; zone?: string | null; page?: string | null } | null
+  ticket: { id: string; key: string; title: string; state: string; severity: string; owner_id: string | null; current_sprint_id: string | null; fixed_in_build: string | null; blocked_reason: string | null; description?: string | null; zone?: string | null; page?: string | null; attachments?: string[] | null; shots?: { name: string; url: string }[] } | null
   runs: { kind: string; result: string; recorded_at: string; note: string | null; who: string | null; files: { name: string; url: string }[] }[]
   comments: { body: string; created_at: string; who: string | null }[]
 }
+/** A ticket's screenshots as short-lived links (the bucket is private). */
+async function ticketShots(supabase: Awaited<ReturnType<typeof createClient>>, paths: string[] | null) {
+  if (!paths?.length) return []
+  const { data } = await supabase.storage.from('evidence').createSignedUrls(paths, 3600)
+  return (data ?? []).filter((l) => l.signedUrl && l.path).map((l) => ({ url: l.signedUrl as string, name: l.path!.split('/').pop()!.replace(/^[0-9a-f-]{36}-/, '') }))
+}
+
 /** A ticket with no test case, for the board's card panel: the ticket, its text and comments. */
 export async function getTicketDetail(ticketId: string): Promise<{ ticket: NonNullable<CaseDetail['ticket']>; comments: CaseDetail['comments'] } | { error: string }> {
   await getMe()
   if (!z.uuid().safeParse(ticketId).success) return { error: 'Unknown ticket' }
   const supabase = await createClient()
   const [{ data: t }, { data: comments }] = await Promise.all([
-    supabase.from('ticket_list').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build, blocked_reason, description, zone, page').eq('id', ticketId).maybeSingle(),
+    supabase.from('ticket_list').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build, blocked_reason, description, zone, page, attachments').eq('id', ticketId).maybeSingle(),
     supabase.from('ticket_comments').select('body, created_at, people(name)').eq('ticket_id', ticketId).order('created_at', { ascending: false }).limit(10),
   ])
   if (!t) return { error: 'Ticket not found' }
   return {
-    ticket: t as NonNullable<CaseDetail['ticket']>,
+    ticket: { ...(t as NonNullable<CaseDetail['ticket']>), shots: await ticketShots(supabase, t.attachments as string[] | null) },
     comments: (comments ?? []).map((m) => ({ body: m.body, created_at: m.created_at, who: (m.people as unknown as { name: string } | null)?.name ?? null })),
   }
 }
@@ -873,8 +880,8 @@ export async function getCaseDetail(caseId: string, ticketId?: string | null): P
   const pick = ticketId && z.uuid().safeParse(ticketId).success ? ticketId : null
   const supabase = await createClient()
   const ticketQuery = pick
-    ? supabase.from('tickets').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build, blocked_reason').eq('id', pick).eq('case_id', caseId).maybeSingle()
-    : supabase.from('tickets').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build, blocked_reason')
+    ? supabase.from('tickets').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build, blocked_reason, description, attachments').eq('id', pick).eq('case_id', caseId).maybeSingle()
+    : supabase.from('tickets').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build, blocked_reason, description, attachments')
       .eq('case_id', caseId).in('state', ['new', 'triaged', 'in_fix', 'reopened', 'ready_for_retest']).order('logged_on', { ascending: false }).limit(1).maybeSingle()
   const [{ data: c }, { data: t }, { data: runs }] = await Promise.all([
     supabase.from('test_cases').select('id, tc_id, title, priority, automation, tester_id, preconditions, steps, test_data, expected, areas(zone, page)').eq('id', caseId).single(),
@@ -895,7 +902,7 @@ export async function getCaseDetail(caseId: string, ticketId?: string | null): P
     : { data: [] }
   return {
     case: { ...c, zone: area?.zone ?? '', page: area?.page ?? '' } as CaseDetail['case'],
-    ticket: (t as CaseDetail['ticket']) ?? null,
+    ticket: t ? { ...(t as NonNullable<CaseDetail['ticket']>), shots: await ticketShots(supabase, t.attachments as string[] | null) } : null,
     runs: (runs ?? []).map((r) => ({
       kind: r.kind, result: r.result, recorded_at: r.recorded_at, note: r.note, who: (r.people as unknown as { name: string } | null)?.name ?? null,
       files: ((r.attachments as string[] | null) ?? []).map((p) => ({ name: p.split('/').pop()!.replace(/^[0-9a-f-]{36}-/, ''), url: signed.get(p) ?? '' })).filter((f) => f.url),

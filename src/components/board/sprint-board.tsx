@@ -519,7 +519,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
         )}
       </Dialog>
 
-      <CaseDrawer nav={nav} caseId={cards.find((c) => c.id === open)?.case_id ?? null} ticketId={cards.find((c) => c.id === open)?.ticket?.id ?? null} onClose={() => setOpen(null)} role={role} people={people} sprints={sprints} active={active} />
+      <CaseDrawer nav={nav} ticketFirst={mode === 'fix'} caseId={cards.find((c) => c.id === open)?.case_id ?? null} ticketId={cards.find((c) => c.id === open)?.ticket?.id ?? null} onClose={() => setOpen(null)} role={role} people={people} sprints={sprints} active={active} />
     </div>
   )
 }

@@ -16,8 +16,10 @@ type Detail = Omit<CaseDetail, 'case'> & { case: CaseDetail['case'] | null }
 const day = (iso: string) => new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 
 /** Work on one case and its open ticket, or a ticket with no case, without leaving the board. Esc or the backdrop closes it. */
-export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, sprints, active = true, nav }: {
+export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, sprints, active = true, nav, ticketFirst = false }: {
   caseId: string | null
+  /** Fix boards: the card is a ticket, so the panel leads with the ticket and the test case follows. */
+  ticketFirst?: boolean
   /** Step through the cards on show: this card's place, and the previous and next one. */
   nav?: { at: number; total: number; prev: () => void; next: () => void }
   /** Show this ticket of the case (any state); otherwise its latest open one. */
@@ -82,6 +84,18 @@ export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, spr
         className="relative flex h-full w-[min(560px,100vw)] flex-col border-l border-[var(--line)] bg-white shadow-[-18px_0_44px_rgba(9,17,38,.18)]">
         <header className="flex items-start gap-3 border-b border-[var(--line)] px-5 py-4">
           <div className="min-w-0 flex-1">
+            {ticketFirst && t ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <Link href={`/tickets/${encodeURIComponent(t.key)}`} className="mono text-[12px] font-medium text-[var(--accent)] hover:underline">{t.key}</Link>
+                  <PriorityChip p={t.severity as 'Critical'} />
+                  <StateChip s={t.state as TicketState} />
+                  {(c?.zone ?? t.zone) && <span className="text-[12px] text-[var(--muted)]">{c?.zone ?? t.zone} · {c?.page ?? t.page}</span>}
+                </div>
+                <h2 className="mt-1 text-[17px] leading-snug font-semibold text-[var(--navy-ink)]">{t.title}</h2>
+                <p className="mt-1 text-[12px] text-[var(--muted)]">{c ? <>Test case <Link href={`/cases/${c.tc_id}`} className="mono text-[var(--accent)] hover:underline">{c.tc_id}</Link>: {c.title}</> : 'No test case: a ticket on its own.'}</p>
+              </>
+            ) : <>
             <div className="flex items-center gap-2">
               {c ? <Link href={`/cases/${c.tc_id}`} className="mono text-[12px] font-medium text-[var(--accent)] hover:underline">{c.tc_id}</Link>
                 : t ? <Link href={`/tickets/${encodeURIComponent(t.key)}`} className="mono text-[12px] font-medium text-[var(--accent)] hover:underline">{t.key}</Link>
@@ -92,6 +106,7 @@ export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, spr
             </div>
             <h2 className="mt-1 text-[17px] leading-snug font-semibold text-[var(--navy-ink)]">{c?.title ?? t?.title ?? 'Loading…'}</h2>
             {data && !c && <p className="mt-1 text-[12px] text-[var(--muted)]">No test case: a ticket on its own.</p>}
+            </>}
           </div>
           {nav && (
             <div className="flex shrink-0 items-center gap-1 text-[12px] text-[var(--muted)]">
@@ -107,67 +122,151 @@ export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, spr
           {error && <p className="text-[13px] text-[var(--crit)]">{error}</p>}
           {data && (
             <>
-              {c && tester && (
-                <section>
-                  <h3 className="label mb-2">Record a result</h3>
-                  {active
-                    ? <div className="flex flex-wrap items-center gap-2"><CaseResultActions caseId={c.id} onDone={reload} /></div>
-                    : <p className="text-[12.5px] text-[var(--muted)]">Start the sprint to record results here, so they count toward it.</p>}
-                </section>
+              {/* The ticket's own words and screenshots: what the bug is. */}
+              {(ticketFirst || !c) && t?.description && <p className="whitespace-pre-wrap text-[13px] text-[var(--ink-2)]">{t.description}</p>}
+              {(ticketFirst || !c) && !!t?.shots?.length && (
+                <ul className="flex flex-wrap gap-2">
+                  {t.shots.map((f) => (
+                    <li key={f.url}><a href={f.url} target="_blank" rel="noreferrer" title={f.name} className="block border border-[var(--line)] hover:border-[var(--navy)]">
+                      {/\.pdf$/i.test(f.name)
+                        ? <span className="flex h-20 w-28 items-center justify-center px-1 text-center text-[11px] text-[var(--accent)]">{f.name}</span>
+                        // eslint-disable-next-line @next/next/no-img-element -- signed link to a private screenshot
+                        : <img src={f.url} alt={f.name} className="h-20 w-28 object-cover" />}
+                    </a></li>
+                  ))}
+                </ul>
               )}
-
-              {!c && t?.description && <p className="whitespace-pre-wrap text-[13px] text-[var(--ink-2)]">{t.description}</p>}
+              {ticketFirst ? (
+                <>
               {t ? (
-                <section className="border border-[var(--line)]">
-                  <div className="flex flex-wrap items-center gap-2 border-b border-[var(--line)] bg-[var(--surface-3)] px-3 py-2">
-                    <Link href={`/tickets/${encodeURIComponent(t.key)}`} className="mono text-[12px] font-medium text-[var(--accent)] hover:underline">{t.key}</Link>
-                    <StateChip s={t.state as TicketState} />
-                    {t.fixed_in_build && <span className="mono text-[11.5px] text-[var(--muted)]">fixed in {t.fixed_in_build}</span>}
-                  </div>
-                  <div className="space-y-3 p-3">
-                    <div className="flex flex-wrap gap-2"><TicketActions ticketId={t.id} moves={allowedMoves(t.state as TicketState, role)} onDone={reload} /></div>
-                    {['new', 'triaged', 'in_fix', 'reopened'].includes(t.state) && <TicketBlock ticketId={t.id} reason={t.blocked_reason} onDone={reload} />}
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                      <label><span className="label">Owner</span>
-                        <TicketField ticketId={t.id} field="owner_id" value={t.owner_id ?? ''} disabled={!tester} onDone={reload}
-                          options={[{ value: '', label: 'Unassigned' }, ...people.map((p) => ({ value: p.id, label: p.name }))]} />
-                      </label>
-                      <label><span className="label">Severity</span>
-                        <TicketField ticketId={t.id} field="severity" value={t.severity} disabled={!tester} onDone={reload}
-                          options={['Critical', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: p }))} />
-                      </label>
-                      <label><span className="label">Sprint</span>
-                        <TicketField ticketId={t.id} field="current_sprint_id" value={t.current_sprint_id ?? ''} disabled={!tester} onDone={reload}
-                          options={[{ value: '', label: 'No sprint' }, ...sprints.map((s) => ({ value: s.id, label: s.name }))]} />
-                      </label>
+                  <section className="border border-[var(--line)]">
+                    <div className="flex flex-wrap items-center gap-2 border-b border-[var(--line)] bg-[var(--surface-3)] px-3 py-2">
+                      <Link href={`/tickets/${encodeURIComponent(t.key)}`} className="mono text-[12px] font-medium text-[var(--accent)] hover:underline">{t.key}</Link>
+                      <StateChip s={t.state as TicketState} />
+                      {t.fixed_in_build && <span className="mono text-[11.5px] text-[var(--muted)]">fixed in {t.fixed_in_build}</span>}
                     </div>
-                    <form className="space-y-2" onSubmit={(e) => {
-                      e.preventDefault()
-                      const body = comment.trim()
-                      if (!body) return
-                      startPost(async () => {
-                        const res = await addTicketComment(t.id, body)
-                        if (res.error) toast(res.error, 'error')
-                        else { setComment(''); toast('Comment added'); void reload() }
-                      })
-                    }}>
-                      <textarea rows={2} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Comment on the ticket" className="input w-full" />
-                      <button disabled={posting || !comment.trim()} className="btn btn-primary">{posting ? 'Posting…' : 'Comment'}</button>
-                    </form>
-                    {data!.comments.length > 0 && (
-                      <ul className="space-y-2 border-l border-[var(--line)] pl-3">
-                        {data!.comments.map((m, i) => (
-                          <li key={i} className="text-[12.5px]">
-                            <span className="text-[11.5px] text-[var(--muted)]"><b className="text-[var(--ink-2)]">{m.who ?? 'Someone'}</b> · {day(m.created_at)}</span>
-                            <p className="whitespace-pre-wrap">{m.body}</p>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </section>
+                    <div className="space-y-3 p-3">
+                      <div className="flex flex-wrap gap-2"><TicketActions ticketId={t.id} moves={allowedMoves(t.state as TicketState, role)} onDone={reload} /></div>
+                      {['new', 'triaged', 'in_fix', 'reopened'].includes(t.state) && <TicketBlock ticketId={t.id} reason={t.blocked_reason} onDone={reload} />}
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <label><span className="label">Owner</span>
+                          <TicketField ticketId={t.id} field="owner_id" value={t.owner_id ?? ''} disabled={!tester} onDone={reload}
+                            options={[{ value: '', label: 'Unassigned' }, ...people.map((p) => ({ value: p.id, label: p.name }))]} />
+                        </label>
+                        <label><span className="label">Severity</span>
+                          <TicketField ticketId={t.id} field="severity" value={t.severity} disabled={!tester} onDone={reload}
+                            options={['Critical', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: p }))} />
+                        </label>
+                        <label><span className="label">Sprint</span>
+                          <TicketField ticketId={t.id} field="current_sprint_id" value={t.current_sprint_id ?? ''} disabled={!tester} onDone={reload}
+                            options={[{ value: '', label: 'No sprint' }, ...sprints.map((s) => ({ value: s.id, label: s.name }))]} />
+                        </label>
+                      </div>
+                      <form className="space-y-2" onSubmit={(e) => {
+                        e.preventDefault()
+                        const body = comment.trim()
+                        if (!body) return
+                        startPost(async () => {
+                          const res = await addTicketComment(t.id, body)
+                          if (res.error) toast(res.error, 'error')
+                          else { setComment(''); toast('Comment added'); void reload() }
+                        })
+                      }}>
+                        <textarea rows={2} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Comment on the ticket" className="input w-full" />
+                        <button disabled={posting || !comment.trim()} className="btn btn-primary">{posting ? 'Posting…' : 'Comment'}</button>
+                      </form>
+                      {data!.comments.length > 0 && (
+                        <ul className="space-y-2 border-l border-[var(--line)] pl-3">
+                          {data!.comments.map((m, i) => (
+                            <li key={i} className="text-[12.5px]">
+                              <span className="text-[11.5px] text-[var(--muted)]"><b className="text-[var(--ink-2)]">{m.who ?? 'Someone'}</b> · {day(m.created_at)}</span>
+                              <p className="whitespace-pre-wrap">{m.body}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </section>
+                ) : (
+                  <p className="text-[12.5px] text-[var(--muted)]">No open ticket.</p>
+                )}
+  
+                  {c && <h3 className="label border-t border-[var(--line)] pt-4">The test case · {c.tc_id}</h3>}
+              {c && tester && (
+                  <section>
+                    <h3 className="label mb-2">Record a result</h3>
+                    {active
+                      ? <div className="flex flex-wrap items-center gap-2"><CaseResultActions caseId={c.id} onDone={reload} /></div>
+                      : <p className="text-[12.5px] text-[var(--muted)]">Start the sprint to record results here, so they count toward it.</p>}
+                  </section>
+                )}
+  
+                </>
               ) : (
-                <p className="text-[12.5px] text-[var(--muted)]">No open ticket.</p>
+                <>
+              {c && tester && (
+                  <section>
+                    <h3 className="label mb-2">Record a result</h3>
+                    {active
+                      ? <div className="flex flex-wrap items-center gap-2"><CaseResultActions caseId={c.id} onDone={reload} /></div>
+                      : <p className="text-[12.5px] text-[var(--muted)]">Start the sprint to record results here, so they count toward it.</p>}
+                  </section>
+                )}
+  
+              {t ? (
+                  <section className="border border-[var(--line)]">
+                    <div className="flex flex-wrap items-center gap-2 border-b border-[var(--line)] bg-[var(--surface-3)] px-3 py-2">
+                      <Link href={`/tickets/${encodeURIComponent(t.key)}`} className="mono text-[12px] font-medium text-[var(--accent)] hover:underline">{t.key}</Link>
+                      <StateChip s={t.state as TicketState} />
+                      {t.fixed_in_build && <span className="mono text-[11.5px] text-[var(--muted)]">fixed in {t.fixed_in_build}</span>}
+                    </div>
+                    <div className="space-y-3 p-3">
+                      <div className="flex flex-wrap gap-2"><TicketActions ticketId={t.id} moves={allowedMoves(t.state as TicketState, role)} onDone={reload} /></div>
+                      {['new', 'triaged', 'in_fix', 'reopened'].includes(t.state) && <TicketBlock ticketId={t.id} reason={t.blocked_reason} onDone={reload} />}
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <label><span className="label">Owner</span>
+                          <TicketField ticketId={t.id} field="owner_id" value={t.owner_id ?? ''} disabled={!tester} onDone={reload}
+                            options={[{ value: '', label: 'Unassigned' }, ...people.map((p) => ({ value: p.id, label: p.name }))]} />
+                        </label>
+                        <label><span className="label">Severity</span>
+                          <TicketField ticketId={t.id} field="severity" value={t.severity} disabled={!tester} onDone={reload}
+                            options={['Critical', 'High', 'Medium', 'Low'].map((p) => ({ value: p, label: p }))} />
+                        </label>
+                        <label><span className="label">Sprint</span>
+                          <TicketField ticketId={t.id} field="current_sprint_id" value={t.current_sprint_id ?? ''} disabled={!tester} onDone={reload}
+                            options={[{ value: '', label: 'No sprint' }, ...sprints.map((s) => ({ value: s.id, label: s.name }))]} />
+                        </label>
+                      </div>
+                      <form className="space-y-2" onSubmit={(e) => {
+                        e.preventDefault()
+                        const body = comment.trim()
+                        if (!body) return
+                        startPost(async () => {
+                          const res = await addTicketComment(t.id, body)
+                          if (res.error) toast(res.error, 'error')
+                          else { setComment(''); toast('Comment added'); void reload() }
+                        })
+                      }}>
+                        <textarea rows={2} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Comment on the ticket" className="input w-full" />
+                        <button disabled={posting || !comment.trim()} className="btn btn-primary">{posting ? 'Posting…' : 'Comment'}</button>
+                      </form>
+                      {data!.comments.length > 0 && (
+                        <ul className="space-y-2 border-l border-[var(--line)] pl-3">
+                          {data!.comments.map((m, i) => (
+                            <li key={i} className="text-[12.5px]">
+                              <span className="text-[11.5px] text-[var(--muted)]"><b className="text-[var(--ink-2)]">{m.who ?? 'Someone'}</b> · {day(m.created_at)}</span>
+                              <p className="whitespace-pre-wrap">{m.body}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </section>
+                ) : (
+                  <p className="text-[12.5px] text-[var(--muted)]">No open ticket.</p>
+                )}
+  
+                </>
               )}
 
               {c && <section className="grid grid-cols-2 gap-3">

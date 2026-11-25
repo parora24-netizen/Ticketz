@@ -10,7 +10,8 @@ import { OPEN, failureText, type RaisePayload } from '@/lib/tickets-api'
 import { fixSprintForArea } from '@/lib/workflow/fix-sprint'
 
 type Db = ReturnType<typeof createServiceClient>
-export const SCOPES = ['read', 'create', 'update', 'assign', 'comment', 'automation'] as const
+/** "cases" (edit a test case's text, add, retire) is never a default: a lead grants it to chosen tokens. */
+export const SCOPES = ['read', 'create', 'update', 'assign', 'comment', 'automation', 'cases'] as const
 export type Scope = (typeof SCOPES)[number]
 export type Caller = { db: Db; tokenId: string; label?: string; actorId: string | null; role: 'runner' | 'tester'; scopes?: Scope[] }
 

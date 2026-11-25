@@ -412,6 +412,24 @@ export async function revealCiToken(id: string): Promise<{ error?: string; token
   }
 }
 
+/** Give a token the "cases" scope (edit, add and retire test cases), or take it away. Lead only. */
+export async function setTokenCasesScope(formData: FormData) {
+  const me = await getMe()
+  if (me.role !== 'lead') fail('/admin?tab=ci', 'Only the lead changes what a token may do')
+  const id = z.uuid().safeParse(String(formData.get('token_id')))
+  if (!id.success) fail('/admin?tab=ci', 'No such token')
+  const on = formData.get('on') === '1'
+  const supabase = await createClient()
+  const { data: tok } = await supabase.from('ci_tokens').select('role, scopes').eq('id', id.data).single()
+  if (!tok) fail('/admin?tab=ci', 'No such token')
+  const now = scopesOf(tok as { role: string; scopes: string[] | null })
+  const scopes = on ? [...new Set([...now, 'cases'])] : now.filter((s) => s !== 'cases')
+  const { error } = await supabase.from('ci_tokens').update({ scopes }).eq('id', id.data)
+  if (error) fail('/admin?tab=ci', error.message)
+  revalidatePath('/admin')
+  redirect(withMessage('/admin?tab=ci', 'ok', on ? 'The token can now edit, add and retire test cases' : 'The token can no longer edit test cases'))
+}
+
 export async function revokeCiToken(formData: FormData) {
   const me = await getMe()
   if (me.role !== 'lead') fail('/admin', 'Only the lead revokes CI tokens')

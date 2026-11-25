@@ -182,6 +182,27 @@ export function TicketsApiExample({ appUrl }: { appUrl: string }) {
   ${auth}`,
     },
     {
+      title: 'Edit a case’s text (cases scope)',
+      what: 'PATCH /api/cases/{tc_id} with any of title, preconditions, steps, test_data, expected, priority, and comment (posted on the case with your reason and evidence). Send revision (or If-Match): if the case has changed since, nothing is written and the answer is 409. The change bumps the revision, is recorded in the case history under the token’s person, and works in bulk as PATCH /api/cases { "cases": [ { "tc_id": "TC_71", ... } ] }. Add ?dry_run=true to see it first. Text and automation fields go in separate calls. Only tokens a lead gave the cases scope (Admin, CI tokens, Allow case edits).',
+      curl: `curl -X PATCH "${appUrl}/api/cases/TC_71?dry_run=true" \
+  ${auth} -H "Content-Type: application/json" \
+  -d '{ "expected": "Save is blocked and a message asks for the current password", "revision": 4, "comment": "The message changed in build index-30748bcb (run overnight-20261124)" }'`,
+    },
+    {
+      title: 'Retire, defer or restore a case (cases scope)',
+      what: 'PATCH /api/cases/{tc_id} with retired: true, retired_as: retired or deferred, and retired_reason; its open tickets are deferred with it. retired: false restores it.',
+      curl: `curl -X PATCH "${appUrl}/api/cases/TC_71" \
+  ${auth} -H "Content-Type: application/json" \
+  -d '{ "retired": true, "retired_as": "deferred", "retired_reason": "Waits for the new Admin design", "revision": 4 }'`,
+    },
+    {
+      title: 'Add a case (cases scope)',
+      what: 'POST /api/cases with zone, page and title, and optionally preconditions, steps, test_data, expected, priority (Medium if left out), test_type, tester (a name), scenario_id and comment. The answer is 201 with the new tc_id. ?dry_run=true shows what would be added.',
+      curl: `curl -X POST "${appUrl}/api/cases" \
+  ${auth} -H "Content-Type: application/json" \
+  -d '{ "zone": "Engine", "page": "Admin", "title": "Verify the Creators list shows the Creator type column", "expected": "Each creator shows Engine Creator or System Admin", "priority": "Medium" }'`,
+    },
+    {
       title: 'Team',
       what: 'The active team with the exact @Name to mention each person.',
       curl: `curl "${appUrl}/api/team" \\

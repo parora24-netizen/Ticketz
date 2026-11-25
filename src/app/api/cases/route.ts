@@ -1,6 +1,8 @@
 import { currentTcIds } from '@/lib/ids'
 import { NextResponse, type NextRequest } from 'next/server'
-import { authenticate } from '@/lib/ci-api'
+import { authenticate, need } from '@/lib/ci-api'
+import { BulkCaseText, CaseCreate, CaseText, hasAutomationKeys, isTextChange } from '@/lib/case-text'
+import { applyCaseText, createCase } from '@/lib/case-text-server'
 import { CasesQuery, automationFromDb, automationToDb, readQuery } from '@/lib/tickets-api'
 import { BulkCaseAutomation } from '@/lib/automation-loop'
 import { applyCaseAutomation, audit, isDryRun } from '@/lib/automation-server'
@@ -84,12 +86,49 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const caller = await authenticate(request)
   if (caller instanceof NextResponse) return caller
+  const body = await request.json().catch(() => null) as { cases?: unknown[] } | null
+  // Text changes (the "cases" scope): every item must be one; automation items go in their own call.
+  if (Array.isArray(body?.cases) && body.cases.some(isTextChange)) {
+    const denied = need(caller, 'cases')
+    if (denied) return denied
+    if (!body.cases.every(isTextChange) || body.cases.some(hasAutomationKeys)) return NextResponse.json({ error: 'Send text changes and automation fields in separate calls' }, { status: 400 })
+    const items = BulkCaseText.safeParse(body)
+    if (!items.success) return NextResponse.json({ error: 'Invalid payload', issues: items.error.issues.slice(0, 10) }, { status: 400 })
+    const parsed = items.data.cases.map(({ tc_id, ...rest }) => ({ tc_id, r: CaseText.safeParse(rest) }))
+    const bad = parsed.find((x) => !x.r.success)
+    if (bad && !bad.r.success) return NextResponse.json({ error: `Invalid change for ${bad.tc_id}`, issues: bad.r.error.issues.slice(0, 10) }, { status: 400 })
+    const results = await applyCaseText(caller, parsed.map((x) => ({ tc_id: x.tc_id, ...(x.r.success ? x.r.data : {}) })), isDryRun(request))
+    const updated = results.filter((r) => r.status === 'updated')
+    if (updated.length) await audit(caller, request, `Changed the text of ${updated.length} case${updated.length === 1 ? '' : 's'}`, updated.map((r) => ({ tc_id: r.tc_id, ...r.changes })))
+    const n = (s: string) => results.filter((r) => r.status === s).length
+    return NextResponse.json({ updated: updated.length, would_update: n('would_update'), unchanged: n('unchanged'), conflicts: n('conflict'), not_found: n('not_found'), errors: n('error'), results })
+  }
   if (caller.role !== 'runner') return NextResponse.json({ error: 'This token cannot change automation fields; use a runner token' }, { status: 403 })
-  const p = BulkCaseAutomation.safeParse(await request.json().catch(() => null))
+  const p = BulkCaseAutomation.safeParse(body)
   if (!p.success) return NextResponse.json({ error: 'Invalid payload. "not_automatable" is proposed with automation_proposed, for a lead to approve.', issues: p.error.issues.slice(0, 10) }, { status: 400 })
   const results = await applyCaseAutomation(caller, p.data.cases, isDryRun(request))
   const updated = results.filter((r) => r.status === 'updated')
   if (updated.length) await audit(caller, request, `Set automation fields on ${updated.length} case${updated.length === 1 ? '' : 's'}`, updated.map((r) => ({ tc_id: r.tc_id, ...r.changes })))
   const count = (s: string) => results.filter((r) => r.status === s).length
   return NextResponse.json({ updated: updated.length, would_update: count('would_update'), unchanged: count('unchanged'), conflicts: count('conflict'), not_found: count('not_found'), errors: count('error'), results })
+}
+
+/**
+ * POST /api/cases: add a test case. Body: zone, page, title, and optionally preconditions, steps,
+ * test_data, expected, priority (default Medium), test_type, tester (a name), scenario_id and
+ * comment. The server gives it the next TC_ id and answers 201 { tc_id }. ?dry_run=true says what
+ * would be added. Auth: a token with the "cases" scope.
+ */
+export async function POST(request: NextRequest) {
+  const caller = await authenticate(request)
+  if (caller instanceof NextResponse) return caller
+  const denied = need(caller, 'cases')
+  if (denied) return denied
+  const p = CaseCreate.safeParse(await request.json().catch(() => null))
+  if (!p.success) return NextResponse.json({ error: 'Invalid payload', issues: p.error.issues.slice(0, 10) }, { status: 400 })
+  const res = await createCase(caller, p.data, isDryRun(request))
+  if (res.error) return NextResponse.json({ error: res.error }, { status: res.status ?? 400 })
+  if (res.would_create) return NextResponse.json({ dry_run: true, would_create: res.would_create })
+  await audit(caller, request, `Added ${res.tc_id}: ${p.data.title}`, { tc_id: res.tc_id, zone: p.data.zone, page: p.data.page })
+  return NextResponse.json({ tc_id: res.tc_id }, { status: 201 })
 }

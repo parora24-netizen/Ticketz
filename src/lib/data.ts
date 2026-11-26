@@ -71,6 +71,8 @@ export type TicketRow = {
   page: string | null
   area_id: string | null
   blocked_reason: string | null
+  /** The ask a blocked ticket waits on. */
+  blocked_ask?: string | null
   blocked_at: string | null
   created_by?: string | null // who raised it
   /** Marked by a lead as what the team works on first. */

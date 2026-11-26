@@ -5,6 +5,7 @@ import { useState, useTransition } from 'react'
 import { Dialog } from '@/components/dialog'
 import { toast } from '@/components/toast'
 import { ACTION_LABEL, STATE_LABEL, requiredFor, type TicketState } from '@/lib/workflow/ticket-machine'
+import Link from '@/components/link'
 import { moveTicketFromBoard, setTicketBlocked, setTicketTesters, updateTickets } from '@/app/(app)/actions'
 
 const ASK = {
@@ -71,20 +72,26 @@ export function TicketActions({ ticketId, moves, onDone }: { ticketId: string; m
 
 /** Owner and severity in the side panel: change and it saves. */
 /** Flag an open ticket blocked with what is blocking it, or clear the flag. */
-export function TicketBlock({ ticketId, reason, onDone }: { ticketId: string; reason: string | null; onDone?: () => void }) {
+/** Blocked: why, and the ask it waits on (it unblocks when that ask is answered). */
+export function TicketBlock({ ticketId, reason, ask, onDone }: { ticketId: string; reason: string | null; ask?: string | null; onDone?: () => void }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
+  const [askKey, setAskKey] = useState('')
   const [pending, start] = useTransition()
   const save = (value: string | null) => start(async () => {
-    const res = await setTicketBlocked(ticketId, value)
+    const res = await setTicketBlocked(ticketId, value, value ? askKey : null)
     if (res.error) toast(res.error, 'error')
-    else { toast(value ? 'Marked blocked' : 'Unblocked'); setOpen(false); setText(''); router.refresh(); onDone?.() }
+    else { toast(value ? 'Marked blocked' : 'Unblocked'); setOpen(false); setText(''); setAskKey(''); router.refresh(); onDone?.() }
   })
   if (reason) {
     return (
       <div className="flex items-start gap-2 border border-[var(--crit-line)] bg-[var(--crit-soft)] px-2.5 py-2 text-[12.5px]">
-        <span className="min-w-0 flex-1"><b className="text-[var(--crit)]">Blocked:</b> <span className="whitespace-pre-wrap">{reason}</span></span>
+        <span className="min-w-0 flex-1"><b className="text-[var(--crit)]">Blocked:</b> <span className="whitespace-pre-wrap">{reason}</span>
+          {ask
+            ? <span className="mt-1 block">Waiting on <Link href={`/asks/${ask}`} className="mono font-medium text-[var(--accent)] hover:underline">{ask}</Link>: it unblocks when that ask is answered.</span>
+            : <span className="mt-1 block text-[var(--muted)]">No ask linked. Raise one, or block it again naming the ask, so it unblocks when answered.</span>}
+        </span>
         <button type="button" disabled={pending} onClick={() => save(null)} className="btn btn-sm">Unblock</button>
       </div>
     )
@@ -93,6 +100,10 @@ export function TicketBlock({ ticketId, reason, onDone }: { ticketId: string; re
   return (
     <form className="w-full space-y-2" onSubmit={(e) => { e.preventDefault(); save(text.trim()) }}>
       <textarea autoFocus required minLength={3} rows={2} value={text} onChange={(e) => setText(e.target.value)} placeholder="What is blocking it?" className="input w-full" />
+      <label className="block text-[12px]"><span className="label">Waiting on ask</span>
+        <input value={askKey} onChange={(e) => setAskKey(e.target.value)} placeholder="ASK-12" className="input mono mt-1 w-32" />
+        <span className="mt-0.5 block text-[var(--muted)]">Leave empty to link the open ask on this ticket or its test case.</span>
+      </label>
       <div className="flex gap-2">
         <button disabled={pending} className="btn btn-primary">{pending ? 'Saving…' : 'Mark blocked'}</button>
         <button type="button" onClick={() => setOpen(false)} className="btn">Cancel</button>

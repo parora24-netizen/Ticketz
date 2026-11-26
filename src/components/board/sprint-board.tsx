@@ -40,7 +40,7 @@ export type SprintCard = {
   needs_ticket: boolean
   /** A fix sprint's ticket with no test case: the card opens the ticket's page. */
   caseless?: boolean
-  ticket: { id: string; key: string; state: TicketState; owner_id: string | null; owner_name: string | null; kind?: 'defect' | 'test_mismatch' | 'task'; blocked_reason?: string | null; focus?: boolean } | null
+  ticket: { id: string; key: string; state: TicketState; owner_id: string | null; owner_name: string | null; kind?: 'defect' | 'test_mismatch' | 'task'; blocked_reason?: string | null; blocked_ask?: string | null; focus?: boolean } | null
 }
 
 const RESULT: Record<string, [string, string]> = {
@@ -305,7 +305,7 @@ export function SprintBoard({ cards, role, meId, people, sprints, active, areas 
           </div>
         )}
         {c.needs_ticket && !c.ticket && <div className="mt-1 text-[11px] font-semibold text-[var(--crit)]">Needs a ticket</div>}
-        {c.ticket?.blocked_reason && <div className="mt-1 line-clamp-2 text-[11px] font-semibold text-[var(--crit)]" title={c.ticket.blocked_reason}>Blocked: <span className="font-normal">{c.ticket.blocked_reason}</span></div>}
+        {c.ticket?.blocked_reason && <div className="mt-1 line-clamp-2 text-[11px] font-semibold text-[var(--crit)]" title={c.ticket.blocked_reason}>Blocked{c.ticket.blocked_ask ? ` · waiting on ${c.ticket.blocked_ask}` : ''}: <span className="font-normal">{c.ticket.blocked_reason}</span></div>}
         {mode === 'fix' && (s === 'triage' || s === 'fix') && (c.ticket?.kind === 'test_mismatch' || c.manual_result === 'passed') && (
           <div className="mt-1 flex flex-wrap gap-1">
             {c.ticket?.kind === 'test_mismatch' && <span className="chip px-1.5 text-[10.5px]">Test issue</span>}

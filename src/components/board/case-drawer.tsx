@@ -147,7 +147,7 @@ export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, spr
                     </div>
                     <div className="space-y-3 p-3">
                       <div className="flex flex-wrap gap-2"><TicketActions ticketId={t.id} moves={allowedMoves(t.state as TicketState, role)} onDone={reload} /></div>
-                      {['new', 'triaged', 'in_fix', 'reopened'].includes(t.state) && <TicketBlock ticketId={t.id} reason={t.blocked_reason} onDone={reload} />}
+                      {['new', 'triaged', 'in_fix', 'reopened'].includes(t.state) && <TicketBlock ticketId={t.id} reason={t.blocked_reason} ask={t.blocked_ask} onDone={reload} />}
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                         <label><span className="label">Owner</span>
                           <TicketField ticketId={t.id} field="owner_id" value={t.owner_id ?? ''} disabled={!tester} onDone={reload}
@@ -222,7 +222,7 @@ export function CaseDrawer({ caseId, ticketId = null, onClose, role, people, spr
                     </div>
                     <div className="space-y-3 p-3">
                       <div className="flex flex-wrap gap-2"><TicketActions ticketId={t.id} moves={allowedMoves(t.state as TicketState, role)} onDone={reload} /></div>
-                      {['new', 'triaged', 'in_fix', 'reopened'].includes(t.state) && <TicketBlock ticketId={t.id} reason={t.blocked_reason} onDone={reload} />}
+                      {['new', 'triaged', 'in_fix', 'reopened'].includes(t.state) && <TicketBlock ticketId={t.id} reason={t.blocked_reason} ask={t.blocked_ask} onDone={reload} />}
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                         <label><span className="label">Owner</span>
                           <TicketField ticketId={t.id} field="owner_id" value={t.owner_id ?? ''} disabled={!tester} onDone={reload}

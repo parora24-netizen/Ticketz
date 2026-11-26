@@ -12,7 +12,7 @@ import { fmtDate, loadPeople, loadSprints, loadTickets } from '@/lib/data'
 import { TicketNav } from '@/components/ticket-nav'
 import { allowedMoves, type TicketState } from '@/lib/workflow/ticket-machine'
 import { addComment, assignToMe } from '../../actions'
-import { TicketActions, TicketField, TicketTesterField } from '@/components/ticket-controls'
+import { TicketActions, TicketBlock, TicketField, TicketTesterField } from '@/components/ticket-controls'
 import { TicketAttach } from './attach'
 import { RemoveShot } from './remove-shot'
 import { FocusStar, FocusToggle } from '@/components/focus'
@@ -98,6 +98,7 @@ export default async function TicketPage({
           <h3 className="label">Description</h3>
           <p className="mt-1.5 whitespace-pre-wrap text-[13px] text-[var(--ink-2)]">{t.description || 'No description.'}</p>
           {t.defer_reason && <p className="mt-3 border border-[var(--line-soft)] bg-[var(--surface-3)] p-2.5 text-[13px]"><b>Deferred:</b> {t.defer_reason}</p>}
+          {['new', 'triaged', 'in_fix', 'reopened'].includes(t.state) && <div className="mt-3"><TicketBlock ticketId={t.id} reason={t.blocked_reason} ask={t.blocked_ask} /></div>}
           {shots.length > 0 && (
             <div className="mt-4">
               <h3 className="label">Screenshots</h3>

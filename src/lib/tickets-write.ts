@@ -77,7 +77,7 @@ export async function ticketsJson(db: Db, ids: string[]) {
   if (!ids.length) return []
   const [{ data: rows }, { data: list }, { data: people }, { data: sprints }, { data: extra }, { data: links }] = await Promise.all([
     db.from('tickets').select('id, key, legacy_key, kind, title, description, state, severity, priority, owner_id, accountable_id, created_by, current_sprint_id, case_id, area_id, requirement_ids, defect_id, fixed_in_build, blocked_reason, defer_reason, duplicate_of, external_ref, logged_on, updated_at').in('id', ids),
-    db.from('ticket_list').select('id, tc_id, zone, page').in('id', ids),
+    db.from('ticket_list').select('id, tc_id, zone, page, blocked_ask').in('id', ids),
     db.from('people').select('id, name'),
     db.from('sprints').select('id, name'),
     db.from('ticket_cases').select('ticket_id, test_cases(tc_id)').in('ticket_id', ids),
@@ -102,7 +102,7 @@ export async function ticketsJson(db: Db, ids: string[]) {
       created_by: t.created_by ? name.get(t.created_by) ?? null : null,
       area: l?.zone ? `${l.zone} · ${l.page}` : null, sprint: t.current_sprint_id ? sprintName.get(t.current_sprint_id) ?? null : null,
       tc_id: l?.tc_id ?? null, tc_ids: [...new Set(tcIds)], requirement_ids: t.requirement_ids ?? [],
-      defect_id: t.defect_id, fixed_in_build: t.fixed_in_build, blocked: t.blocked_reason, defer_reason: t.defer_reason,
+      defect_id: t.defect_id, fixed_in_build: t.fixed_in_build, blocked: t.blocked_reason, blocked_ask: l?.blocked_ask ?? null, defer_reason: t.defer_reason,
       duplicate_of: t.duplicate_of ? key.get(t.duplicate_of) ?? null : null, external_ref: t.external_ref,
       depends_on: out('depends_on'), related: out('related'), parent: out('parent')[0] ?? null,
       blocks: (links ?? []).filter((x) => x.to_id === id && x.kind === 'depends_on').map((x) => key.get(x.from_id)).filter(Boolean),

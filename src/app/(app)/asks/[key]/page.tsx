@@ -21,7 +21,7 @@ export default async function AskPage({ params, searchParams }: { params: Promis
   const { data } = await supabase.from('asks').select('*').eq('key', decodeURIComponent(key).toUpperCase()).maybeSingle()
   if (!data) notFound()
   const row = data as AskRow
-  const [[a], allPeople, { data: open }, { data: thread }, { data: links }, suiteOwner] = await Promise.all([
+  const [[a], allPeople, { data: open }, { data: thread }, { data: links }, suiteOwner, { data: blocking }] = await Promise.all([
     askJson(supabase, [row]),
     loadPeople(),
     // Without a list to come from: every open ask, newest first.
@@ -29,6 +29,8 @@ export default async function AskPage({ params, searchParams }: { params: Promis
     supabase.from('ask_comments').select('id, body, created_at, people(name)').eq('ask_id', row.id).order('created_at'),
     supabase.from('ask_cases').select('test_cases(tc_id, title, text_updated_at, retired_at, retired_as)').eq('ask_id', row.id),
     suiteOwnerId(supabase),
+    // Tickets blocked until this ask is answered.
+    supabase.from('tickets').select('key').eq('blocked_ask_id', row.id).order('key'),
   ])
   const people = allPeople.filter((p) => p.active).map((p) => p.name)
   const suiteOwnerName = allPeople.find((p) => p.id === suiteOwner)?.name ?? null
@@ -94,6 +96,8 @@ export default async function AskPage({ params, searchParams }: { params: Promis
               <AskOwnerDue askKey={a.key} owner={a.owner} due={a.due_on} people={people} canEdit={isOpen} />
               {a.need_key && <div className="flex justify-between gap-3 px-4 py-2.5"><dt className="label">Need key</dt><dd className="mono">{a.need_key}</dd></div>}
               {a.ticket && <div className="flex justify-between gap-3 px-4 py-2.5"><dt className="label">Defect</dt><dd><TicketLink k={a.ticket} /></dd></div>}
+              {!!blocking?.length && <div className="px-4 py-2.5"><dt className="label mb-1">Blocks</dt><dd className="flex flex-wrap gap-2">{blocking.map((t) => <TicketLink key={t.key as string} k={t.key as string} />)}</dd>
+                <p className="mt-1 text-[11.5px] text-[var(--muted)]">{blocking.length === 1 ? 'It unblocks' : 'They unblock'} when this ask is answered.</p></div>}
             </dl>
           </section>
           <section className="card">

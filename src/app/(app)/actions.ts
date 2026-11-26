@@ -727,13 +727,25 @@ export async function setTicketFocus(ticketIds: string[], focus: boolean): Promi
   return {}
 }
 
-export async function setTicketBlocked(ticketId: string, reason: string | null): Promise<{ error?: string }> {
+/**
+ * Block a ticket (or unblock it with null). ask names the ask it waits on (ASK-12); left out, the
+ * database links the open ask on this ticket or its case, or one the reason names. When that ask is
+ * answered, the ticket unblocks by itself.
+ */
+export async function setTicketBlocked(ticketId: string, reason: string | null, ask?: string | null): Promise<{ error?: string }> {
   await getMe()
-  const v = z.object({ id: z.uuid(), reason: z.string().trim().min(3).max(2000).nullable() }).safeParse({ id: ticketId, reason })
-  if (!v.success) return { error: reason === null ? 'Unknown ticket' : 'Say what is blocking it' }
+  const v = z.object({ id: z.uuid(), reason: z.string().trim().min(3).max(2000).nullable(), ask: z.string().trim().regex(/^ASK-\d+$/i, 'An ask key, e.g. ASK-12').nullish() })
+    .safeParse({ id: ticketId, reason, ask: ask?.trim() || null })
+  if (!v.success) return { error: reason === null ? 'Unknown ticket' : v.error.issues[0]?.path[0] === 'ask' ? 'Name the ask like ASK-12' : 'Say what is blocking it' }
   const supabase = await createClient()
+  let askId: string | null = null
+  if (v.data.reason && v.data.ask) {
+    const { data: a } = await supabase.from('asks').select('id').eq('key', v.data.ask.toUpperCase()).maybeSingle()
+    if (!a) return { error: `No ask ${v.data.ask.toUpperCase()}` }
+    askId = a.id as string
+  }
   const { error } = await supabase.from('tickets')
-    .update({ blocked_reason: v.data.reason, blocked_at: v.data.reason ? new Date().toISOString() : null })
+    .update({ blocked_reason: v.data.reason, blocked_at: v.data.reason ? new Date().toISOString() : null, blocked_ask_id: askId })
     .eq('id', v.data.id).not('state', 'in', '(closed,deferred,duplicate,ready_for_retest)')
   if (error) return { error: error.message }
   revalidatePath('/', 'layout')
@@ -846,7 +858,7 @@ ${v.data.note}` : ''}` })
 
 export type CaseDetail = {
   case: { id: string; tc_id: string; title: string; priority: string; automation: string; tester_id: string | null; preconditions: string | null; steps: string | null; test_data: string | null; expected: string | null; zone: string; page: string }
-  ticket: { id: string; key: string; title: string; state: string; severity: string; owner_id: string | null; current_sprint_id: string | null; fixed_in_build: string | null; blocked_reason: string | null; description?: string | null; zone?: string | null; page?: string | null; attachments?: string[] | null; shots?: { name: string; url: string }[] } | null
+  ticket: { id: string; key: string; title: string; state: string; severity: string; owner_id: string | null; current_sprint_id: string | null; fixed_in_build: string | null; blocked_reason: string | null; blocked_ask?: string | null; description?: string | null; zone?: string | null; page?: string | null; attachments?: string[] | null; shots?: { name: string; url: string }[] } | null
   runs: { kind: string; result: string; recorded_at: string; note: string | null; who: string | null; files: { name: string; url: string }[] }[]
   comments: { body: string; created_at: string; who: string | null }[]
 }
@@ -863,7 +875,7 @@ export async function getTicketDetail(ticketId: string): Promise<{ ticket: NonNu
   if (!z.uuid().safeParse(ticketId).success) return { error: 'Unknown ticket' }
   const supabase = await createClient()
   const [{ data: t }, { data: comments }] = await Promise.all([
-    supabase.from('ticket_list').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build, blocked_reason, description, zone, page, attachments').eq('id', ticketId).maybeSingle(),
+    supabase.from('ticket_list').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build, blocked_reason, blocked_ask, description, zone, page, attachments').eq('id', ticketId).maybeSingle(),
     supabase.from('ticket_comments').select('body, created_at, people(name)').eq('ticket_id', ticketId).order('created_at', { ascending: false }).limit(10),
   ])
   if (!t) return { error: 'Ticket not found' }
@@ -880,8 +892,8 @@ export async function getCaseDetail(caseId: string, ticketId?: string | null): P
   const pick = ticketId && z.uuid().safeParse(ticketId).success ? ticketId : null
   const supabase = await createClient()
   const ticketQuery = pick
-    ? supabase.from('tickets').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build, blocked_reason, description, attachments').eq('id', pick).eq('case_id', caseId).maybeSingle()
-    : supabase.from('tickets').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build, blocked_reason, description, attachments')
+    ? supabase.from('ticket_list').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build, blocked_reason, blocked_ask, description, attachments').eq('id', pick).eq('case_id', caseId).maybeSingle()
+    : supabase.from('ticket_list').select('id, key, title, state, severity, owner_id, current_sprint_id, fixed_in_build, blocked_reason, blocked_ask, description, attachments')
       .eq('case_id', caseId).in('state', ['new', 'triaged', 'in_fix', 'reopened', 'ready_for_retest']).order('logged_on', { ascending: false }).limit(1).maybeSingle()
   const [{ data: c }, { data: t }, { data: runs }] = await Promise.all([
     supabase.from('test_cases').select('id, tc_id, title, priority, automation, tester_id, preconditions, steps, test_data, expected, areas(zone, page)').eq('id', caseId).single(),

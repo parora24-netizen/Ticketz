@@ -301,16 +301,19 @@ const today = () => new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 1
  * runner that has failed or stalled.
  */
 export async function loadInbox(db: Db, person: { id: string; role: string }): Promise<InboxItem[]> {
-  const lead = (await oversightIds(db)).includes(person.id)
   const now = today()
-  const [{ data: asks }, { data: retests }, { data: pages }, { data: people }, { data: answered }] = await Promise.all([
+  // Every read that does not depend on another goes out at once; the sections below then run side by side.
+  const [leadIds, { data: asks }, { data: retests }, { data: pages }, { data: people }, { data: answered }] = await Promise.all([
+    oversightIds(db),
     db.from('asks').select('id, key, kind, title, owner_id, due_on, created_at, suite_need, handed_from_id, ask_cases(test_cases(areas(zone)))').eq('state', 'open'),
     db.from('tickets').select('key, title, state, severity, areas(zone)').in('state', ['new', 'triaged', 'in_fix', 'reopened', 'ready_for_retest']).eq('owner_id', person.id),
     db.from('areas').select('id, zone, page, owner_id').eq('owner_id', person.id),
     db.from('people').select('id, name'),
     db.from('asks').select('key, title, outcome, resolved_by').eq('state', 'answered').eq('created_by', person.id).order('resolved_at'),
   ])
+  const lead = leadIds.includes(person.id)
   const name = new Map((people ?? []).map((p) => [p.id, p.name]))
+  const myName = encodeURIComponent(name.get(person.id) ?? '')
   const items: InboxItem[] = []
   // Asks this person raised that their owners answered: check, then close or send back.
   for (const a of answered ?? []) items.push({ type: 'close', title: `Check and close ${a.key}: ${a.title}`, href: `/asks/${a.key}`,
@@ -332,69 +335,76 @@ export async function loadInbox(db: Db, person: { id: string; role: string }): P
   const urgent = mine.filter((t) => t.severity === 'Critical' || t.severity === 'High').sort((a, b) => SEV.indexOf(a.severity) - SEV.indexOf(b.severity))
   for (const t of urgent) items.push({ type: 'ticket', title: `${t.key}: ${t.title}`, href: `/tickets/${encodeURIComponent(t.key)}`, zone: zoneIn(t.areas), detail: `${t.severity} · ${STATE[t.state] ?? t.state}` })
   const rest = mine.length - urgent.length
-  if (rest) {
-    const { data: me } = await db.from('people').select('name').eq('id', person.id).maybeSingle()
-    items.push({ type: 'ticket', title: `${urgent.length ? `${rest} more` : rest} open ticket${rest === 1 ? '' : 's'} assigned to you`, href: `/tickets?view=grid&state=open&owner=${encodeURIComponent(me?.name ?? '')}`, count: rest,
-      detail: Object.entries(mine.filter((t) => !urgent.includes(t)).reduce<Record<string, number>>((m, t) => ({ ...m, [STATE[t.state] ?? t.state]: (m[STATE[t.state] ?? t.state] ?? 0) + 1 }), {})).map(([k, n]) => `${n} ${k}`).join(' · ') })
-  }
+  if (rest) items.push({ type: 'ticket', title: `${urgent.length ? `${rest} more` : rest} open ticket${rest === 1 ? '' : 's'} assigned to you`, href: `/tickets?view=grid&state=open&owner=${myName}`, count: rest,
+    detail: Object.entries(mine.filter((t) => !urgent.includes(t)).reduce<Record<string, number>>((m, t) => ({ ...m, [STATE[t.state] ?? t.state]: (m[STATE[t.state] ?? t.state] ?? 0) + 1 }), {})).map(([k, n]) => `${n} ${k}`).join(' · ') })
+
   // Retests: tickets ready for retest that they own, or whose test case they test. A developer's
   // own ticket that is ready for retest waits on QA, not on them.
-  if (person.role !== 'dev') {
+  const retestItems = async (): Promise<InboxItem[]> => {
+    if (person.role === 'dev') return []
+    const out: InboxItem[] = []
     const owned = (retests ?? []).filter((x) => x.state === 'ready_for_retest')
-    const { data: tested } = await db.from('test_cases').select('id').eq('tester_id', person.id)
-    const caseIds = (tested ?? []).map((c) => c.id as string)
-    const { data: viaCase } = caseIds.length
-      ? await db.from('tickets').select('key, title, severity, areas(zone)').eq('state', 'ready_for_retest').in('case_id', caseIds)
-      : { data: [] }
-    // Tickets with no test case carry their own tester.
-    const { data: ownTester } = await db.from('tickets').select('key, title, severity, areas(zone)').eq('state', 'ready_for_retest').is('case_id', null).eq('tester_id', person.id)
-    const toRetest = [...owned, ...[...(viaCase ?? []), ...(ownTester ?? [])].filter((t, i, all) => !owned.some((o) => o.key === t.key) && all.findIndex((x) => x.key === t.key) === i)]
+    // Whose retest it is: the ticket's own tester, else its case's (the ticket list works that out).
+    const { data: tested } = await db.from('ticket_list').select('key, title, severity, zone').eq('state', 'ready_for_retest').eq('tester_id', person.id)
+    const viaTester = (tested ?? []).map((t) => ({ key: t.key as string, title: t.title as string, severity: t.severity as string, areas: { zone: t.zone } }))
+    const toRetest = [...owned, ...viaTester.filter((t) => !owned.some((o) => o.key === t.key))]
       .sort((a, b) => SEV.indexOf(a.severity) - SEV.indexOf(b.severity))
     const named = toRetest.length > 10 ? toRetest.filter((t) => t.severity === 'Critical' || t.severity === 'High') : toRetest
-    for (const t of named) items.push({ type: 'retest', title: `Retest ${t.key}: ${t.title}`, href: `/tickets/${encodeURIComponent(t.key)}`, zone: zoneIn(t.areas), detail: t.severity })
+    for (const t of named) out.push({ type: 'retest', title: `Retest ${t.key}: ${t.title}`, href: `/tickets/${encodeURIComponent(t.key)}`, zone: zoneIn(t.areas), detail: t.severity })
     const more = toRetest.length - named.length
-    if (more) {
-      const { data: me } = await db.from('people').select('name').eq('id', person.id).maybeSingle()
-      items.push({ type: 'retest', title: `${named.length ? `${more} more` : more} ticket${more === 1 ? '' : 's'} ready for you to retest`, href: `/tickets?view=grid&state=ready_for_retest&tester=${encodeURIComponent(me?.name ?? '')}`, count: more })
-    }
+    if (more) out.push({ type: 'retest', title: `${named.length ? `${more} more` : more} ticket${more === 1 ? '' : 's'} ready for you to retest`, href: `/tickets?view=grid&state=ready_for_retest&tester=${myName}`, count: more })
+    return out
   }
-  // Pages this person writes: cases whose Expected is a placeholder.
+
+  // Pages this person writes: cases whose Expected is a placeholder, and cases that failed in the
+  // latest full run after passing in the one before.
   const pageIds = (pages ?? []).map((p) => p.id)
-  if (pageIds.length) {
-    const { data: thin } = await db.from('test_cases').select('area_id').eq('needs_detail', true).in('area_id', pageIds)
+  const pageItems = async (): Promise<InboxItem[]> => {
+    if (!pageIds.length) return []
+    const out: InboxItem[] = []
+    const [{ data: thin }, { data: full }] = await Promise.all([
+      db.from('test_cases').select('area_id').eq('needs_detail', true).in('area_id', pageIds),
+      db.from('suite_runs').select('run_id, started_at').eq('kind', 'full').not('finished_at', 'is', null).order('started_at', { ascending: false }).limit(2),
+    ])
     for (const p of pages ?? []) {
       const n = (thin ?? []).filter((c) => c.area_id === p.id).length
-      if (n) items.push({ type: 'detail', title: `Complete the Expected result on ${p.zone} · ${p.page}`, href: `/cases?area=${p.id}&needs_detail=1`, zone: p.zone, count: n, detail: `${n} case${n === 1 ? '' : 's'} with placeholder text` })
+      if (n) out.push({ type: 'detail', title: `Complete the Expected result on ${p.zone} · ${p.page}`, href: `/cases?area=${p.id}&needs_detail=1`, zone: p.zone, count: n, detail: `${n} case${n === 1 ? '' : 's'} with placeholder text` })
     }
-  }
-  // A page this person writes that failed in the latest full run after passing in the one before.
-  if (pageIds.length) {
-    const { data: full } = await db.from('suite_runs').select('run_id, started_at').eq('kind', 'full').not('finished_at', 'is', null).order('started_at', { ascending: false }).limit(2)
     if (full?.length === 2) {
-      const [now, before] = full
+      const [latest, before] = full
       const read = async (runId: string) => (await db.from('test_runs').select('case_id, result, test_cases!inner(area_id)').eq('run_id', runId).eq('kind', 'auto').in('test_cases.area_id', pageIds).limit(5000)).data ?? []
-      const [a, b] = await Promise.all([read(now.run_id), read(before.run_id)])
+      const [a, b] = await Promise.all([read(latest.run_id), read(before.run_id)])
       const passedBefore = new Set(b.filter((r) => r.result === 'passed').map((r) => r.case_id))
       const regressed = a.filter((r) => r.result === 'failed' && passedBefore.has(r.case_id))
-      if (regressed.length) items.push({ type: 'run', title: `${regressed.length} case${regressed.length === 1 ? '' : 's'} on your pages failed in the latest full run after passing before`, href: `/cases/runs/${encodeURIComponent(now.run_id)}`, count: regressed.length, overdue: true })
+      if (regressed.length) out.push({ type: 'run', title: `${regressed.length} case${regressed.length === 1 ? '' : 's'} on your pages failed in the latest full run after passing before`, href: `/cases/runs/${encodeURIComponent(latest.run_id)}`, count: regressed.length, overdue: true })
     }
+    return out
   }
-  if (lead) {
-    // Runs that went wrong in the last two days, and one still going past its expected end.
-    const { data: runs } = await db.from('suite_runs').select('run_id, exit, confounded, finished_at, eta, started_at').gte('started_at', new Date(Date.now() - 2 * 864e5).toISOString())
+
+  // Oversight: runs that went wrong, retests nobody gets, proposals to approve, the runner.
+  const leadItems = async (): Promise<InboxItem[]> => {
+    if (!lead) return []
+    const out: InboxItem[] = []
+    const [{ data: runs }, { data: orphans }, { count }, alerts] = await Promise.all([
+      db.from('suite_runs').select('run_id, exit, confounded, finished_at, eta, started_at').gte('started_at', new Date(Date.now() - 2 * 864e5).toISOString()),
+      db.from('ticket_list').select('key').eq('state', 'ready_for_retest').is('tester_id', null),
+      db.from('test_cases').select('id', { count: 'exact', head: true }).not('automation_proposed', 'is', null),
+      runnerAlerts(db),
+    ])
     for (const r of runs ?? []) {
       const href = `/cases/runs/${encodeURIComponent(r.run_id)}`
-      if (r.exit === 'killed' || r.exit === 'refused' || r.exit === 'gave_up') items.push({ type: 'run', title: `Run ${r.run_id} ${r.exit === 'refused' ? 'was refused at the gates' : r.exit === 'killed' ? 'was killed' : 'gave up'}`, href, overdue: true })
-      else if (r.confounded) items.push({ type: 'run', title: `Run ${r.run_id} is confounded: the bundle changed mid-run`, href })
-      if (!r.finished_at && r.eta && r.eta < new Date().toISOString()) items.push({ type: 'run', title: `Run ${r.run_id} is still going past its expected end`, href })
+      if (r.exit === 'killed' || r.exit === 'refused' || r.exit === 'gave_up') out.push({ type: 'run', title: `Run ${r.run_id} ${r.exit === 'refused' ? 'was refused at the gates' : r.exit === 'killed' ? 'was killed' : 'gave up'}`, href, overdue: true })
+      else if (r.confounded) out.push({ type: 'run', title: `Run ${r.run_id} is confounded: the bundle changed mid-run`, href })
+      if (!r.finished_at && r.eta && r.eta < new Date().toISOString()) out.push({ type: 'run', title: `Run ${r.run_id} is still going past its expected end`, href })
     }
-    // Retests nobody gets: ready for retest with no tester, the case's or (with no case) the ticket's own.
-    const { data: orphans } = await db.from('ticket_list').select('key').eq('state', 'ready_for_retest').is('tester_id', null)
-    if (orphans?.length) items.push({ type: 'retest', title: `${orphans.length} ticket${orphans.length === 1 ? ' is' : 's are'} ready for retest with no tester`, href: '/tickets?view=grid&state=ready_for_retest&tester=No%20tester', count: orphans.length, detail: 'Give them a tester so the retest reaches someone' })
-    const { count } = await db.from('test_cases').select('id', { count: 'exact', head: true }).not('automation_proposed', 'is', null)
-    if (count) items.push({ type: 'approve', title: `Approve or turn down ${count} "not automatable" proposal${count === 1 ? '' : 's'}`, href: '/cases/automation#proposals', count })
-    items.push(...await runnerAlerts(db))
+    if (orphans?.length) out.push({ type: 'retest', title: `${orphans.length} ticket${orphans.length === 1 ? ' is' : 's are'} ready for retest with no tester`, href: '/tickets?view=grid&state=ready_for_retest&tester=No%20tester', count: orphans.length, detail: 'Give them a tester so the retest reaches someone' })
+    if (count) out.push({ type: 'approve', title: `Approve or turn down ${count} "not automatable" proposal${count === 1 ? '' : 's'}`, href: '/cases/automation#proposals', count })
+    out.push(...alerts)
+    return out
   }
+
+  const [r, p, l] = await Promise.all([retestItems(), pageItems(), leadItems()])
+  items.push(...r, ...p, ...l)
   const rank = (i: InboxItem) => (i.overdue ? 0 : i.due_on ? 1 : 2)
   return items.sort((a, b) => rank(a) - rank(b) || (a.due_on ?? '9').localeCompare(b.due_on ?? '9'))
 }

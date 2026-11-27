@@ -4,12 +4,20 @@ import { Flash } from '@/components/flash'
 import { SprintsGrid } from '@/components/grid/list-grids'
 import { Tabs, nowSprints, sprintTabs } from '@/components/tabs'
 import { PageHeader } from '@/components/ui'
-import { runningSprints, fmtDate, isEarlierSprint, loadAreas, loadCases, loadSprintAreas, loadSprints, loadTickets, loadHolidays } from '@/lib/data'
+import { runningSprints, fmtDate, isEarlierSprint, loadAreas, loadSprintAreas, loadSprints, loadHolidays, fetchAll } from '@/lib/data'
+import { createClient } from '@/lib/supabase/server'
 
 
 export default async function SprintsPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const sp = await searchParams
-  const [sprints, areas, sprintAreas, cases, tickets, holidays] = await Promise.all([loadSprints(), loadAreas(), loadSprintAreas(), loadCases(), loadTickets(), loadHolidays()])
+  // Only the columns the counts need: reading whole cases and tickets made this page slow.
+  const db = await createClient()
+  type LightCase = { area_id: string; manual_result: string | null; auto_result: string | null }
+  type LightTicket = { current_sprint_id: string | null; state: string; zone: string | null; page: string | null; case_id: string | null }
+  const [sprints, areas, sprintAreas, cases, tickets, holidays] = await Promise.all([loadSprints(), loadAreas(), loadSprintAreas(),
+    fetchAll<LightCase>((from, to) => db.from('case_latest').select('area_id, manual_result, auto_result').order('id').range(from, to)),
+    fetchAll<LightTicket>((from, to) => db.from('ticket_list').select('current_sprint_id, state, zone, page, case_id').order('id').range(from, to)),
+    loadHolidays()])
   // T1 and F1 are history: one click away, not in the list.
   const showEarlier = sp.earlier === '1'
   const running = runningSprints(sprints)

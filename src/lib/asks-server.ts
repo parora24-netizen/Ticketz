@@ -303,16 +303,16 @@ const today = () => new Date(Date.now() + 330 * 60_000).toISOString().slice(0, 1
 export async function loadInbox(db: Db, person: { id: string; role: string }): Promise<InboxItem[]> {
   const lead = (await oversightIds(db)).includes(person.id)
   const now = today()
-  const [{ data: asks }, { data: retests }, { data: pages }, { data: people }] = await Promise.all([
+  const [{ data: asks }, { data: retests }, { data: pages }, { data: people }, { data: answered }] = await Promise.all([
     db.from('asks').select('id, key, kind, title, owner_id, due_on, created_at, suite_need, handed_from_id, ask_cases(test_cases(areas(zone)))').eq('state', 'open'),
     db.from('tickets').select('key, title, state, severity, areas(zone)').in('state', ['new', 'triaged', 'in_fix', 'reopened', 'ready_for_retest']).eq('owner_id', person.id),
     db.from('areas').select('id, zone, page, owner_id').eq('owner_id', person.id),
     db.from('people').select('id, name'),
+    db.from('asks').select('key, title, outcome, resolved_by').eq('state', 'answered').eq('created_by', person.id).order('resolved_at'),
   ])
   const name = new Map((people ?? []).map((p) => [p.id, p.name]))
   const items: InboxItem[] = []
   // Asks this person raised that their owners answered: check, then close or send back.
-  const { data: answered } = await db.from('asks').select('key, title, outcome, resolved_by').eq('state', 'answered').eq('created_by', person.id).order('resolved_at')
   for (const a of answered ?? []) items.push({ type: 'close', title: `Check and close ${a.key}: ${a.title}`, href: `/asks/${a.key}`,
     detail: `${OUTCOME_LABEL[a.outcome as keyof typeof OUTCOME_LABEL] ?? 'Answered'}${a.resolved_by ? ` by ${name.get(a.resolved_by) ?? 'someone'}` : ''}` })
   for (const a of asks ?? []) {

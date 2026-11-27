@@ -1,5 +1,6 @@
 import { sprintHref } from '@/lib/links'
 import Link from '@/components/link'
+import { TabLabel } from '@/components/tab-label'
 
 /** Page-level tabs: views of one place, rather than separate screens. */
 export function Tabs({ items, active }: { items: { href: string; label: string; key: string }[]; active: string }) {
@@ -9,7 +10,7 @@ export function Tabs({ items, active }: { items: { href: string; label: string; 
         <Link key={t.key} href={t.href} aria-current={t.key === active ? 'page' : undefined}
           className={`-mb-px border-b-2 px-3 pb-2 text-[13px] ${
             t.key === active ? 'border-[var(--navy)] font-semibold text-[var(--navy)]' : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'}`}>
-          {t.label}
+          <TabLabel label={t.label} />
         </Link>
       ))}
     </nav>

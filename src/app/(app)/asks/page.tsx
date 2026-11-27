@@ -20,7 +20,10 @@ export default async function AsksPage({ searchParams }: { searchParams: Promise
   const all = sp.view === 'all'
   const [items, asks, people] = await Promise.all([
     all ? Promise.resolve([]) : loadInbox(supabase, me),
-    all ? supabase.from('asks').select('*').order('created_at', { ascending: false }).limit(1000).then(({ data }) => askJson(supabase, (data ?? []) as AskRow[])) : Promise.resolve([]),
+    all ? supabase.from('asks').select('*').order('created_at', { ascending: false }).limit(1000).then(async ({ data }) => (await askJson(supabase, (data ?? []) as AskRow[]))
+      // Only what the grid shows: each ask's text, answer and case list stay on its own page.
+      .map((a) => ({ key: a.key, kind: a.kind, outcome: a.outcome, suite_need: a.suite_need?.slice(0, 200) ?? null, handed_from: a.handed_from, title: a.title, zone: a.zone, sprint: a.sprint,
+        owner: a.owner, due_on: a.due_on, state: a.state, status: a.status, cases_waiting: a.cases_waiting, created_by: a.created_by, need_key: a.need_key }))) : Promise.resolve([]),
     loadPeople(),
   ])
   return (
